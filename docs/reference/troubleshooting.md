@@ -18,6 +18,28 @@ content in memory. Start prefetch on row selection. Keep the scene bundle
 small. Move reusable assets to dependency bundles. Do not load all packages at
 startup.
 
+For Ukrainian Forest, the two declared bundles total `647869804` bytes. The
+exact combined-package run measured `24.449 s` for the dependency bundle,
+`0.833 s` for the scene bundle, and `25.347 s` through verified registration.
+Confirm waited `23.442 s` for the remaining selected-map work. This is
+expected verified content I/O. It is not evidence that a different scene
+loaded.
+
+## Brown proxy appears before the detailed map
+
+Confirm that `ShowNativeLoadingScreenForPackageScene` called the shipped
+`GameManagerNetwork.ShowLoadingScreen()` before runtime terrain/material
+preparation. On the supported build, the show method is at RVA `0x00916210`
+and the hide method is at RVA `0x0090E950`.
+
+Log `LoadingScreen.activeSelf` and `activeInHierarchy`; both must be `true`
+at this boundary. Do not use `LoadingScreenVisible` as the canvas probe. Its
+getter at RVA `0x0091A840` returns `_hideLoadingScreenSoon` at offset `0x2A4`.
+
+If the brown world remains after readiness, inspect live `TerrainData`, active
+portable/error shaders, and the map companion world contract. That is a
+different failure from a one-frame presentation gap.
+
 ## Companion cannot read an asset
 
 Call `LoadVerifiedMapDependencyAsset<T>(mapId, assetPath)` after bundle
@@ -42,6 +64,17 @@ Check that enemy markers and the player are inside the same playable walls and
 navigation graph. Check reciprocal line of sight. Check `WeaponsAI` and its
 weapon list. Use `RaidManager.ServerSpawnAI(false)`. Grenade damage alone does
 not prove valid firearm AI.
+
+## AI spawns but does not move
+
+Confirm that the exact-scene companion created or reused one map-scoped
+`AstarPath` and one enabled `Pathfinding.RVO.RVOSimulator` on the same host.
+The shipped `BOT V2` uses `FollowerEntity`; a scanned graph without active RVO
+can leave every bot stationary.
+
+Measure motion from `BrainAI.agent.position`. Do not use
+`BrainAI.transform.position`; that transform belongs to the stationary network
+root while the `AgentController` and `FollowerEntity` move on the model child.
 
 ## Restart loops on a map-ready error
 

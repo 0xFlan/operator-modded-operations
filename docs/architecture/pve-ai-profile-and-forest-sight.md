@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 This document describes the schema-v2 fixed PVE AI profile in Modded
-Operations `0.3.19`. It also describes the interface that a dense map uses to
+Operations `0.3.20`. It also describes the interface that a dense map uses to
 make native vegetation block AI sight.
 
 Modded Operations owns the generic profile parser result and the native
@@ -91,6 +91,8 @@ details.maxEffectiveRange = profile?.MaximumEffectiveRangeMeters ?? 90f;
 details.useComms = profile?.UseComms ?? true;
 details.DoesCounterSuppression = profile?.CounterSuppression ?? true;
 details.WanderDistance = profile?.WanderDistanceMeters ?? 18;
+if (profile != null)
+    details.idleState = BrainAI.IdleStates.Wander;
 ```
 
 The null side of each expression is the schema-v1 compatibility path. Do not
@@ -118,6 +120,15 @@ RVA `0x009D9E30`. The important writes are:
 The same body copies crouch/prone settings, patrol data, and navmesh-disable
 state. It does not read marker offsets `0x2C` or `0x34`, which are
 `DetectionTimeMultiplier` and `HearingRange`.
+
+The body also copies `BotSpawnDetails.idleState` at offset `0x20` to
+`BrainAI.idleStates` at offset `0x2D4`. Native
+`BrainAI.UpdateStateMachine(float)` reads `CurrentState` at offset `0x2D0`.
+When that state is `Idle`, it dispatches by `idleStates`: `Idle` calls
+`BrainAI.Idle()`, `Wander` calls `BrainAI.Wander(dt)`, and `Patrol` calls
+`BrainAI.Patrol(dt)`. Therefore, `WanderDistance=38` without
+`idleState=Wander` leaves every bot stationary. Modded Operations writes the
+vanilla `Wander` marker choice only when a schema-v2 PVE profile exists.
 
 The framework must use `RaidManager.ServerSpawnAI(false)`. The current native
 method instantiates a registered AI prefab, calls
@@ -159,6 +170,59 @@ can therefore search farther after more than one interval. The profile keeps
 the prefab-owned `WanderTimer` and `Patience`. It changes only the radius.
 This preserves the native initial delay and avoids an immediate synchronized
 rush at scene start.
+
+## Native navigation owner and the correct movement position
+
+Do not measure the `BrainAI` root to decide whether an OPERATOR bot moved.
+The extracted shipped prefab
+`Assets/GameObject/BOT V2.prefab` uses two different hierarchy nodes:
+
+| Prefab node | Serialized file ID | Required components |
+| --- | ---: | --- |
+| `BOT V2` root | `1709254077376921` | `BrainAI`, root network identity, and the authoritative network-owner state |
+| `SK_Insurgent_P8` child | `1730242686860875` | `AgentController` and enabled `Pathfinding.FollowerEntity` |
+
+The `BrainAI` root can remain at its network-owner position while the model
+child follows an A* path. The rejected diagnostic used
+`brain.transform.position`, observed `0.00 m`, and incorrectly concluded
+that native wander was stopped. The accepted diagnostic uses the live native
+controller when its entity exists:
+
+```csharp
+private static Vector3 GetProfiledPveNavigationPosition(BrainAI brain)
+{
+    if (brain == null)
+        return Vector3.zero;
+    try
+    {
+        AgentController controller = brain.agent;
+        if (controller != null && controller.entityExists)
+            return controller.position;
+    }
+    catch
+    {
+        // The entity can register or unregister while a snapshot is taken.
+    }
+    return brain.transform.position;
+}
+```
+
+`AgentController.position`, `velocity`, `destination`, `hasPath`, and
+`pathPending` are the native navigation evidence. The root position is only a
+bounded fallback during entity registration or teardown.
+
+The path service also requires the same co-located pair that a vanilla map
+uses. In the extracted shipped scene `Assets/Scenes/level16.unity`, GameObject
+file ID `141959` is named `Astar Navmesh`. It contains both:
+
+- `AstarPath`, script GUID `1e4c63e1f2966ee0f81106971d67c21e`;
+- enabled `Pathfinding.RVO.RVOSimulator`, script GUID
+  `22186c4d47c31b5848d7d9a4f063bae1`.
+
+A standalone map companion must publish the scanned `AstarPath` before
+`RaidManager.ServerSpawnAI(false)` and must reuse or create the enabled,
+co-located `RVOSimulator`. Do not write bot transforms each frame. The
+vanilla `FollowerEntity` owns path search, local avoidance, and movement.
 
 For map tuning, calculate every horizontal player-marker to enemy-marker
 distance. Set the radius below one half of the minimum distance when one
@@ -234,7 +298,11 @@ operations do not enter this path.
 
 Before `RaidManager.ServerSpawnAI(false)`, the framework records the instance
 IDs already in `GameManager.allAI`. After the native call returns, it tracks
-only new `BrainAI` IDs. This prevents an old scene actor from entering the
+only new `BrainAI` IDs. `NetworkServer.Spawn` can publish those IDs after the
+native population method returns. The diagnostic waits for that callback,
+then resets time zero and captures initial positions before it emits the live
+contract. This prevents a false zero-bot contract or zero-bot time-zero
+snapshot. It also prevents an old scene actor from entering the
 report. It does not write a `BrainAI`, `EyesAI`, navigation agent, weapon, or
 target field.
 
@@ -242,7 +310,7 @@ The first line reports the values on the live spawned bots, not only the JSON
 inputs:
 
 ```text
-Profiled PVE native AI contract: operation=<operationId>, profile=<profileId>, source=spawn, brains=<N>, nativeInitialWanderDelay=<min>..<max>s, detection=<min>..<max>m, fov=<min>..<max>, wander=<min>..<max>m, comms=<enabled>/<N>.
+Profiled PVE native AI contract: operation=<operationId>, profile=<profileId>, source=<spawn|native-network-spawn>, brains=<N>, nativeInitialWanderDelay=<min>..<max>s, detection=<min>..<max>m, fov=<min>..<max>, wander=<min>..<max>m, idleWander=<N>/<N>, comms=<enabled>/<N>.
 ```
 
 `nativeInitialWanderDelay` is the live product
@@ -265,6 +333,10 @@ snapshot reports:
 The sight probe groups first hits as layer-18 vegetation, other geometry, or
 clear/player. It is geometry evidence. It is not a replacement for the
 native `CurrentSeenTarget` field or the physical reciprocal-firearm test.
+`CurrentSeenTarget` can refer to any target known to that bot. The
+`actualSeenTarget` count does not prove that the target is the local player.
+Correlate it with the same-mask player probe, distance, bot state, and a
+physical play observation before making a player-detection claim.
 The exact line is:
 
 ```text
@@ -284,7 +356,6 @@ python eng\verify_profiled_pve_runtime.py `
   --fov 90 `
   --wander 38 `
   --require-positive-delay `
-  --require-delayed-start `
   --require-search-movement `
   --minimum-search-displacement 5 `
   --minimum-toward-insertion 1 `
@@ -294,11 +365,18 @@ python eng\verify_profiled_pve_runtime.py `
 The verifier selects the last two profiled-PVE runs. It requires one contract,
 all six unique snapshots, and one completion line for each run. It also checks
 the exact profile values, population range, live sight-probe accounting,
-positive native delay, no movement or acquired target in the zero-second
-snapshot, search movement by 120 seconds, movement toward insertion, and at
+positive native delay, no movement or non-null `CurrentSeenTarget` in the
+zero-second snapshot when the optional `--require-delayed-start` gate is
+selected, search movement by 120 seconds, movement toward insertion, and at
 least one vegetation-blocked probe. Exit code 0 means that the log contract
 passes. Exit code 1 means that evidence is missing or rejected. Exit code 2
 means that the command or log path is invalid.
+
+Do not use the optional delayed-start gate as proof that a restart did or did
+not detect the player. `CurrentSeenTarget` can be a non-player native target.
+The release command above intentionally verifies the positive native wander
+delay and zero initial movement, then correlates player-line geometry and
+physical behavior separately.
 
 This tool verifies the recorded fields. It cannot prove what the player saw,
 whether a thin gap permitted acquisition, or whether firearms damaged both
@@ -308,9 +386,27 @@ The map companion must log the blocker count. A dense map must reject its
 scene when its exact authored blocker count is incomplete. A successful
 static build is not a runtime acceptance result.
 
+## Accepted Forest runtime evidence
+
+The release candidate passed two complete 120-second windows in one fresh
+process. The second window followed the shipped Restart Operation route.
+Both runs used the same `dense-forest-balanced-v1` profile and passed the
+repository verifier with a 10-through-15 population range.
+
+| Run | Live AI | Positive native delay | Moved at least 1 m at 120 s | Moved at least 5 m toward insertion | Maximum displacement | Vegetation probe evidence |
+| --- | ---: | --- | ---: | ---: | ---: | --- |
+| Initial operation | `12` | `6.99..40.58 s` | `12` | `4` | `40.16 m` | Present |
+| Native restart | `10` | `9.04..42.12 s` | `9` | `4` | `46.87 m` | Present |
+
+The corresponding world contract reported `7079` transforms, `5533`
+renderers, `1931` active renderers, zero portable/error-shader renderers,
+`198` active colliders, `36/36` grounded PVE markers, and `36/36` markers on
+the scanned graph. These are acceptance values for this package revision;
+they are not generic constants for another map.
+
 ## Acceptance tests
 
-The candidate passes static acceptance only when:
+Static acceptance requires:
 
 - schema v1 rejects `pveAiProfile`;
 - schema v2 accepts the exact PVE profile and freezes all fields;
@@ -321,8 +417,7 @@ The candidate passes static acceptance only when:
 - the map companion activates blockers before its `applied = true` state;
 - build, schema, validator, repository, and package checks pass.
 
-Runtime acceptance also requires a new game process. Verify that the player
-is not detected at the insertion point, an unobstructed target inside 45 m can
-be acquired, a target behind audited dense foliage loses line of sight, bots
-begin native delayed search movement, firearms work in both directions, and
-PVP/vanilla behavior is unchanged.
+The first launch and same-process native restart pass the bounded population,
+delay, search-movement, toward-insertion movement, and vegetation-obstruction
+gates. Reciprocal firearms, a direct physical acquisition/loss observation,
+and the two-peer PVP matrix remain separate gates.

@@ -16,13 +16,14 @@ artifact. A reviewer can rebuild, diff, and audit the framework.
 
 ## 2. Release DLL decompilation snapshot
 
-`decompiled/release-0.3.19` is ILSpy `10.1.1.8388` output from the exact
-159,232-byte release DLL with SHA-256
-`257F5449463BF2D2E2BD71CBC3AEA513A1788E882578CA98B631FB70E2EB1F25`.
+`decompiled/release-0.3.20` is ILSpy `10.1.1.8388` output from the exact
+165,888-byte release DLL with SHA-256
+`193EEFB44511AA8E0A102D9D145C7BD1DEBDBFF4021A7C81E8C991A53A3BE1EB`.
 It lets a reviewer inspect what the compiler emitted even when the release DLL
 is distributed separately.
 
-`decompiled/archive/release-0.3.18` preserves the previous accepted snapshot.
+`decompiled/archive/release-0.3.19` preserves the previous snapshot.
+`decompiled/archive/release-0.3.18` preserves an earlier accepted snapshot.
 `decompiled/archive/release-0.3.17` preserves the earlier rejected snapshot
 with the old 52,241.375-lux daylight value. Do not copy that rejected value
 into a current build.
@@ -117,7 +118,28 @@ incomplete.
 The documentation states the bounded behavior that the adapter depends on. It
 does not reproduce the full proprietary method body.
 
-## 7. Native board behavior evidence
+## 7. Native loading-presentation evidence
+
+Read-only supported-build inspection established these native addresses:
+
+```text
+GameManagerNetwork.ShowLoadingScreen  RVA 0x00916210
+GameManagerNetwork.HideLoadingScreen  RVA 0x0090E950
+GameManagerNetwork.get_LoadingScreenVisible RVA 0x0091A840
+```
+
+`OnAllPlayersLoaded(false)` enters `ShowLoadingScreen`. The method activates
+the shipped loading canvas, freezes the current player body, clears velocity,
+and closes the infiltration UI. The property getter returns the private
+`_hideLoadingScreenSoon` byte at offset `0x2A4`; it is not the canvas active
+state. Runtime diagnostics therefore read `LoadingScreen.activeSelf` and
+`activeInHierarchy`.
+
+The framework calls the exact shipped show method when an additive package
+scene enters and before runtime terrain/material preparation. The persistent
+native manager keeps ownership of the hide transition.
+
+## 8. Native board behavior evidence
 
 The supported launch entry is:
 
@@ -136,7 +158,7 @@ The framework source is the executable proof of the adapter order. The
 installed interop types prove the called signatures. Physical first-Confirm
 testing proves the user flow.
 
-## 8. Serialized asset inspection
+## 9. Serialized asset inspection
 
 Use a Unity asset reader for scene, prefab, material, and shader records. Set
 the fallback version to `6000.3.8f1` for version-stripped Unity files when the

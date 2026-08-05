@@ -7,7 +7,7 @@ this repository. It is written for a human maintainer and for an automated
 coding agent. Use the exact names in this document. Do not infer a game
 contract from a similar name.
 
-The framework version is `0.3.19`. The plugin identity is
+The framework version is `0.3.20`. The plugin identity is
 `operator.modded-operations`. The assembly is
 `OperatorModdedOperations.dll`. The required Core version is
 `0.2.0-alpha.3`.
@@ -44,7 +44,7 @@ for a map name. A release source must contain no map identity.
 The plugin attribute is the first closed gate:
 
 ```csharp
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.20")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 ```
@@ -137,6 +137,19 @@ terrain declaration, and map-companion readiness when required.
 
 The companion must finish its strict world contract before the framework
 creates PVE actors. Do not replace this barrier with an arbitrary frame delay.
+
+At the exact additive-scene boundary,
+`ShowNativeLoadingScreenForPackageScene` calls the shipped
+`GameManagerNetwork.ShowLoadingScreen()` before terrain or material
+preparation. The supported native method is at RVA `0x00916210`. Vanilla
+`GameManagerNetwork.OnAllPlayersLoaded(false)` uses the same route. The method
+activates the shipped canvas, freezes the current player body, clears
+velocity, and closes infiltration UI. The native hide method is at RVA
+`0x0090E950`; the persistent manager keeps ownership of that transition.
+
+Use `LoadingScreen.activeSelf` and `activeInHierarchy` as the diagnostic.
+`LoadingScreenVisible` is not the canvas state on this build. Its getter at
+RVA `0x0091A840` returns `_hideLoadingScreenSoon` at offset `0x2A4`.
 
 The framework remains the only owner of loaded package bundles. A companion
 can borrow an asset from a verified dependency bundle with this public API:
@@ -257,7 +270,7 @@ the four GPNVG tubes can resolve terrain and foliage outside the brighter
 ECOTI circle. The 2026-08-04 repeat run accepted white phosphor across all
 four tubes and visible world detail outside that circle.
 
-For day choices, `0.3.18` copies the audited
+For day choices, `0.3.20` copies the audited
 `level11/PVP Woods Warehouse` donor instead of the rejected generic
 `level6/PVP map` donor:
 
@@ -320,7 +333,8 @@ reciprocal firearm damage or a remote PVP peer.
 ## 15. Release layout
 
 The Git repository publishes the authored source and the hash-pinned
-`decompiled/release-0.3.19` verification snapshot. The previous `0.3.18` and
+`decompiled/release-0.3.20` verification snapshot. The previous `0.3.19`,
+`0.3.18`, and
 rejected `0.3.17` snapshots are under `decompiled/archive`. The release ZIP contains
 the compiled DLL, not the bracketed repository placeholders. Use
 [the package placeholder](packaging/README-PACKAGE-PLACEHOLDER.md) as the exact
@@ -330,12 +344,12 @@ The framework archive contains Core and framework files only. A map archive
 contains package data and its map companion only. A complete convenience
 archive can contain both ownership domains.
 
-The `0.3.19` candidate framework archive is 940,720 bytes with SHA-256
-`05FB3FE1841266B17672E5ABDFDBF07F1C91E309A9E069ABA8893E26F1A71B0E`.
-Its `OperatorModdedOperations.dll` is 159,232 bytes with SHA-256
-`257F5449463BF2D2E2BD71CBC3AEA513A1788E882578CA98B631FB70E2EB1F25`.
-The archive passed a full 7-Zip integrity test. These identities do not close
-the physical Forest AI acceptance gate.
+The `0.3.20` framework archive is 961,620 bytes with SHA-256
+`8B09D64FCFCEBB3A4B086913F0734657C2E71CAB023C552E11D8F0715DF324A3`.
+Its `OperatorModdedOperations.dll` is 165,888 bytes with SHA-256
+`193EEFB44511AA8E0A102D9D145C7BD1DEBDBFF4021A7C81E8C991A53A3BE1EB`.
+The archive passed a full 7-Zip integrity test and its internal checksum
+manifest.
 
 Never ship QA flags, force-scene code, test controls, private logs, copied game
 DLLs, or extracted game assets.
@@ -509,7 +523,7 @@ companion details; this framework BIBLE does not invent map data.
 
 ## 23. Schema-v2 fixed PVE AI profile
 
-Modded Operations `0.3.19` and Operator Mod API `0.2.0-alpha.3` add the
+Modded Operations `0.3.20` and Operator Mod API `0.2.0-alpha.3` add the
 optional `pveAiProfile` object. Only a schema-v2 PVE operation can own it. PVP
 rejects it. Schema v1 rejects it. There is no difficulty UI and no process-
 global AI write.
@@ -562,5 +576,8 @@ not set a destination, target, vision field, weapon field, or AI state. Its
 linecast is geometry evidence, not acquisition proof. Physical camera behavior
 and reciprocal firearm damage remain required.
 
-This candidate is `PROVEN-STATIC`. Do not label it `SUPPORTED` until its
-physical first-launch and repeat-launch behavior matrix passes.
+The first launch and same-process native restart are `PROVEN-RUNTIME` for the
+tested Forest scope. The exact-package 120-second windows created 12 and 10
+native bots, moved 12 and 9 bots, moved 4 and 4 bots toward insertion, and recorded
+vegetation first-hit evidence. Reciprocal firearm damage remains a separate
+gate.

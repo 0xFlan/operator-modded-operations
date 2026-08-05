@@ -23,7 +23,7 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.20")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed class CerberusNativeTabFix : BasePlugin
@@ -201,6 +201,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
         public float ProfiledPveAiDiagnosticNextProbeAt = -1f;
         public int ProfiledPveAiDiagnosticSnapshotIndex;
         public bool ProfiledPveAiDiagnosticComplete;
+        public bool ProfiledPveAiDiagnosticAwaitingBrains;
+        public bool ProfiledPveNativeContractLogged;
         public readonly List<Object> RuntimePvpAssets = new List<Object>();
     }
 
@@ -2508,6 +2510,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
             return;
         }
         ReleaseStandaloneSceneContracts(operation);
+        ShowNativeLoadingScreenForPackageScene(operation);
         operation.SceneHandle = scene.handle;
         operation.BootstrapRoot = null;
         operation.BootstrapIdentity = null;
@@ -2540,6 +2543,44 @@ public sealed class CerberusNativeTabFix : BasePlugin
         operation.PveSpawnAttempted = false;
         operation.PveEnemyCount = 0;
         operation.RaidUtilityRoot = null;
+    }
+
+    private void ShowNativeLoadingScreenForPackageScene(
+        ActiveMapOperation operation)
+    {
+        // Vanilla GameManagerNetwork.OnAllPlayersLoaded(false) enters this
+        // exact method at RVA 0x00916210. It activates the shipped loading
+        // canvas, freezes the current player body, clears velocity, and closes
+        // infiltration UI. A standalone package creates its replacement
+        // GameMode on the next Unity frame, so call the same route here to
+        // close the one-frame gap in which the package's authored proxy terrain
+        // could otherwise be visible before runtime terrain/material services.
+        // GameManagerNetwork keeps ownership of the matching hide transition.
+        try
+        {
+            var manager = GameManagerNetwork.instance;
+            if (manager == null || manager.LoadingScreen == null)
+            {
+                log.LogWarning("Standalone package scene could not enter the " +
+                    "shipped loading presentation because GameManagerNetwork " +
+                    "or its LoadingScreen was unavailable.");
+                return;
+            }
+            manager.ShowLoadingScreen();
+            log.LogInfo("Standalone package scene entered the shipped " +
+                "GameManagerNetwork loading presentation before runtime " +
+                "terrain/material preparation: map=" + operation.Map.Id +
+                ", loadingScreenActiveSelf=" + manager.LoadingScreen.activeSelf +
+                ", loadingScreenActiveInHierarchy=" +
+                manager.LoadingScreen.activeInHierarchy +
+                ", nativeHideSoonFlag=" + manager.LoadingScreenVisible + ".");
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning("Standalone package scene could not enter the " +
+                "shipped loading presentation: " + ex.GetType().Name + ": " +
+                ex.Message);
+        }
     }
 
     private void OnSceneUnloaded(Scene scene)
@@ -4541,17 +4582,58 @@ public sealed class CerberusNativeTabFix : BasePlugin
     {
         if (!IsProfiledPveDiagnosticOperation(operation))
             return;
-        operation.ProfiledPveAiDiagnosticStartedAt = Time.realtimeSinceStartup;
-        operation.ProfiledPveAiDiagnosticNextProbeAt =
-            operation.ProfiledPveAiDiagnosticStartedAt;
+        operation.ProfiledPveDiagnosticBrains.Clear();
+        operation.ProfiledPveInitialBrainPositions.Clear();
+        operation.ProfiledPveAiDiagnosticStartedAt = -1f;
+        operation.ProfiledPveAiDiagnosticNextProbeAt = Time.realtimeSinceStartup;
         operation.ProfiledPveAiDiagnosticSnapshotIndex = 0;
         operation.ProfiledPveAiDiagnosticComplete = false;
+        operation.ProfiledPveAiDiagnosticAwaitingBrains = true;
+        operation.ProfiledPveNativeContractLogged = false;
         GameObject player = gameManager == null ? null : GameManager.myPlayer;
         operation.ProfiledPveInitialPlayerPositionCaptured = player != null;
         if (player != null)
             operation.ProfiledPveInitialPlayerPosition = player.transform.position;
+        if (!TryBeginProfiledPveAiDiagnostics(operation, gameManager, "spawn"))
+        {
+            log.LogInfo("Profiled PVE AI diagnostic is waiting for the native " +
+                "NetworkServer spawn callback for operation=" +
+                operation.Operation.Id + ".");
+        }
+    }
+
+    private bool TryBeginProfiledPveAiDiagnostics(
+        ActiveMapOperation operation,
+        GameManager gameManager,
+        string source)
+    {
         RefreshProfiledPveDiagnosticBrains(operation, gameManager);
-        LogProfiledPveNativeAiContract(operation, "spawn");
+        if (operation.ProfiledPveDiagnosticBrains.Count == 0)
+            return false;
+
+        float now = Time.realtimeSinceStartup;
+        operation.ProfiledPveAiDiagnosticAwaitingBrains = false;
+        operation.ProfiledPveAiDiagnosticStartedAt = now;
+        operation.ProfiledPveAiDiagnosticNextProbeAt = now;
+        operation.ProfiledPveAiDiagnosticSnapshotIndex = 0;
+        operation.ProfiledPveInitialBrainPositions.Clear();
+        foreach (BrainAI brain in operation.ProfiledPveDiagnosticBrains)
+        {
+            if (brain != null)
+            {
+                operation.ProfiledPveInitialBrainPositions[brain.GetInstanceID()] =
+                    GetProfiledPveNavigationPosition(brain);
+            }
+        }
+        GameObject player = gameManager == null ? null : GameManager.myPlayer;
+        if (player != null)
+        {
+            operation.ProfiledPveInitialPlayerPositionCaptured = true;
+            operation.ProfiledPveInitialPlayerPosition = player.transform.position;
+        }
+        LogProfiledPveNativeAiContract(operation, source);
+        operation.ProfiledPveNativeContractLogged = true;
+        return true;
     }
 
     private static void RefreshProfiledPveDiagnosticBrains(
@@ -4579,8 +4661,27 @@ public sealed class CerberusNativeTabFix : BasePlugin
             }
             operation.ProfiledPveDiagnosticBrains.Add(brain);
             operation.ProfiledPveInitialBrainPositions[instanceId] =
-                brain.transform.position;
+                GetProfiledPveNavigationPosition(brain);
         }
+    }
+
+    private static Vector3 GetProfiledPveNavigationPosition(BrainAI brain)
+    {
+        if (brain == null)
+            return Vector3.zero;
+        try
+        {
+            AgentController controller = brain.agent;
+            if (controller != null && controller.entityExists)
+                return controller.position;
+        }
+        catch
+        {
+            // Fall back to the network root while a native entity registers
+            // or unregisters. The shipped BOT V2 hierarchy keeps BrainAI on
+            // the network root and FollowerEntity on the moving model child.
+        }
+        return brain.transform.position;
     }
 
     private void LogProfiledPveNativeAiContract(
@@ -4598,6 +4699,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
         int maximumWander = int.MinValue;
         float minimumFov = float.MaxValue;
         float maximumFov = float.MinValue;
+        int idleWanderEnabled = 0;
         int commsEnabled = 0;
         foreach (BrainAI brain in operation.ProfiledPveDiagnosticBrains)
         {
@@ -4614,6 +4716,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
                 maximumWander = Math.Max(maximumWander, brain.WanderDistance);
                 minimumFov = Mathf.Min(minimumFov, brain.EyesFOVAngle);
                 maximumFov = Mathf.Max(maximumFov, brain.EyesFOVAngle);
+                if (brain.idleStates == BrainAI.IdleStates.Wander)
+                    idleWanderEnabled++;
                 if (brain.useComms)
                     commsEnabled++;
                 count++;
@@ -4644,7 +4748,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
             minimumFov.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
             ".." + maximumFov.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
             ", wander=" + minimumWander + ".." + maximumWander +
-            "m, comms=" + commsEnabled + "/" + count + ".";
+            "m, idleWander=" + idleWanderEnabled + "/" + count +
+            ", comms=" + commsEnabled + "/" + count + ".";
         if (minimumDelay <= 0f)
             log.LogWarning(message + " At least one native prefab has no initial wander delay.");
         else
@@ -4655,7 +4760,6 @@ public sealed class CerberusNativeTabFix : BasePlugin
     {
         if (!IsProfiledPveDiagnosticOperation(operation) ||
             operation.ProfiledPveAiDiagnosticComplete ||
-            operation.ProfiledPveAiDiagnosticStartedAt < 0f ||
             operation.ProfiledPveAiDiagnosticSnapshotIndex >=
                 ProfiledPveAiDiagnosticSnapshotSeconds.Length)
         {
@@ -4664,6 +4768,20 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
         float now = Time.realtimeSinceStartup;
         if (now < operation.ProfiledPveAiDiagnosticNextProbeAt)
+            return;
+        if (operation.ProfiledPveAiDiagnosticAwaitingBrains)
+        {
+            if (!TryBeginProfiledPveAiDiagnostics(
+                    operation,
+                    GameManager.instance,
+                    "native-network-spawn"))
+            {
+                operation.ProfiledPveAiDiagnosticNextProbeAt = now + 0.25f;
+                return;
+            }
+            now = Time.realtimeSinceStartup;
+        }
+        if (operation.ProfiledPveAiDiagnosticStartedAt < 0f)
             return;
         float elapsed = now - operation.ProfiledPveAiDiagnosticStartedAt;
         float scheduled = ProfiledPveAiDiagnosticSnapshotSeconds[
@@ -4707,9 +4825,36 @@ public sealed class CerberusNativeTabFix : BasePlugin
         int sightBlockedByVegetation = 0;
         int sightBlockedByOther = 0;
         int sightReachedPlayer = 0;
+        int brainEnabled = 0;
+        int controllerAssigned = 0;
+        int controllerEnabled = 0;
+        int controllerActive = 0;
+        int entityExists = 0;
+        int updatePositionEnabled = 0;
+        int pathPending = 0;
+        int hasPath = 0;
+        int destinationAtLeastOneMeter = 0;
+        int followerAssigned = 0;
+        int followerEnabled = 0;
+        int followerActive = 0;
+        int followerEntityExists = 0;
+        int followerCanMove = 0;
+        int followerCanSearch = 0;
+        int followerSimulatesMovement = 0;
+        int followerStopped = 0;
+        int velocityAboveOneCentimeterPerSecond = 0;
+        int responding = 0;
+        int currentCover = 0;
+        float minimumWanderClock = float.MaxValue;
+        float maximumWanderClock = float.MinValue;
+        float minimumMaxSpeed = float.MaxValue;
+        float maximumMaxSpeed = float.MinValue;
+        float maximumVelocity = 0f;
+        float maximumControllerPositionOffset = 0f;
         float movementTotal = 0f;
         float movementMaximum = 0f;
         var states = new Dictionary<string, int>(StringComparer.Ordinal);
+        var movementTypes = new Dictionary<int, int>();
         GameObject player = gameManager == null ? null : GameManager.myPlayer;
         Vector3 playerAimPoint = player == null
             ? Vector3.zero
@@ -4726,10 +4871,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
                         instanceId,
                         out Vector3 initial))
                 {
-                    initial = brain.transform.position;
+                    initial = GetProfiledPveNavigationPosition(brain);
                     operation.ProfiledPveInitialBrainPositions[instanceId] = initial;
                 }
-                Vector3 current = brain.transform.position;
+                Vector3 current = GetProfiledPveNavigationPosition(brain);
                 Vector2 planarDelta = new Vector2(
                     current.x - initial.x,
                     current.z - initial.z);
@@ -4755,6 +4900,84 @@ public sealed class CerberusNativeTabFix : BasePlugin
                 states[state] = states.TryGetValue(state, out int stateCount)
                     ? stateCount + 1
                     : 1;
+
+                if (brain.enabled)
+                    brainEnabled++;
+                if (brain.responding)
+                    responding++;
+                if (brain._currentCover != null)
+                    currentCover++;
+                minimumWanderClock = Mathf.Min(
+                    minimumWanderClock,
+                    brain.wanderTime);
+                maximumWanderClock = Mathf.Max(
+                    maximumWanderClock,
+                    brain.wanderTime);
+                int movementType = brain.movementType;
+                movementTypes[movementType] = movementTypes.TryGetValue(
+                        movementType,
+                        out int movementTypeCount)
+                    ? movementTypeCount + 1
+                    : 1;
+
+                AgentController controller = brain.agent;
+                if (controller != null)
+                {
+                    controllerAssigned++;
+                    if (controller.enabled)
+                        controllerEnabled++;
+                    if (controller.isActiveAndEnabled)
+                        controllerActive++;
+                    if (controller.entityExists)
+                    {
+                        entityExists++;
+                        if (controller.updatePosition)
+                            updatePositionEnabled++;
+                        if (controller.pathPending)
+                            pathPending++;
+                        if (controller.hasPath)
+                            hasPath++;
+                        float maxSpeed = controller.maxSpeed;
+                        minimumMaxSpeed = Mathf.Min(minimumMaxSpeed, maxSpeed);
+                        maximumMaxSpeed = Mathf.Max(maximumMaxSpeed, maxSpeed);
+                        Vector3 velocity = controller.velocity;
+                        float velocityMagnitude = velocity.magnitude;
+                        maximumVelocity = Mathf.Max(
+                            maximumVelocity,
+                            velocityMagnitude);
+                        if (velocityMagnitude >= 0.01f)
+                            velocityAboveOneCentimeterPerSecond++;
+                        Vector3 controllerPosition = controller.position;
+                        maximumControllerPositionOffset = Mathf.Max(
+                            maximumControllerPositionOffset,
+                            Vector3.Distance(controllerPosition, current));
+                        Vector3 destination = controller.destination;
+                        Vector2 destinationDelta = new Vector2(
+                            destination.x - current.x,
+                            destination.z - current.z);
+                        if (destinationDelta.magnitude >= 1f)
+                            destinationAtLeastOneMeter++;
+                    }
+                    var follower = controller.Agent;
+                    if (follower != null)
+                    {
+                        followerAssigned++;
+                        if (follower.enabled)
+                            followerEnabled++;
+                        if (follower.isActiveAndEnabled)
+                            followerActive++;
+                        if (follower.entityExists)
+                            followerEntityExists++;
+                        if (follower.canMove)
+                            followerCanMove++;
+                        if (follower.canSearch)
+                            followerCanSearch++;
+                        if (follower.simulateMovement)
+                            followerSimulatesMovement++;
+                        if (follower.isStopped)
+                            followerStopped++;
+                    }
+                }
 
                 if (player != null && brain.eyesAI != null)
                 {
@@ -4826,6 +5049,61 @@ public sealed class CerberusNativeTabFix : BasePlugin
             ",other=" + sightBlockedByOther +
             ",clearOrPlayer=" + sightReachedPlayer +
             "), states=" + stateSummary + ".");
+
+        string movementTypeSummary = movementTypes.Count == 0
+            ? "none"
+            : string.Join(",", movementTypes.OrderBy(pair => pair.Key)
+                .Select(pair => pair.Key + "=" + pair.Value));
+        string wanderClockSummary = live == 0
+            ? "none"
+            : minimumWanderClock.ToString(
+                    "F2",
+                    System.Globalization.CultureInfo.InvariantCulture) +
+                ".." + maximumWanderClock.ToString(
+                    "F2",
+                    System.Globalization.CultureInfo.InvariantCulture) + "s";
+        string maxSpeedSummary = entityExists == 0
+            ? "none"
+            : minimumMaxSpeed.ToString(
+                    "F2",
+                    System.Globalization.CultureInfo.InvariantCulture) +
+                ".." + maximumMaxSpeed.ToString(
+                    "F2",
+                    System.Globalization.CultureInfo.InvariantCulture) + "mps";
+        log.LogInfo("Profiled PVE native agent diagnostic: operation=" +
+            operation.Operation.Id + ", scheduled=" +
+            scheduled.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) +
+            "s, brainEnabled=" + brainEnabled + "/" + live +
+            ", controllerAssigned=" + controllerAssigned + "/" + live +
+            ", controllerEnabled=" + controllerEnabled + "/" + live +
+            ", controllerActive=" + controllerActive + "/" + live +
+            ", entityExists=" + entityExists + "/" + live +
+            ", updatePosition=" + updatePositionEnabled + "/" + live +
+            ", pathPending=" + pathPending +
+            ", hasPath=" + hasPath +
+            ", destination>=1m=" + destinationAtLeastOneMeter +
+            ", followerAssigned=" + followerAssigned + "/" + live +
+            ", followerEnabled=" + followerEnabled + "/" + live +
+            ", followerActive=" + followerActive + "/" + live +
+            ", followerEntityExists=" + followerEntityExists + "/" + live +
+            ", canMove=" + followerCanMove + "/" + live +
+            ", canSearch=" + followerCanSearch + "/" + live +
+            ", simulateMovement=" + followerSimulatesMovement + "/" + live +
+            ", isStopped=" + followerStopped + "/" + live +
+            ", maxSpeed=" + maxSpeedSummary +
+            ", velocity>=0.01mps=" +
+                velocityAboveOneCentimeterPerSecond +
+            ", velocityMax=" + maximumVelocity.ToString(
+                "F2",
+                System.Globalization.CultureInfo.InvariantCulture) + "mps" +
+            ", controllerPositionOffsetMax=" +
+                maximumControllerPositionOffset.ToString(
+                    "F2",
+                    System.Globalization.CultureInfo.InvariantCulture) + "m" +
+            ", responding=" + responding +
+            ", currentCover=" + currentCover +
+            ", wanderClock=" + wanderClockSummary +
+            ", movementTypes=" + movementTypeSummary + ".");
     }
 
     private static int ChooseStandalonePveEnemyCount(ActiveMapOperation operation)
@@ -4868,6 +5146,15 @@ public sealed class CerberusNativeTabFix : BasePlugin
         details.maxEffectiveRange = profile?.MaximumEffectiveRangeMeters ?? 90f;
         details.useComms = profile?.UseComms ?? true;
         details.DoesCounterSuppression = profile?.CounterSuppression ?? true;
+        // RaidManager.ApplyBotSpawnSettings copies BotSpawnDetails.idleState
+        // at marker offset 0x20 to BrainAI.idleStates at offset 0x2D4. The
+        // native BrainAI.UpdateStateMachine dispatches CurrentState.Idle to
+        // Wander(dt) only when this substate is Wander. A radius by itself
+        // does not start movement. Restrict this vanilla marker choice to
+        // schema-v2 profiled PVE operations. Schema-v1, PVP, vanilla, and
+        // other packages keep their existing marker state.
+        if (profile != null)
+            details.idleState = BrainAI.IdleStates.Wander;
         // BrainAI.Wander waits for its prefab-owned WanderTimer multiplied by
         // Patience before it calls RandomNavSphere(currentPosition, 5,
         // WanderDistance). The package changes only the radius. It preserves

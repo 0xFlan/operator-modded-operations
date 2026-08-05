@@ -21,6 +21,7 @@ CONTRACT_PATTERN = re.compile(
     rf"(?P<detection_max>{NUMBER})m, "
     rf"fov=(?P<fov_min>{NUMBER})\.\.(?P<fov_max>{NUMBER}), "
     rf"wander=(?P<wander_min>-?\d+)\.\.(?P<wander_max>-?\d+)m, "
+    rf"idleWander=(?P<idle_wander>\d+)/(?P<idle_total>\d+), "
     rf"comms=(?P<comms_enabled>\d+)/(?P<comms_total>\d+)\."
 )
 SNAPSHOT_PATTERN = re.compile(
@@ -42,7 +43,7 @@ SNAPSHOT_PATTERN = re.compile(
 )
 COMPLETION_PATTERN = re.compile(
     r"Profiled PVE AI diagnostic completed its bounded 120-second "
-    r"read-only acceptance window for operation=(?P<operation>[^.]+)\."
+    r"read-only acceptance window for operation=(?P<operation>[^\r\n]+)\."
 )
 REQUIRED_SCHEDULE = (0, 10, 30, 60, 90, 120)
 
@@ -62,6 +63,8 @@ class Contract:
     fov_max: float
     wander_min: int
     wander_max: int
+    idle_wander: int
+    idle_total: int
     comms_enabled: int
     comms_total: int
 
@@ -108,6 +111,8 @@ def parse_contract(match: re.Match[str], line_number: int) -> Contract:
         fov_max=float(values["fov_max"]),
         wander_min=int(values["wander_min"]),
         wander_max=int(values["wander_max"]),
+        idle_wander=int(values["idle_wander"]),
+        idle_total=int(values["idle_total"]),
         comms_enabled=int(values["comms_enabled"]),
         comms_total=int(values["comms_total"]),
     )
@@ -227,6 +232,11 @@ def validate_run(run: Run, index: int, args: argparse.Namespace) -> list[str]:
         errors.append(
             f"{label}: wander={contract.wander_min}..{contract.wander_max}; "
             f"expected {args.wander}..{args.wander}"
+        )
+    if contract.idle_wander != contract.brains or contract.idle_total != contract.brains:
+        errors.append(
+            f"{label}: idleWander={contract.idle_wander}/{contract.idle_total}; "
+            f"expected {contract.brains}/{contract.brains}"
         )
     if (
         contract.comms_enabled != contract.brains

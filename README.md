@@ -20,11 +20,15 @@ optional map companion owns exact-scene reconstruction.
 
 ## Current status
 
-The source version in this repository is `0.3.19`. Local live testing on the
+The source version in this repository is `0.3.20`. Local live testing on the
 pinned game build accepts first launch, one-click Confirm, complete unload,
 repeat launch, player grounding, 11:00 native daylight, and 02:00 four-tube
-white-phosphor NVG behavior. Multiplayer PVP and reciprocal firearm-damage
-tests remain separate release gates. Read
+white-phosphor NVG behavior. Two complete Forest PVE runs also accept the
+fixed profile, positive native search delays, native agent movement, movement
+toward insertion, and foliage sight obstruction. The additive-scene boundary
+now enters the shipped loading canvas before terrain/material preparation, so
+the portable brown proxy is not presented to the player. Multiplayer PVP and
+reciprocal firearm-damage tests remain separate release gates. Read
 [the evidence status](docs/evidence/current-status.md) before you use the word
 `SUPPORTED`.
 

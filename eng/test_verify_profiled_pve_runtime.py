@@ -15,7 +15,7 @@ def make_run(operation: str, delay_min: float = 4.0) -> str:
         "source=spawn, brains=10, "
         f"nativeInitialWanderDelay={delay_min:.2f}..12.00s, "
         "detection=45.0..45.0m, fov=90.0..90.0, wander=38..38m, "
-        "comms=10/10."
+        "idleWander=10/10, comms=10/10."
     ]
     for scheduled in verifier.REQUIRED_SCHEDULE:
         moved = 0 if scheduled == 0 else 4

@@ -29,6 +29,9 @@
     <Reference Include="Il2CppInterop.Runtime"><HintPath>$(OperatorGameDir)\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2Cppmscorlib"><HintPath>$(OperatorGameDir)\BepInEx\interop\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp"><HintPath>$(OperatorGameDir)\BepInEx\interop\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AstarPathfindingProject"><HintPath>$(OperatorGameDir)\BepInEx\interop\AstarPathfindingProject.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="PackageTools"><HintPath>$(OperatorGameDir)\BepInEx\interop\PackageTools.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Drawing"><HintPath>$(OperatorGameDir)\BepInEx\interop\Drawing.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Mirror"><HintPath>$(OperatorGameDir)\BepInEx\interop\Mirror.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>

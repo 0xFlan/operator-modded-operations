@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.20
+
+- Enter the shipped `GameManagerNetwork.ShowLoadingScreen()` presentation at
+  the exact additive-scene boundary before terrain and material preparation.
+  This closes the one-frame gap that could expose a package's portable brown
+  proxy.
+- Log `LoadingScreen.activeSelf` and `activeInHierarchy`. Do not treat the
+  misnamed `LoadingScreenVisible` getter as the canvas state.
+- Start the profiled-PVE diagnostic after native network population becomes
+  available.
+- Measure native bot movement through `BrainAI.agent.position`. The shipped
+  `BOT V2` root is the stationary network owner; its `AgentController` and
+  `FollowerEntity` live on the moving model child.
+- Accept two complete 120-second exact-package Forest runs: 12 and 10 native
+  bots, positive native delays, 12 and 9 moved bots, 4 and 4 bots moving toward
+  insertion, and authored vegetation sight-obstruction evidence.
+- Keep the profile PVE-only and operation-local. Add no difficulty UI and no
+  effect on PVP, vanilla operations, or another package.
+
 ## 0.3.19 candidate
 
 - Add schema v2 and the immutable PVE-only `pveAiProfile` contract.

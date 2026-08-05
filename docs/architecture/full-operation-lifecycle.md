@@ -269,7 +269,21 @@ The method also validates the scene name/path and operation ownership. A
 marker with the correct spelling in the wrong loaded scene does not pass.
 
 `OnSceneLoaded` first releases any previous generation contracts. It then
-clears player attempts, mode objects, readiness flags, terrain references,
+calls `ShowNativeLoadingScreenForPackageScene`. This method enters the shipped
+`GameManagerNetwork.ShowLoadingScreen()` path at supported-build RVA
+`0x00916210` before any terrain or material preparation. It activates the
+shipped canvas, freezes the current player body, clears velocity, and closes
+infiltration UI. The persistent manager owns `HideLoadingScreen` at RVA
+`0x0090E950` after readiness.
+
+The call closes the one-frame additive-scene gap before the replacement
+`GameMode` can assert `OnAllPlayersLoaded(false)`. Without it, the camera can
+show the portable brown proxy. The release diagnostic reads
+`LoadingScreen.activeSelf` and `activeInHierarchy`. It does not use the
+misnamed `LoadingScreenVisible` property; that getter returns the private
+`_hideLoadingScreenSoon` byte on this build.
+
+`OnSceneLoaded` then clears player attempts, mode objects, readiness flags, terrain references,
 and PVE state. It schedules preparation for the next frame. This generation
 reset prevents a second operation from inheriting the first operation.
 
@@ -588,7 +602,8 @@ map scene unloaded; package bundles remain resident
 | --- | --- | --- |
 | First Confirm does nothing | Captured laptop/player owner was lost during I/O. | `BeginCatalogOperationLaunch`, `PendingMapLaunch`, loading-state log. |
 | Confirm loops or needs a second interaction | Confirm did not join same-map prefetch or final handoff did not run. | `ProcessPendingLaunch`, `InvokeNativeCatalogLaunch`. |
-| Flat brown plane | Runtime terrain was not reconstructed or render fallback stayed active. | `TryPrepareRuntimeTerrain`, payload paths, shared TerrainData identity. |
+| Brown proxy flashes before detail | Shipped loading canvas did not cover the additive-scene preparation gap. | `ShowNativeLoadingScreenForPackageScene`, `LoadingScreen.activeSelf`, `activeInHierarchy`. |
+| Flat brown plane remains after readiness | Runtime terrain was not reconstructed or render fallback stayed active. | `TryPrepareRuntimeTerrain`, payload paths, shared TerrainData identity. |
 | Player under terrain | Player creation ran before terrain/collider and marker raycast gates. | `PrepareStandaloneScene`, `ValidateWalkableGroundContract`. |
 | AI outside wall | Scene marker set or A* coverage is wrong. | Exact PVE markers, wall bounds, graph-node test. |
 | Grenades work, bullets do not | AI was not created through the shipped owner-aware raid route. | `TrySpawnStandalonePveEnemies`, `RaidManager.ServerSpawnAI(false)`. |
