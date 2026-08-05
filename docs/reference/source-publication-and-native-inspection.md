@@ -17,8 +17,8 @@ artifact. A reviewer can rebuild, diff, and audit the framework.
 ## 2. Release DLL decompilation snapshot
 
 `decompiled/release-0.3.19` is ILSpy `10.1.1.8388` output from the exact
-152,576-byte release DLL with SHA-256
-`E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A`.
+159,232-byte release DLL with SHA-256
+`257F5449463BF2D2E2BD71CBC3AEA513A1788E882578CA98B631FB70E2EB1F25`.
 It lets a reviewer inspect what the compiler emitted even when the release DLL
 is distributed separately.
 

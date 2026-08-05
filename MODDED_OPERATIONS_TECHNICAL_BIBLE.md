@@ -330,10 +330,10 @@ The framework archive contains Core and framework files only. A map archive
 contains package data and its map companion only. A complete convenience
 archive can contain both ownership domains.
 
-The `0.3.19` candidate framework archive is 931,101 bytes with SHA-256
-`12ED4EB22B7EAAB820D9416272B9C879C5AC2355CCD90F185EBDC66830A00CD3`.
-Its `OperatorModdedOperations.dll` is 152,576 bytes with SHA-256
-`E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A`.
+The `0.3.19` candidate framework archive is 940,720 bytes with SHA-256
+`05FB3FE1841266B17672E5ABDFDBF07F1C91E309A9E069ABA8893E26F1A71B0E`.
+Its `OperatorModdedOperations.dll` is 159,232 bytes with SHA-256
+`257F5449463BF2D2E2BD71CBC3AEA513A1788E882578CA98B631FB70E2EB1F25`.
 The archive passed a full 7-Zip integrity test. These identities do not close
 the physical Forest AI acceptance gate.
 
@@ -542,5 +542,25 @@ names, counts, colliders, or coordinates.
 The full schema bounds, source members, native offsets/RVAs, exact application
 order, foliage collision rules, logging, and gates are in
 [Fixed PVE AI profile and vegetation sight](docs/architecture/pve-ai-profile-and-forest-sight.md).
+
+`CaptureProfiledPvePreexistingBrains` records the existing
+`GameManager.allAI` instance IDs immediately before the native population
+call. `StartProfiledPveAiDiagnostics` then tracks only new IDs. The diagnostic
+gate is `operation.Operation.PveAiProfile != null`. There is no map ID in the
+framework gate.
+
+The diagnostic first reads the live spawned bots' `WanderTimer * Patience`,
+`DetectionRange`, `EyesFOVAngle`, `WanderDistance`, and `useComms`. It then
+calls `LogProfiledPveAiSnapshot` at 0, 10, 30, 60, 90, and 120 seconds. Each
+snapshot reports horizontal movement from spawn, movement toward the captured
+insertion position, `CurrentSeenTarget`, `CurrentState`, and a read-only
+bot-eye-to-player linecast with that bot's `EyesAI.DetectionLayerMask`.
+
+The linecast groups layer-18 first hits as vegetation. It groups other first
+hits separately. A clear or player hit is a third group. This diagnostic does
+not set a destination, target, vision field, weapon field, or AI state. Its
+linecast is geometry evidence, not acquisition proof. Physical camera behavior
+and reciprocal firearm damage remain required.
+
 This candidate is `PROVEN-STATIC`. Do not label it `SUPPORTED` until its
 physical first-launch and repeat-launch behavior matrix passes.

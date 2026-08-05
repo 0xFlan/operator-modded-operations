@@ -9,8 +9,8 @@ The current snapshot is:
 ```text
 [MOD DLL] OperatorModdedOperations.dll
 version: 0.3.19
-bytes: 152576
-SHA-256: E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A
+bytes: 159232
+SHA-256: 257F5449463BF2D2E2BD71CBC3AEA513A1788E882578CA98B631FB70E2EB1F25
 decompiler: ILSpy command-line tool 10.1.1.8388
 output: decompiled/release-0.3.19
 ```

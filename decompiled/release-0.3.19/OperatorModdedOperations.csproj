@@ -12,66 +12,26 @@
   <PropertyGroup />
   <ItemGroup />
   <ItemGroup>
-    <Reference Include="BepInEx.Core">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\BepInEx.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="BepInEx.Unity.IL2CPP">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\BepInEx.Unity.IL2CPP.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.AssetBundleModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.AssetBundleModule.dll</HintPath>
-    </Reference>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Assembly-CSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UI">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.UI.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.TextMeshPro">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Unity.TextMeshPro.dll</HintPath>
-    </Reference>
+    <Reference Include="BepInEx.Core" />
+    <Reference Include="BepInEx.Unity.IL2CPP" />
+    <Reference Include="UnityEngine.CoreModule" />
+    <Reference Include="UnityEngine.AssetBundleModule" />
+    <Reference Include="Assembly-CSharp" />
+    <Reference Include="UnityEngine.UI" />
+    <Reference Include="Unity.TextMeshPro" />
     <Reference Include="OperatorModAPI" />
-    <Reference Include="Il2CppInterop.Runtime">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Il2CppInterop.Runtime.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.TerrainModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.TerrainModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.TerrainPhysicsModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.TerrainPhysicsModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.PhysicsModule.dll</HintPath>
-    </Reference>
-    <Reference Include="Il2Cppmscorlib">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Il2Cppmscorlib.dll</HintPath>
-    </Reference>
-    <Reference Include="Mirror">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Mirror.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.AudioModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.AudioModule.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.RenderPipelines.Core.Runtime">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Unity.RenderPipelines.Core.Runtime.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.RenderPipelines.HighDefinition.Runtime">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Unity.RenderPipelines.HighDefinition.Runtime.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.AnimationModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UIModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.UIModule.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.Localization">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\Unity.Localization.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>..\..\..\..\source\runtime_native_tab_fix\bin\Release\UnityEngine.ImageConversionModule.dll</HintPath>
-    </Reference>
+    <Reference Include="Il2CppInterop.Runtime" />
+    <Reference Include="UnityEngine.TerrainModule" />
+    <Reference Include="UnityEngine.TerrainPhysicsModule" />
+    <Reference Include="UnityEngine.PhysicsModule" />
+    <Reference Include="Il2Cppmscorlib" />
+    <Reference Include="Mirror" />
+    <Reference Include="UnityEngine.AudioModule" />
+    <Reference Include="Unity.RenderPipelines.Core.Runtime" />
+    <Reference Include="Unity.RenderPipelines.HighDefinition.Runtime" />
+    <Reference Include="UnityEngine.AnimationModule" />
+    <Reference Include="UnityEngine.UIModule" />
+    <Reference Include="Unity.Localization" />
+    <Reference Include="UnityEngine.ImageConversionModule" />
   </ItemGroup>
 </Project>

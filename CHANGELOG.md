@@ -13,6 +13,12 @@
   different map package.
 - Document the exact current-build `BrainAI.Wander` delay and
   `RandomNavSphere(currentPosition, 5, WanderDistance)` behavior.
+- Add one read-only diagnostic for schema-v2 PVE operations that have an AI
+  profile. It records the live spawned-bot delay and profile values. It then
+  reports movement, movement toward insertion, target state, AI state, and
+  same-mask sight probes at 0, 10, 30, 60, 90, and 120 seconds.
+- Keep the diagnostic generic. Its gate is `PveAiProfile != null`; framework
+  source contains no Ukrainian Forest ID, coordinate, or terrain size.
 - Static build and contract tests pass. A fresh in-game Forest session remains
   the runtime acceptance gate for this candidate.
 

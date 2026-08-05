@@ -1,18 +1,14 @@
 using System;
 using System.Reflection;
 using Il2CppInterop.Runtime;
-using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
 
 internal static class NativeBundleAssetLoader
 {
 	internal unsafe static Texture2D LoadTexture2D(AssetBundle bundle, string assetPath, out string diagnostic)
 	{
-		//IL_00fd: Unknown result type (might be due to invalid IL or missing references)
-		//IL_014b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0152: Expected O, but got Unknown
 		diagnostic = string.Empty;
-		if ((Object)(object)bundle == (Object)null)
+		if (bundle == null)
 		{
 			diagnostic = "AssetBundle was null.";
 			return null;
@@ -30,42 +26,42 @@ internal static class NativeBundleAssetLoader
 				diagnostic = "AssetBundle.LoadAssetAsync_Internal MethodInfo was unavailable.";
 				return null;
 			}
-			IntPtr intPtr2 = IL2CPP.Il2CppObjectBaseToPtrNotNull((Il2CppObjectBase)(object)bundle);
-			IntPtr intPtr3 = IL2CPP.Il2CppObjectBaseToPtrNotNull((Il2CppObjectBase)(object)Il2CppType.Of<Texture2D>());
-			IntPtr intPtr4 = IL2CPP.ManagedStringToIl2Cpp(assetPath);
-			IntPtr zero = IntPtr.Zero;
+			IntPtr obj = IL2CPP.Il2CppObjectBaseToPtrNotNull(bundle);
+			IntPtr intPtr2 = IL2CPP.Il2CppObjectBaseToPtrNotNull(Il2CppType.Of<Texture2D>());
+			IntPtr intPtr3 = IL2CPP.ManagedStringToIl2Cpp(assetPath);
+			IntPtr exc = IntPtr.Zero;
 			void*[] array = new void*[2]
 			{
-				(void*)intPtr4,
-				(void*)intPtr3
+				(void*)intPtr3,
+				(void*)intPtr2
 			};
-			fixed (void** ptr = array)
+			fixed (void** param = array)
 			{
-				IntPtr intPtr5 = IL2CPP.il2cpp_runtime_invoke(intPtr, intPtr2, ptr, ref zero);
-				if (zero != IntPtr.Zero)
+				IntPtr intPtr4 = IL2CPP.il2cpp_runtime_invoke(intPtr, obj, param, ref exc);
+				if (exc != IntPtr.Zero)
 				{
 					diagnostic = "LoadAssetAsync_Internal raised a native exception.";
 					return null;
 				}
-				if (intPtr5 == IntPtr.Zero)
+				if (intPtr4 == IntPtr.Zero)
 				{
 					diagnostic = "Unity returned a null AssetBundleRequest.";
 					return null;
 				}
-				Object asset = new AssetBundleRequest(intPtr5).asset;
-				if (asset == (Object)null)
+				UnityEngine.Object asset = new AssetBundleRequest(intPtr4).asset;
+				if (asset == null)
 				{
 					diagnostic = "The Texture2D request returned a null asset.";
 					return null;
 				}
-				IntPtr intPtr6 = IL2CPP.Il2CppObjectBaseToPtr((Il2CppObjectBase)(object)asset);
-				if (intPtr6 == IntPtr.Zero)
+				IntPtr intPtr5 = IL2CPP.Il2CppObjectBaseToPtr(asset);
+				if (intPtr5 == IntPtr.Zero)
 				{
 					diagnostic = "The Texture2D request returned a null native pointer.";
 					return null;
 				}
 				diagnostic = "Loaded through the Unity 6 native AssetBundle request.";
-				return new Texture2D(intPtr6);
+				return new Texture2D(intPtr5);
 			}
 		}
 		catch (Exception ex)

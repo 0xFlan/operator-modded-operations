@@ -98,6 +98,11 @@ def main() -> int:
             '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]',
             "operation.Operation.PveAiProfile",
             "details.WanderDistance = profile?.WanderDistanceMeters ?? 18;",
+            "CaptureProfiledPvePreexistingBrains",
+            "StartProfiledPveAiDiagnostics",
+            "ProcessProfiledPveAiDiagnostics",
+            "LogProfiledPveAiSnapshot",
+            "ProfiledPveAiDiagnosticSnapshotSeconds",
             "sun.colorTemperature = night ? 9754f : 5500f;",
             "sun.intensity = night ? 40f : 30000f;",
             "sun.bounceIntensity = night ? 1f : 5f;",
@@ -109,8 +114,13 @@ def main() -> int:
             '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]',
             "operation.Operation.PveAiProfile",
             "details.WanderDistance = ((profile != null) ? profile.WanderDistanceMeters : 18);",
-            "light.colorTemperature = (flag ? 9754f : 5500f);",
-            "light.intensity = (flag ? 40f : 30000f);",
+            "CaptureProfiledPvePreexistingBrains",
+            "StartProfiledPveAiDiagnostics",
+            "ProcessProfiledPveAiDiagnostics",
+            "LogProfiledPveAiSnapshot",
+            "ProfiledPveAiDiagnosticSnapshotSeconds",
+            "colorTemperature = (flag ? 9754f : 5500f);",
+            "intensity = (flag ? 40f : 30000f);",
             'flag ? "PVP-map night" : "PVP Woods Warehouse day"',
         )
         for fragment in required_authored:
@@ -127,8 +137,8 @@ def main() -> int:
         required_decompilation_identity = (
             "[MOD DLL] OperatorModdedOperations.dll",
             "version: 0.3.19",
-            "bytes: 152576",
-            "SHA-256: E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A",
+            "bytes: 159232",
+            "SHA-256: 257F5449463BF2D2E2BD71CBC3AEA513A1788E882578CA98B631FB70E2EB1F25",
             "decompiler: ILSpy command-line tool 10.1.1.8388",
             "output: decompiled/release-0.3.19",
         )

@@ -34,6 +34,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
     // Mirror's current client registry before use.
     private const uint StandalonePveGameModeAssetId = 0x4D4F5001;
     private const uint StandalonePvpGameModeAssetId = 0x4D4F5002;
+    private static readonly float[] ProfiledPveAiDiagnosticSnapshotSeconds =
+    {
+        0f, 10f, 30f, 60f, 90f, 120f
+    };
     private static CerberusNativeTabFix instance;
     private ManualLogSource log;
     private FixRunner runner;
@@ -182,6 +186,21 @@ public sealed class CerberusNativeTabFix : BasePlugin
         public bool PveSpawnAttempted;
         public int PveEnemyCount;
         public GameObject RaidUtilityRoot;
+        // Read-only acceptance evidence for a schema-v2 PVE AI profile. The
+        // framework samples only the BrainAI instances that its native
+        // RaidManager call added. It never changes their state.
+        public readonly HashSet<int> ProfiledPvePreexistingBrainIds =
+            new HashSet<int>();
+        public readonly List<BrainAI> ProfiledPveDiagnosticBrains =
+            new List<BrainAI>();
+        public readonly Dictionary<int, Vector3> ProfiledPveInitialBrainPositions =
+            new Dictionary<int, Vector3>();
+        public bool ProfiledPveInitialPlayerPositionCaptured;
+        public Vector3 ProfiledPveInitialPlayerPosition;
+        public float ProfiledPveAiDiagnosticStartedAt = -1f;
+        public float ProfiledPveAiDiagnosticNextProbeAt = -1f;
+        public int ProfiledPveAiDiagnosticSnapshotIndex;
+        public bool ProfiledPveAiDiagnosticComplete;
         public readonly List<Object> RuntimePvpAssets = new List<Object>();
     }
 
@@ -4254,6 +4273,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
         {
             TrySpawnStandalonePveEnemies(operation);
         }
+        ProcessProfiledPveAiDiagnostics(operation);
     }
 
     private static void EnsureStandaloneReadiness(
@@ -4472,8 +4492,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
             // player-selector flag here: true makes a later PlayerMaster use
             // the retail PlayerSpawn-tag search instead of the registered
             // standalone SpawnPointsInScene list.
+            CaptureProfiledPvePreexistingBrains(operation, gameManager);
             raid.ServerSpawnAI(false);
             operation.PveEnemyCount = targetCount;
+            StartProfiledPveAiDiagnostics(operation, gameManager);
             log.LogInfo("Standalone PVE released a server-owned AI population " +
                 "through shipped RaidManager.ServerSpawnAI: count=" +
                 targetCount + ", requestedRange=" + minimumEnemies + "-" +
@@ -4487,6 +4509,323 @@ public sealed class CerberusNativeTabFix : BasePlugin
                 operation.PveEnemyCount + " confirmed AI: " +
                 ex.GetType().Name + ": " + ex.Message);
         }
+    }
+
+    private static bool IsProfiledPveDiagnosticOperation(
+        ActiveMapOperation operation)
+    {
+        return operation?.Operation != null &&
+            operation.Operation.Mode ==
+                ModdedOperationMode.PlayerVersusEnvironment &&
+            operation.Operation.PveAiProfile != null;
+    }
+
+    private static void CaptureProfiledPvePreexistingBrains(
+        ActiveMapOperation operation,
+        GameManager gameManager)
+    {
+        if (!IsProfiledPveDiagnosticOperation(operation) || gameManager?.allAI == null)
+            return;
+        operation.ProfiledPvePreexistingBrainIds.Clear();
+        for (int index = 0; index < gameManager.allAI.Count; index++)
+        {
+            BrainAI brain = gameManager.allAI[index];
+            if (brain != null)
+                operation.ProfiledPvePreexistingBrainIds.Add(brain.GetInstanceID());
+        }
+    }
+
+    private void StartProfiledPveAiDiagnostics(
+        ActiveMapOperation operation,
+        GameManager gameManager)
+    {
+        if (!IsProfiledPveDiagnosticOperation(operation))
+            return;
+        operation.ProfiledPveAiDiagnosticStartedAt = Time.realtimeSinceStartup;
+        operation.ProfiledPveAiDiagnosticNextProbeAt =
+            operation.ProfiledPveAiDiagnosticStartedAt;
+        operation.ProfiledPveAiDiagnosticSnapshotIndex = 0;
+        operation.ProfiledPveAiDiagnosticComplete = false;
+        GameObject player = gameManager == null ? null : GameManager.myPlayer;
+        operation.ProfiledPveInitialPlayerPositionCaptured = player != null;
+        if (player != null)
+            operation.ProfiledPveInitialPlayerPosition = player.transform.position;
+        RefreshProfiledPveDiagnosticBrains(operation, gameManager);
+        LogProfiledPveNativeAiContract(operation, "spawn");
+    }
+
+    private static void RefreshProfiledPveDiagnosticBrains(
+        ActiveMapOperation operation,
+        GameManager gameManager)
+    {
+        if (operation == null || gameManager?.allAI == null)
+            return;
+        var known = new HashSet<int>();
+        foreach (BrainAI brain in operation.ProfiledPveDiagnosticBrains)
+        {
+            if (brain != null)
+                known.Add(brain.GetInstanceID());
+        }
+        for (int index = 0; index < gameManager.allAI.Count; index++)
+        {
+            BrainAI brain = gameManager.allAI[index];
+            if (brain == null)
+                continue;
+            int instanceId = brain.GetInstanceID();
+            if (operation.ProfiledPvePreexistingBrainIds.Contains(instanceId) ||
+                !known.Add(instanceId))
+            {
+                continue;
+            }
+            operation.ProfiledPveDiagnosticBrains.Add(brain);
+            operation.ProfiledPveInitialBrainPositions[instanceId] =
+                brain.transform.position;
+        }
+    }
+
+    private void LogProfiledPveNativeAiContract(
+        ActiveMapOperation operation,
+        string source)
+    {
+        if (operation == null)
+            return;
+        int count = 0;
+        float minimumDelay = float.MaxValue;
+        float maximumDelay = float.MinValue;
+        float minimumDetection = float.MaxValue;
+        float maximumDetection = float.MinValue;
+        int minimumWander = int.MaxValue;
+        int maximumWander = int.MinValue;
+        float minimumFov = float.MaxValue;
+        float maximumFov = float.MinValue;
+        int commsEnabled = 0;
+        foreach (BrainAI brain in operation.ProfiledPveDiagnosticBrains)
+        {
+            if (brain == null)
+                continue;
+            try
+            {
+                float nativeDelay = brain.WanderTimer * brain.Patience;
+                minimumDelay = Mathf.Min(minimumDelay, nativeDelay);
+                maximumDelay = Mathf.Max(maximumDelay, nativeDelay);
+                minimumDetection = Mathf.Min(minimumDetection, brain.DetectionRange);
+                maximumDetection = Mathf.Max(maximumDetection, brain.DetectionRange);
+                minimumWander = Math.Min(minimumWander, brain.WanderDistance);
+                maximumWander = Math.Max(maximumWander, brain.WanderDistance);
+                minimumFov = Mathf.Min(minimumFov, brain.EyesFOVAngle);
+                maximumFov = Mathf.Max(maximumFov, brain.EyesFOVAngle);
+                if (brain.useComms)
+                    commsEnabled++;
+                count++;
+            }
+            catch
+            {
+                // A native object can unregister while a scene is closing.
+            }
+        }
+        if (count == 0)
+        {
+            log.LogWarning("Profiled PVE AI diagnostic found no new BrainAI " +
+                "instances for operation=" + operation.Operation.Id +
+                " at " + source + "; the bounded snapshots will retry.");
+            return;
+        }
+        string message = "Profiled PVE native AI contract: operation=" +
+            operation.Operation.Id + ", profile=" +
+            operation.Operation.PveAiProfile.Id + ", source=" + source +
+            ", brains=" + count +
+            ", nativeInitialWanderDelay=" +
+            minimumDelay.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) +
+            ".." + maximumDelay.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) +
+            "s, detection=" +
+            minimumDetection.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+            ".." + maximumDetection.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+            "m, fov=" +
+            minimumFov.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+            ".." + maximumFov.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+            ", wander=" + minimumWander + ".." + maximumWander +
+            "m, comms=" + commsEnabled + "/" + count + ".";
+        if (minimumDelay <= 0f)
+            log.LogWarning(message + " At least one native prefab has no initial wander delay.");
+        else
+            log.LogInfo(message);
+    }
+
+    private void ProcessProfiledPveAiDiagnostics(ActiveMapOperation operation)
+    {
+        if (!IsProfiledPveDiagnosticOperation(operation) ||
+            operation.ProfiledPveAiDiagnosticComplete ||
+            operation.ProfiledPveAiDiagnosticStartedAt < 0f ||
+            operation.ProfiledPveAiDiagnosticSnapshotIndex >=
+                ProfiledPveAiDiagnosticSnapshotSeconds.Length)
+        {
+            return;
+        }
+
+        float now = Time.realtimeSinceStartup;
+        if (now < operation.ProfiledPveAiDiagnosticNextProbeAt)
+            return;
+        float elapsed = now - operation.ProfiledPveAiDiagnosticStartedAt;
+        float scheduled = ProfiledPveAiDiagnosticSnapshotSeconds[
+            operation.ProfiledPveAiDiagnosticSnapshotIndex];
+        if (elapsed + 0.05f < scheduled)
+        {
+            operation.ProfiledPveAiDiagnosticNextProbeAt =
+                operation.ProfiledPveAiDiagnosticStartedAt + scheduled;
+            return;
+        }
+
+        GameManager gameManager = GameManager.instance;
+        RefreshProfiledPveDiagnosticBrains(operation, gameManager);
+        LogProfiledPveAiSnapshot(operation, gameManager, scheduled, elapsed);
+        operation.ProfiledPveAiDiagnosticSnapshotIndex++;
+        if (operation.ProfiledPveAiDiagnosticSnapshotIndex >=
+            ProfiledPveAiDiagnosticSnapshotSeconds.Length)
+        {
+            operation.ProfiledPveAiDiagnosticComplete = true;
+            log.LogInfo("Profiled PVE AI diagnostic completed its bounded " +
+                "120-second read-only acceptance window for operation=" +
+                operation.Operation.Id + ".");
+            return;
+        }
+        operation.ProfiledPveAiDiagnosticNextProbeAt =
+            operation.ProfiledPveAiDiagnosticStartedAt +
+            ProfiledPveAiDiagnosticSnapshotSeconds[
+                operation.ProfiledPveAiDiagnosticSnapshotIndex];
+    }
+
+    private void LogProfiledPveAiSnapshot(
+        ActiveMapOperation operation,
+        GameManager gameManager,
+        float scheduled,
+        float elapsed)
+    {
+        int live = 0;
+        int movedOneMeter = 0;
+        int movedTowardInsertionFiveMeters = 0;
+        int hasSeenTarget = 0;
+        int sightBlockedByVegetation = 0;
+        int sightBlockedByOther = 0;
+        int sightReachedPlayer = 0;
+        float movementTotal = 0f;
+        float movementMaximum = 0f;
+        var states = new Dictionary<string, int>(StringComparer.Ordinal);
+        GameObject player = gameManager == null ? null : GameManager.myPlayer;
+        Vector3 playerAimPoint = player == null
+            ? Vector3.zero
+            : player.transform.position + Vector3.up * 1.35f;
+
+        foreach (BrainAI brain in operation.ProfiledPveDiagnosticBrains)
+        {
+            if (brain == null)
+                continue;
+            try
+            {
+                int instanceId = brain.GetInstanceID();
+                if (!operation.ProfiledPveInitialBrainPositions.TryGetValue(
+                        instanceId,
+                        out Vector3 initial))
+                {
+                    initial = brain.transform.position;
+                    operation.ProfiledPveInitialBrainPositions[instanceId] = initial;
+                }
+                Vector3 current = brain.transform.position;
+                Vector2 planarDelta = new Vector2(
+                    current.x - initial.x,
+                    current.z - initial.z);
+                float movement = planarDelta.magnitude;
+                movementTotal += movement;
+                movementMaximum = Mathf.Max(movementMaximum, movement);
+                if (movement >= 1f)
+                    movedOneMeter++;
+                if (operation.ProfiledPveInitialPlayerPositionCaptured)
+                {
+                    Vector2 initialToInsertion = new Vector2(
+                        initial.x - operation.ProfiledPveInitialPlayerPosition.x,
+                        initial.z - operation.ProfiledPveInitialPlayerPosition.z);
+                    Vector2 currentToInsertion = new Vector2(
+                        current.x - operation.ProfiledPveInitialPlayerPosition.x,
+                        current.z - operation.ProfiledPveInitialPlayerPosition.z);
+                    if (initialToInsertion.magnitude - currentToInsertion.magnitude >= 5f)
+                        movedTowardInsertionFiveMeters++;
+                }
+                if (brain.CurrentSeenTarget != null)
+                    hasSeenTarget++;
+                string state = brain.CurrentState.ToString();
+                states[state] = states.TryGetValue(state, out int stateCount)
+                    ? stateCount + 1
+                    : 1;
+
+                if (player != null && brain.eyesAI != null)
+                {
+                    GameObject eyesObject = brain.eyesAI.EyesTransform;
+                    Vector3 eyePosition = eyesObject == null
+                        ? current + Vector3.up * 1.6f
+                        : eyesObject.transform.position;
+                    if (Physics.Linecast(
+                            eyePosition,
+                            playerAimPoint,
+                            out RaycastHit hit,
+                            brain.eyesAI.DetectionLayerMask,
+                            QueryTriggerInteraction.Collide))
+                    {
+                        Transform hitTransform = hit.collider == null
+                            ? null
+                            : hit.collider.transform;
+                        if (hitTransform != null &&
+                            hitTransform.root == player.transform.root)
+                        {
+                            sightReachedPlayer++;
+                        }
+                        else if (hit.collider != null &&
+                                 hit.collider.gameObject.layer == 18)
+                        {
+                            sightBlockedByVegetation++;
+                        }
+                        else
+                        {
+                            sightBlockedByOther++;
+                        }
+                    }
+                    else
+                    {
+                        // A clear same-mask line has no accepted collider.
+                        // Record it with reached-player because neither map
+                        // geometry nor a foliage blocker stopped the probe.
+                        sightReachedPlayer++;
+                    }
+                }
+                live++;
+            }
+            catch
+            {
+                // Keep the bounded report alive if one bot is destroyed.
+            }
+        }
+
+        string stateSummary = states.Count == 0
+            ? "none"
+            : string.Join(",", states.OrderBy(pair => pair.Key)
+                .Select(pair => pair.Key + "=" + pair.Value));
+        float movementMean = live == 0 ? 0f : movementTotal / live;
+        log.LogInfo("Profiled PVE AI snapshot: operation=" +
+            operation.Operation.Id + ", profile=" +
+            operation.Operation.PveAiProfile.Id + ", scheduled=" +
+            scheduled.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) +
+            "s, elapsed=" +
+            elapsed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) +
+            "s, live=" + live +
+            ", moved>=1m=" + movedOneMeter +
+            ", movedTowardInsertion>=5m=" + movedTowardInsertionFiveMeters +
+            ", movementMean=" +
+            movementMean.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) +
+            "m, movementMax=" +
+            movementMaximum.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) +
+            "m, actualSeenTarget=" + hasSeenTarget +
+            ", sameMaskSightProbe(vegetation=" + sightBlockedByVegetation +
+            ",other=" + sightBlockedByOther +
+            ",clearOrPlayer=" + sightReachedPlayer +
+            "), states=" + stateSummary + ".");
     }
 
     private static int ChooseStandalonePveEnemyCount(ActiveMapOperation operation)

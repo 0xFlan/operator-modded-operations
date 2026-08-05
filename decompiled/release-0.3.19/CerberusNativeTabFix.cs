@@ -11,7 +11,9 @@ using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.Injection;
+using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Il2CppSystem;
 using Il2CppSystem.Collections.Generic;
 using Michsky.DreamOS;
 using Mirror;
@@ -92,9 +94,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	{
 		public ModdedMapDefinition Map;
 
-		public readonly System.Collections.Generic.List<AssetBundle> Dependencies = new System.Collections.Generic.List<AssetBundle>();
+		public readonly List<AssetBundle> Dependencies = new List<AssetBundle>();
 
-		public readonly System.Collections.Generic.Dictionary<string, AssetBundle> DependenciesByPath = new System.Collections.Generic.Dictionary<string, AssetBundle>(StringComparer.OrdinalIgnoreCase);
+		public readonly Dictionary<string, AssetBundle> DependenciesByPath = new Dictionary<string, AssetBundle>(StringComparer.OrdinalIgnoreCase);
 
 		public AssetBundle SceneBundle;
 	}
@@ -115,7 +117,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 		public LoadedMapBundles LoadingBundles;
 
-		public readonly System.Collections.Generic.List<string> BundlePaths = new System.Collections.Generic.List<string>();
+		public readonly List<string> BundlePaths = new List<string>();
 
 		public AssetBundleCreateRequest CurrentRequest;
 
@@ -184,23 +186,23 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 		public TerrainData RuntimeTerrainData;
 
-		public readonly System.Collections.Generic.List<TerrainLayer> RuntimeTerrainLayers = new System.Collections.Generic.List<TerrainLayer>();
+		public readonly List<TerrainLayer> RuntimeTerrainLayers = new List<TerrainLayer>();
 
-		public readonly System.Collections.Generic.Dictionary<int, int> PositionedPlayerObjects = new System.Collections.Generic.Dictionary<int, int>();
+		public readonly Dictionary<int, int> PositionedPlayerObjects = new Dictionary<int, int>();
 
-		public readonly System.Collections.Generic.Dictionary<int, string> PlayerMarkerNames = new System.Collections.Generic.Dictionary<int, string>();
+		public readonly Dictionary<int, string> PlayerMarkerNames = new Dictionary<int, string>();
 
-		public readonly System.Collections.Generic.Dictionary<int, int> PlayerSpawnRequestFrames = new System.Collections.Generic.Dictionary<int, int>();
+		public readonly Dictionary<int, int> PlayerSpawnRequestFrames = new Dictionary<int, int>();
 
-		public readonly System.Collections.Generic.Dictionary<int, int> PlayerSpawnRequestCounts = new System.Collections.Generic.Dictionary<int, int>();
+		public readonly Dictionary<int, int> PlayerSpawnRequestCounts = new Dictionary<int, int>();
 
 		public readonly HashSet<int> CompletedPlayerSpawnIds = new HashSet<int>();
 
-		public readonly System.Collections.Generic.Dictionary<int, int> PlayerMoveRequestFrames = new System.Collections.Generic.Dictionary<int, int>();
+		public readonly Dictionary<int, int> PlayerMoveRequestFrames = new Dictionary<int, int>();
 
-		public Il2CppSystem.Collections.Generic.List<SpawnPoint> PreviousSpawnPoints;
+		public List<SpawnPoint> PreviousSpawnPoints;
 
-		public Il2CppSystem.Collections.Generic.List<SpawnPoint> OwnedSpawnPoints;
+		public List<SpawnPoint> OwnedSpawnPoints;
 
 		public Il2CppReferenceArray<GameObject> PreviousFallbackSpawns;
 
@@ -222,7 +224,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 		public bool WhitePhosphorApplied;
 
-		public readonly System.Collections.Generic.List<VolumeProfile> RuntimeRenderProfiles = new System.Collections.Generic.List<VolumeProfile>();
+		public readonly List<VolumeProfile> RuntimeRenderProfiles = new List<VolumeProfile>();
 
 		public bool PveSpawnAttempted;
 
@@ -230,7 +232,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 		public GameObject RaidUtilityRoot;
 
-		public readonly System.Collections.Generic.List<UnityEngine.Object> RuntimePvpAssets = new System.Collections.Generic.List<UnityEngine.Object>();
+		public readonly HashSet<int> ProfiledPvePreexistingBrainIds = new HashSet<int>();
+
+		public readonly List<BrainAI> ProfiledPveDiagnosticBrains = new List<BrainAI>();
+
+		public readonly Dictionary<int, Vector3> ProfiledPveInitialBrainPositions = new Dictionary<int, Vector3>();
+
+		public bool ProfiledPveInitialPlayerPositionCaptured;
+
+		public Vector3 ProfiledPveInitialPlayerPosition;
+
+		public float ProfiledPveAiDiagnosticStartedAt = -1f;
+
+		public float ProfiledPveAiDiagnosticNextProbeAt = -1f;
+
+		public int ProfiledPveAiDiagnosticSnapshotIndex;
+
+		public bool ProfiledPveAiDiagnosticComplete;
+
+		public readonly List<Object> RuntimePvpAssets = new List<Object>();
 	}
 
 	private sealed class FixRunner : MonoBehaviour
@@ -270,12 +290,12 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			try
 			{
-				base.Server_AllPlayersLoaded();
-				CerberusNativeTabFix.instance?.OnStandaloneAllPlayersLoaded(nativePvpLifecycle: true);
+				((PvpGameode)this).Server_AllPlayersLoaded();
+				instance?.OnStandaloneAllPlayersLoaded(nativePvpLifecycle: true);
 			}
 			catch (Exception exception)
 			{
-				CerberusNativeTabFix.instance?.OnStandalonePvpAllPlayersLoadedFailed(exception);
+				instance?.OnStandalonePvpAllPlayersLoadedFailed(exception);
 			}
 		}
 
@@ -286,18 +306,18 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 		private void EnterNativeReadiness(string source)
 		{
-			if (CerberusNativeTabFix.instance == null || !CerberusNativeTabFix.instance.TryClaimStandaloneReadinessInitialization(this))
+			if (instance == null || !instance.TryClaimStandaloneReadinessInitialization((GameMode)(object)this))
 			{
 				return;
 			}
 			try
 			{
-				base.OnStartClient();
-				CerberusNativeTabFix.instance.MarkStandaloneReadinessInitialized(this, source);
+				((PvpGameode)this).OnStartClient();
+				instance.MarkStandaloneReadinessInitialized((GameMode)(object)this, source);
 			}
 			catch (Exception exception)
 			{
-				CerberusNativeTabFix.instance.MarkStandaloneReadinessInitializationFailed(this, source, exception);
+				instance.MarkStandaloneReadinessInitializationFailed((GameMode)(object)this, source, exception);
 			}
 		}
 	}
@@ -320,23 +340,23 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 		public override void Server_AllPlayersLoaded()
 		{
-			CerberusNativeTabFix.instance?.OnStandaloneAllPlayersLoaded(nativePvpLifecycle: false);
+			instance?.OnStandaloneAllPlayersLoaded(nativePvpLifecycle: false);
 		}
 
 		public void EnsureStandaloneReadiness(string source)
 		{
-			if (CerberusNativeTabFix.instance == null || !CerberusNativeTabFix.instance.TryClaimStandaloneReadinessInitialization(this))
+			if (instance == null || !instance.TryClaimStandaloneReadinessInitialization((GameMode)(object)this))
 			{
 				return;
 			}
 			try
 			{
-				Initialize();
-				CerberusNativeTabFix.instance.MarkStandaloneReadinessInitialized(this, source);
+				((GameMode)this).Initialize();
+				instance.MarkStandaloneReadinessInitialized((GameMode)(object)this, source);
 			}
 			catch (Exception exception)
 			{
-				CerberusNativeTabFix.instance.MarkStandaloneReadinessInitializationFailed(this, source, exception);
+				instance.MarkStandaloneReadinessInitializationFailed((GameMode)(object)this, source, exception);
 			}
 		}
 	}
@@ -347,23 +367,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private const uint StandalonePvpGameModeAssetId = 1297043458u;
 
+	private static readonly float[] ProfiledPveAiDiagnosticSnapshotSeconds = new float[6] { 0f, 10f, 30f, 60f, 90f, 120f };
+
 	private static CerberusNativeTabFix instance;
 
 	private ManualLogSource log;
 
 	private FixRunner runner;
 
-	private readonly System.Collections.Generic.Dictionary<string, LoadedMapBundles> loadedMapBundles = new System.Collections.Generic.Dictionary<string, LoadedMapBundles>(StringComparer.Ordinal);
+	private readonly Dictionary<string, LoadedMapBundles> loadedMapBundles = new Dictionary<string, LoadedMapBundles>(StringComparer.Ordinal);
 
-	private readonly System.Collections.Generic.Dictionary<string, Sprite> previewSprites = new System.Collections.Generic.Dictionary<string, Sprite>(StringComparer.Ordinal);
+	private readonly Dictionary<string, Sprite> previewSprites = new Dictionary<string, Sprite>(StringComparer.Ordinal);
 
-	private readonly System.Collections.Generic.Dictionary<string, Texture2D> previewTextures = new System.Collections.Generic.Dictionary<string, Texture2D>(StringComparer.Ordinal);
+	private readonly Dictionary<string, Texture2D> previewTextures = new Dictionary<string, Texture2D>(StringComparer.Ordinal);
 
-	private readonly System.Collections.Generic.Dictionary<string, Texture3D> packageTonemapLuts = new System.Collections.Generic.Dictionary<string, Texture3D>(StringComparer.Ordinal);
+	private readonly Dictionary<string, Texture3D> packageTonemapLuts = new Dictionary<string, Texture3D>(StringComparer.Ordinal);
 
 	private GameObject operationBoardVisualTemplate;
 
-	private readonly System.Collections.Generic.Dictionary<int, CatalogPresentation> catalogPresentations = new System.Collections.Generic.Dictionary<int, CatalogPresentation>();
+	private readonly Dictionary<int, CatalogPresentation> catalogPresentations = new Dictionary<int, CatalogPresentation>();
 
 	private PendingMapLaunch pendingLaunch;
 
@@ -383,66 +405,68 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private MethodInfo directServerPlayerSpawnMethod;
 
-	private readonly System.Collections.Generic.List<NativePresentationBinding> nativePresentationBindings = new System.Collections.Generic.List<NativePresentationBinding>();
+	private readonly List<NativePresentationBinding> nativePresentationBindings = new List<NativePresentationBinding>();
 
-	private readonly System.Collections.Generic.List<PendingTransitionSnapshot> pendingTransitionSnapshots = new System.Collections.Generic.List<PendingTransitionSnapshot>();
+	private readonly List<PendingTransitionSnapshot> pendingTransitionSnapshots = new List<PendingTransitionSnapshot>();
 
 	private string lastDiagnostic;
 
 	public override void Load()
 	{
+		//IL_00a8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ae: Expected O, but got Unknown
 		if (!string.Equals(OperatorApi.ApiVersion, "0.2.0-alpha.3", StringComparison.Ordinal))
 		{
-			base.Log.LogError("Modded Operations requires Operator Mod API 0.2.0-alpha.3, but Core exposes " + OperatorApi.ApiVersion + ". Adapter startup was refused.");
+			((BasePlugin)this).Log.LogError((object)("Modded Operations requires Operator Mod API 0.2.0-alpha.3, but Core exposes " + OperatorApi.ApiVersion + ". Adapter startup was refused."));
 			return;
 		}
 		directServerPlayerSpawnMethod = typeof(PlayerMaster).GetMethod("UserCode_CMDSpawnPlayer__NetworkIdentity", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[1] { typeof(NetworkIdentity) }, null);
 		if (directServerPlayerSpawnMethod == null)
 		{
-			base.Log.LogError("Modded Operations could not resolve the exact current-build PlayerMaster generated server spawn body. Adapter startup was refused.");
+			((BasePlugin)this).Log.LogError((object)"Modded Operations could not resolve the exact current-build PlayerMaster generated server spawn body. Adapter startup was refused.");
 			return;
 		}
 		instance = this;
-		log = base.Log;
+		log = ((BasePlugin)this).Log;
 		ClassInjector.RegisterTypeInIl2Cpp<FixRunner>();
 		ClassInjector.RegisterTypeInIl2Cpp<StandalonePvpGameMode>();
 		ClassInjector.RegisterTypeInIl2Cpp<StandalonePveGameMode>();
-		GameObject gameObject = new GameObject("Operator_Cerberus_Native_Tab_Fix_Runner");
-		UnityEngine.Object.DontDestroyOnLoad(gameObject);
-		runner = gameObject.AddComponent<FixRunner>();
-		runner.InvokeRepeating("Tick", 1f, 1f);
-		sceneLoadedCallback = DelegateSupport.ConvertDelegate<UnityAction<Scene, LoadSceneMode>>(new Action<Scene, LoadSceneMode>(OnSceneLoaded));
-		sceneUnloadedCallback = DelegateSupport.ConvertDelegate<UnityAction<Scene>>(new Action<Scene>(OnSceneUnloaded));
+		GameObject val = new GameObject("Operator_Cerberus_Native_Tab_Fix_Runner");
+		Object.DontDestroyOnLoad((Object)(object)val);
+		runner = val.AddComponent<FixRunner>();
+		((MonoBehaviour)runner).InvokeRepeating("Tick", 1f, 1f);
+		sceneLoadedCallback = DelegateSupport.ConvertDelegate<UnityAction<Scene, LoadSceneMode>>((Delegate)new Action<Scene, LoadSceneMode>(OnSceneLoaded));
+		sceneUnloadedCallback = DelegateSupport.ConvertDelegate<UnityAction<Scene>>((Delegate)new Action<Scene>(OnSceneUnloaded));
 		SceneManager.sceneLoaded += sceneLoadedCallback;
 		SceneManager.sceneUnloaded += sceneUnloadedCallback;
-		log.LogInfo("Modded Operations infrastructure loaded; catalog=" + OperatorApi.ModdedOperations.CatalogId + ", maps=" + OperatorApi.ModdedOperations.Maps.Count + ", operations=" + OperatorApi.ModdedOperations.Operations.Count + ".");
+		log.LogInfo((object)("Modded Operations infrastructure loaded; catalog=" + OperatorApi.ModdedOperations.CatalogId + ", maps=" + OperatorApi.ModdedOperations.Maps.Count + ", operations=" + OperatorApi.ModdedOperations.Operations.Count + "."));
 	}
 
-	public static T LoadVerifiedMapDependencyAsset<T>(string mapId, string assetPath) where T : UnityEngine.Object
+	public static T LoadVerifiedMapDependencyAsset<T>(string mapId, string assetPath) where T : Object
 	{
 		if (instance == null || string.IsNullOrWhiteSpace(mapId) || string.IsNullOrWhiteSpace(assetPath))
 		{
-			return null;
+			return default(T);
 		}
 		return instance.LoadVerifiedMapDependencyAssetInternal<T>(mapId, assetPath);
 	}
 
-	private T LoadVerifiedMapDependencyAssetInternal<T>(string mapId, string assetPath) where T : UnityEngine.Object
+	private T LoadVerifiedMapDependencyAssetInternal<T>(string mapId, string assetPath) where T : Object
 	{
 		if (!loadedMapBundles.TryGetValue(mapId, out var value) || value == null)
 		{
-			return null;
+			return default(T);
 		}
 		foreach (AssetBundle dependency in value.Dependencies)
 		{
-			if (dependency == null)
+			if ((Object)(object)dependency == (Object)null)
 			{
 				continue;
 			}
 			try
 			{
 				T val = dependency.LoadAsset<T>(assetPath);
-				if (val != null)
+				if ((Object)(object)val != (Object)null)
 				{
 					return val;
 				}
@@ -451,18 +475,18 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 			}
 		}
-		return null;
+		return default(T);
 	}
 
 	public override bool Unload()
 	{
 		try
 		{
-			if (sceneLoadedCallback != null)
+			if ((Delegate)(object)sceneLoadedCallback != (Delegate)null)
 			{
 				SceneManager.sceneLoaded -= sceneLoadedCallback;
 			}
-			if (sceneUnloadedCallback != null)
+			if ((Delegate)(object)sceneUnloadedCallback != (Delegate)null)
 			{
 				SceneManager.sceneUnloaded -= sceneUnloadedCallback;
 			}
@@ -470,25 +494,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			sceneUnloadedCallback = null;
 			foreach (CatalogPresentation value in catalogPresentations.Values)
 			{
-				if (value?.PreparationPanel != null)
+				if ((Object)(object)value?.PreparationPanel != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value.PreparationPanel);
+					Object.Destroy((Object)(object)value.PreparationPanel);
 				}
-				if (value?.Page != null)
+				if ((Object)(object)value?.Page != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value.Page);
+					Object.Destroy((Object)(object)value.Page);
 				}
-				if (value?.NativeBoardData != null)
+				if ((Object)(object)value?.NativeBoardData != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value.NativeBoardData);
+					Object.Destroy((Object)(object)value.NativeBoardData);
 				}
-				if (value?.NativeTargetData != null)
+				if ((Object)(object)value?.NativeTargetData != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value.NativeTargetData);
+					Object.Destroy((Object)(object)value.NativeTargetData);
 				}
-				if (value?.NativeInfiltrationMapPrefab != null)
+				if ((Object)(object)value?.NativeInfiltrationMapPrefab != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value.NativeInfiltrationMapPrefab);
+					Object.Destroy((Object)(object)value.NativeInfiltrationMapPrefab);
 				}
 			}
 			catalogPresentations.Clear();
@@ -499,7 +523,14 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 				try
 				{
-					value2?.SceneBundle?.Unload(unloadAllLoadedObjects: false);
+					if (value2 != null)
+					{
+						AssetBundle sceneBundle = value2.SceneBundle;
+						if (sceneBundle != null)
+						{
+							sceneBundle.Unload(false);
+						}
+					}
 				}
 				catch
 				{
@@ -512,7 +543,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				{
 					try
 					{
-						dependency?.Unload(unloadAllLoadedObjects: false);
+						if (dependency != null)
+						{
+							dependency.Unload(false);
+						}
 					}
 					catch
 					{
@@ -522,39 +556,39 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			loadedMapBundles.Clear();
 			foreach (Sprite value3 in previewSprites.Values)
 			{
-				if (value3 != null)
+				if ((Object)(object)value3 != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value3);
+					Object.Destroy((Object)(object)value3);
 				}
 			}
 			foreach (Texture2D value4 in previewTextures.Values)
 			{
-				if (value4 != null)
+				if ((Object)(object)value4 != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value4);
+					Object.Destroy((Object)(object)value4);
 				}
 			}
 			previewSprites.Clear();
 			previewTextures.Clear();
 			foreach (Texture3D value5 in packageTonemapLuts.Values)
 			{
-				if (value5 != null)
+				if ((Object)(object)value5 != (Object)null)
 				{
-					UnityEngine.Object.Destroy(value5);
+					Object.Destroy((Object)(object)value5);
 				}
 			}
 			packageTonemapLuts.Clear();
 			ReleaseStandaloneSceneContracts(activeOperation);
 			ReleaseRuntimeTerrain(activeOperation);
-			if (activeOperation?.BootstrapRoot != null)
+			if ((Object)(object)activeOperation?.BootstrapRoot != (Object)null)
 			{
-				UnityEngine.Object.Destroy(activeOperation.BootstrapRoot);
+				Object.Destroy((Object)(object)activeOperation.BootstrapRoot);
 			}
 			activeOperation = null;
 			pendingLaunch = null;
-			if (runner != null)
+			if ((Object)(object)runner != (Object)null)
 			{
-				UnityEngine.Object.Destroy(runner.gameObject);
+				Object.Destroy((Object)(object)((Component)runner).gameObject);
 			}
 			runner = null;
 			instance = null;
@@ -562,13 +596,19 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		catch (Exception ex)
 		{
-			log?.LogError("Modded Operations unload failed: " + ex);
+			ManualLogSource obj3 = log;
+			if (obj3 != null)
+			{
+				obj3.LogError((object)("Modded Operations unload failed: " + ex));
+			}
 			return false;
 		}
 	}
 
 	private void TryAttachAll()
 	{
+		//IL_006e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0073: Unknown result type (might be due to invalid IL or missing references)
 		Type type = ResolveMissionLaptopType();
 		if (type == null)
 		{
@@ -577,37 +617,37 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		foreach (Component item in FindMissionLaptopComponents(type))
 		{
-			MissionLaptop missionLaptop = item as MissionLaptop;
-			if (missionLaptop == null || missionLaptop.gameObject == null || missionLaptop.cerberusWindowPanelManager == null)
+			MissionLaptop val = (MissionLaptop)(object)((item is MissionLaptop) ? item : null);
+			if ((Object)(object)val == (Object)null || (Object)(object)((Component)val).gameObject == (Object)null || (Object)(object)val.cerberusWindowPanelManager == (Object)null)
 			{
 				continue;
 			}
-			Scene scene = missionLaptop.gameObject.scene;
-			if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrWhiteSpace(scene.path))
+			Scene scene = ((Component)val).gameObject.scene;
+			if (!((Scene)(ref scene)).IsValid() || !((Scene)(ref scene)).isLoaded || string.IsNullOrWhiteSpace(((Scene)(ref scene)).path))
 			{
 				continue;
 			}
-			int instanceID = missionLaptop.GetInstanceID();
+			int instanceID = ((Object)val).GetInstanceID();
 			if (attachedLaptops.Contains(instanceID))
 			{
-				Transform transform = ((missionLaptop.ActiveOperationsTab == null) ? null : missionLaptop.ActiveOperationsTab.transform.parent);
-				GameObject gameObject = FindDeep(transform, "MODDED_OPS_NATIVE_TAB") ?? FindDeep(transform, "MODDED_OPS_TAB");
-				if (gameObject != null)
+				Transform val2 = (((Object)(object)val.ActiveOperationsTab == (Object)null) ? null : val.ActiveOperationsTab.transform.parent);
+				GameObject val3 = FindDeep(val2, "MODDED_OPS_NATIVE_TAB") ?? FindDeep(val2, "MODDED_OPS_TAB");
+				if ((Object)(object)val3 != (Object)null)
 				{
-					GameObject gameObject2 = FindChild(transform, "MODDED_OPERATIONS_PAGE");
-					GameObject obj = ((gameObject2 == null) ? null : FindDeep(gameObject2.transform, "MODDED_NATIVE_HOME"));
-					GameObject gameObject3 = FindNativeModdedPreparationPanel(missionLaptop);
+					GameObject val4 = FindChild(val2, "MODDED_OPERATIONS_PAGE");
+					GameObject obj = (((Object)(object)val4 == (Object)null) ? null : FindDeep(val4.transform, "MODDED_NATIVE_HOME"));
+					GameObject val5 = FindNativeModdedPreparationPanel(val);
 					bool flag = OperatorApi.ModdedOperations.Operations.Count == 0;
-					if (!(obj == null) && (flag || !(gameObject3 == null)))
+					if (!((Object)(object)obj == (Object)null) && (flag || !((Object)(object)val5 == (Object)null)))
 					{
-						SetButtonText(gameObject, "MODDED OPERATIONS");
+						SetButtonText(val3, "MODDED OPERATIONS");
 						continue;
 					}
 					attachedLaptops.Remove(instanceID);
 				}
 				attachedLaptops.Remove(instanceID);
 			}
-			if (TryAttachNativeTab(missionLaptop))
+			if (TryAttachNativeTab(val))
 			{
 				attachedLaptops.Add(instanceID);
 			}
@@ -616,23 +656,32 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void LogOnce(string message, bool warning)
 	{
-		if (!string.Equals(lastDiagnostic, message, StringComparison.Ordinal))
+		if (string.Equals(lastDiagnostic, message, StringComparison.Ordinal))
 		{
-			lastDiagnostic = message;
-			if (warning)
+			return;
+		}
+		lastDiagnostic = message;
+		if (warning)
+		{
+			ManualLogSource obj = log;
+			if (obj != null)
 			{
-				log?.LogWarning("Cerberus native tab fix: " + message);
+				obj.LogWarning((object)("Cerberus native tab fix: " + message));
 			}
-			else
+		}
+		else
+		{
+			ManualLogSource obj2 = log;
+			if (obj2 != null)
 			{
-				log?.LogInfo("Cerberus native tab fix: " + message);
+				obj2.LogInfo((object)("Cerberus native tab fix: " + message));
 			}
 		}
 	}
 
-	private static System.Collections.Generic.List<Component> FindMissionLaptopComponents(Type laptopType)
+	private static List<Component> FindMissionLaptopComponents(Type laptopType)
 	{
-		System.Collections.Generic.List<Component> list = new System.Collections.Generic.List<Component>(4);
+		List<Component> list = new List<Component>(4);
 		if (laptopType == null)
 		{
 			return list;
@@ -657,15 +706,16 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 				return list;
 			}
-			foreach (object item2 in enumerable)
+			foreach (object item in enumerable)
 			{
-				if (item2 is Component item && !list.Contains(item))
+				Component val = (Component)((item is Component) ? item : null);
+				if (val != null && !list.Contains(val))
 				{
-					list.Add(item);
+					list.Add(val);
 					continue;
 				}
-				Component existingComponentByManagedType = GetExistingComponentByManagedType(ExtractGameObject(item2), laptopType);
-				if (existingComponentByManagedType != null && !list.Contains(existingComponentByManagedType))
+				Component existingComponentByManagedType = GetExistingComponentByManagedType(ExtractGameObject(item), laptopType);
+				if ((Object)(object)existingComponentByManagedType != (Object)null && !list.Contains(existingComponentByManagedType))
 				{
 					list.Add(existingComponentByManagedType);
 				}
@@ -697,7 +747,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static Component GetExistingComponentByManagedType(GameObject gameObject, Type componentType)
 	{
-		if (gameObject == null || componentType == null)
+		if ((Object)(object)gameObject == (Object)null || componentType == null)
 		{
 			return null;
 		}
@@ -706,7 +756,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			if (methodInfo.Name == "GetComponent" && methodInfo.IsGenericMethodDefinition && methodInfo.GetGenericArguments().Length == 1 && methodInfo.GetParameters().Length == 0)
 			{
-				return methodInfo.MakeGenericMethod(componentType).Invoke(gameObject, null) as Component;
+				object? obj = methodInfo.MakeGenericMethod(componentType).Invoke(gameObject, null);
+				return (Component)((obj is Component) ? obj : null);
 			}
 		}
 		return null;
@@ -714,13 +765,15 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static GameObject ExtractGameObject(object value)
 	{
-		if (value is GameObject result)
+		GameObject val = (GameObject)((value is GameObject) ? value : null);
+		if (val != null)
 		{
-			return result;
+			return val;
 		}
-		if (value is Component component)
+		Component val2 = (Component)((value is Component) ? value : null);
+		if (val2 != null)
 		{
-			return component.gameObject;
+			return val2.gameObject;
 		}
 		if (value == null)
 		{
@@ -729,7 +782,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		try
 		{
 			Type type = value.GetType();
-			return (type.GetProperty("gameObject", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? type.GetProperty("GameObject", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))?.GetValue(value) as GameObject;
+			object? obj = (type.GetProperty("gameObject", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) ?? type.GetProperty("GameObject", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))?.GetValue(value);
+			return (GameObject)((obj is GameObject) ? obj : null);
 		}
 		catch
 		{
@@ -739,36 +793,40 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private bool TryAttachNativeTab(MissionLaptop laptop)
 	{
+		//IL_0380: Unknown result type (might be due to invalid IL or missing references)
+		//IL_038a: Expected O, but got Unknown
+		//IL_03a1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03ab: Expected O, but got Unknown
 		try
 		{
-			int laptopId = ((!(laptop == null)) ? laptop.GetInstanceID() : 0);
-			Transform transform = ((laptop.ActiveOperationsTab == null) ? null : laptop.ActiveOperationsTab.transform.parent);
-			GameObject sourceButton = FindNativeActiveOperationsButton(transform);
-			if (sourceButton == null || sourceButton.transform.parent == null)
+			int laptopId = ((!((Object)(object)laptop == (Object)null)) ? ((Object)laptop).GetInstanceID() : 0);
+			Transform val = (((Object)(object)laptop.ActiveOperationsTab == (Object)null) ? null : laptop.ActiveOperationsTab.transform.parent);
+			GameObject sourceButton = FindNativeActiveOperationsButton(val);
+			if ((Object)(object)sourceButton == (Object)null || (Object)(object)sourceButton.transform.parent == (Object)null)
 			{
-				log.LogWarning("Cerberus native tab fix could not find the in-panel ACTIVE OPERATIONS BUTTON.");
+				log.LogWarning((object)"Cerberus native tab fix could not find the in-panel ACTIVE OPERATIONS BUTTON.");
 				return false;
 			}
-			GameObject page = GetOrCreateCatalogPage(laptop, transform);
-			if (page == null)
+			GameObject page = GetOrCreateCatalogPage(laptop, val);
+			if ((Object)(object)page == (Object)null)
 			{
-				LogOnce("waiting for same-owner Modded Operations page under laptopId=" + laptopId + ", parent=" + HierarchyPath(transform) + ".", warning: false);
+				LogOnce("waiting for same-owner Modded Operations page under laptopId=" + laptopId + ", parent=" + HierarchyPath(val) + ".", warning: false);
 				return false;
 			}
 			Transform parent = sourceButton.transform.parent;
-			GameObject gameObject = FindDeep(parent, "MODDED_OPS_TAB_BUTTON");
-			if (gameObject != null)
+			GameObject val2 = FindDeep(parent, "MODDED_OPS_TAB_BUTTON");
+			if ((Object)(object)val2 != (Object)null)
 			{
-				UnityEngine.Object.Destroy(gameObject);
+				Object.Destroy((Object)(object)val2);
 			}
-			GameObject gameObject2 = FindDeep(parent, "MODDED_OPS_TAB");
-			if (gameObject2 != null)
+			GameObject val3 = FindDeep(parent, "MODDED_OPS_TAB");
+			if ((Object)(object)val3 != (Object)null)
 			{
-				UnityEngine.Object.Destroy(gameObject2);
+				Object.Destroy((Object)(object)val3);
 			}
-			GameObject simulationButton = FindNativeSimulationOperationsButton(transform);
+			GameObject simulationButton = FindNativeSimulationOperationsButton(val);
 			GameObject duplicate = FindDeep(parent, "MODDED_OPS_NATIVE_TAB");
-			if (duplicate != null)
+			if ((Object)(object)duplicate != (Object)null)
 			{
 				if (!BuildNativeModdedPresentation(laptop, page, sourceButton))
 				{
@@ -776,69 +834,69 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				}
 				SetButtonText(duplicate, "MODDED OPERATIONS");
 				RegisterNativePresentationIsolation(laptop, page, duplicate, sourceButton, simulationButton);
-				log.LogInfo("Cerberus native tab already present; rebuilt or retained its native content.");
+				log.LogInfo((object)"Cerberus native tab already present; rebuilt or retained its native content.");
 				return true;
 			}
 			RectTransform component = page.GetComponent<RectTransform>();
-			if (component != null)
+			if ((Object)(object)component != (Object)null)
 			{
 				CopyContentRect(laptop.ActiveOperationsTab, component);
-				int value = ((laptop.ActiveOperationsTab == null) ? (parent.childCount - 1) : laptop.ActiveOperationsTab.transform.GetSiblingIndex());
-				page.transform.SetSiblingIndex(Mathf.Clamp(value, 0, page.transform.parent.childCount - 1));
+				int num = (((Object)(object)laptop.ActiveOperationsTab == (Object)null) ? (parent.childCount - 1) : laptop.ActiveOperationsTab.transform.GetSiblingIndex());
+				page.transform.SetSiblingIndex(Mathf.Clamp(num, 0, page.transform.parent.childCount - 1));
 			}
 			if (!BuildNativeModdedPresentation(laptop, page, sourceButton))
 			{
 				return false;
 			}
-			duplicate = UnityEngine.Object.Instantiate(sourceButton, parent);
-			duplicate.name = "MODDED_OPS_NATIVE_TAB";
-			duplicate.SetActive(value: true);
+			duplicate = Object.Instantiate<GameObject>(sourceButton, parent);
+			((Object)duplicate).name = "MODDED_OPS_NATIVE_TAB";
+			duplicate.SetActive(true);
 			SetButtonText(duplicate, "MODDED OPERATIONS");
 			PositionAsThirdTab(parent, sourceButton, simulationButton, duplicate);
 			FitTabTitleText(sourceButton, "ACTIVE OPERATIONS");
 			FitTabTitleText(simulationButton, "OPERATION SIMULATION");
 			FitTabTitleText(duplicate, "MODDED OPERATIONS");
-			page.SetActive(value: false);
-			if (page.GetComponent<Animator>() == null)
+			page.SetActive(false);
+			if ((Object)(object)page.GetComponent<Animator>() == (Object)null)
 			{
 				page.AddComponent<Animator>();
 			}
 			PanelButton component2 = duplicate.GetComponent<PanelButton>();
 			ButtonManager component3 = duplicate.GetComponent<ButtonManager>();
-			UnityEvent unityEvent = null;
-			if (component2 != null)
+			UnityEvent val4 = null;
+			if ((Object)(object)component2 != (Object)null)
 			{
 				component2.onClick = new UnityEvent();
-				unityEvent = component2.onClick;
+				val4 = component2.onClick;
 			}
-			else if (component3 != null)
+			else if ((Object)(object)component3 != (Object)null)
 			{
 				component3.onClick = new UnityEvent();
-				unityEvent = component3.onClick;
+				val4 = component3.onClick;
 			}
-			Button button = null;
+			Button val5 = null;
 			try
 			{
-				button = duplicate.GetComponent<Button>();
+				val5 = duplicate.GetComponent<Button>();
 			}
 			catch
 			{
-				button = null;
+				val5 = null;
 			}
-			if (button == null)
+			if ((Object)(object)val5 == (Object)null)
 			{
 				try
 				{
-					button = duplicate.GetComponentInChildren<Button>(includeInactive: true);
+					val5 = duplicate.GetComponentInChildren<Button>(true);
 				}
 				catch
 				{
-					button = null;
+					val5 = null;
 				}
 			}
-			if (unityEvent == null && button == null)
+			if (val4 == null && (Object)(object)val5 == (Object)null)
 			{
-				log.LogWarning("Cerberus native tab clone had no DreamOS click event.");
+				log.LogWarning((object)"Cerberus native tab clone had no DreamOS click event.");
 				return false;
 			}
 			int lastLogicalOpenFrame = -1;
@@ -849,74 +907,74 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					int frameCount = Time.frameCount;
 					if (frameCount == lastLogicalOpenFrame)
 					{
-						log.LogInfo("Cerberus native MODDED OPS duplicate click surface suppressed: laptopId=" + laptopId + ", source=" + eventSource + ", frame=" + frameCount + ".");
+						log.LogInfo((object)("Cerberus native MODDED OPS duplicate click surface suppressed: laptopId=" + laptopId + ", source=" + eventSource + ", frame=" + frameCount + "."));
 					}
 					else
 					{
 						lastLogicalOpenFrame = frameCount;
-						log.LogInfo(CaptureLaptopTransitionState(laptop, page, "before MODDED OPS", eventSource, frameCount));
+						log.LogInfo((object)CaptureLaptopTransitionState(laptop, page, "before MODDED OPS", eventSource, frameCount));
 						SetTabSelectedState(sourceButton, selected: false);
 						SetTabSelectedState(simulationButton, selected: false);
 						SetButtonText(duplicate, "MODDED OPERATIONS");
 						SetTabSelectedState(duplicate, selected: true);
 						OpenModdedPage(laptop, page);
 						MarkNativeModdedPageOpened(laptopId, frameCount);
-						log.LogInfo("Cerberus native MODDED OPS logical transition: laptopId=" + laptopId + ", source=" + eventSource + ", frame=" + frameCount + ", pageActiveSelf=" + page.activeSelf + ", pageActiveInHierarchy=" + page.activeInHierarchy + ", ownerCanvas=" + DescribeActivity(laptop.osCanvas) + ", pageParent=" + HierarchyPath(page.transform.parent) + ".");
+						log.LogInfo((object)("Cerberus native MODDED OPS logical transition: laptopId=" + laptopId + ", source=" + eventSource + ", frame=" + frameCount + ", pageActiveSelf=" + page.activeSelf + ", pageActiveInHierarchy=" + page.activeInHierarchy + ", ownerCanvas=" + DescribeActivity(laptop.osCanvas) + ", pageParent=" + HierarchyPath(page.transform.parent) + "."));
 						QueueTransitionSnapshot(laptop, page, "after MODDED OPS via " + eventSource, frameCount);
 					}
 				}
 				catch (Exception ex2)
 				{
-					log.LogWarning("Cerberus native MODDED OPS click failed: " + ex2.GetType().Name + ": " + ex2.Message);
+					log.LogWarning((object)("Cerberus native MODDED OPS click failed: " + ex2.GetType().Name + ": " + ex2.Message));
 				}
 			};
-			if (unityEvent != null)
+			if (val4 != null)
 			{
-				unityEvent.RemoveAllListeners();
-				unityEvent.AddListener((Action)delegate
+				((UnityEventBase)val4).RemoveAllListeners();
+				val4.AddListener(UnityAction.op_Implicit((Action)delegate
 				{
 					openModdedPage("DreamOS.PanelButton");
-				});
+				}));
 			}
-			if (button != null)
+			if ((Object)(object)val5 != (Object)null)
 			{
-				button.onClick.RemoveAllListeners();
-				button.onClick.AddListener((Action)delegate
+				((UnityEventBase)val5.onClick).RemoveAllListeners();
+				((UnityEvent)val5.onClick).AddListener(UnityAction.op_Implicit((Action)delegate
 				{
 					openModdedPage("UnityEngine.UI.Button");
-				});
-				button.interactable = true;
+				}));
+				((Selectable)val5).interactable = true;
 			}
-			if (component2 != null)
+			if ((Object)(object)component2 != (Object)null)
 			{
 				component2.isInteractable = true;
 			}
 			RegisterNativePresentationIsolation(laptop, page, duplicate, sourceButton, simulationButton);
-			int num = 0;
+			int num2 = 0;
 			try
 			{
-				num = duplicate.GetComponentsInChildren<Graphic>(includeInactive: true).Length;
+				num2 = duplicate.GetComponentsInChildren<Graphic>(true).Length;
 			}
 			catch
 			{
 			}
-			log.LogInfo("Cerberus native MODDED OPS tab inserted as third native Operation Selection tab; source=" + sourceButton.name + ", simulation=" + ((simulationButton == null) ? "null" : simulationButton.name) + ", visible=" + duplicate.activeInHierarchy + ", unityButton=" + (button != null) + ", targetGraphic=" + ((button == null || button.targetGraphic == null) ? "null" : button.targetGraphic.gameObject.name) + ", graphics=" + num + ", rect=" + RectSummary(duplicate) + ".");
+			log.LogInfo((object)("Cerberus native MODDED OPS tab inserted as third native Operation Selection tab; source=" + ((Object)sourceButton).name + ", simulation=" + (((Object)(object)simulationButton == (Object)null) ? "null" : ((Object)simulationButton).name) + ", visible=" + duplicate.activeInHierarchy + ", unityButton=" + ((Object)(object)val5 != (Object)null) + ", targetGraphic=" + (((Object)(object)val5 == (Object)null || (Object)(object)((Selectable)val5).targetGraphic == (Object)null) ? "null" : ((Object)((Component)((Selectable)val5).targetGraphic).gameObject).name) + ", graphics=" + num2 + ", rect=" + RectSummary(duplicate) + "."));
 			return true;
 		}
 		catch (Exception ex)
 		{
-			log.LogWarning("Cerberus native tab fix failed: " + ex.ToString());
+			log.LogWarning((object)("Cerberus native tab fix failed: " + ex.ToString()));
 			return false;
 		}
 	}
 
 	private void RegisterNativePresentationIsolation(MissionLaptop laptop, GameObject page, GameObject moddedButton, GameObject activeButton, GameObject simulationButton)
 	{
-		if (laptop == null || page == null || moddedButton == null)
+		if ((Object)(object)laptop == (Object)null || (Object)(object)page == (Object)null || (Object)(object)moddedButton == (Object)null)
 		{
 			return;
 		}
-		int instanceID = laptop.GetInstanceID();
+		int instanceID = ((Object)laptop).GetInstanceID();
 		foreach (NativePresentationBinding nativePresentationBinding in nativePresentationBindings)
 		{
 			if (nativePresentationBinding.LaptopId == instanceID)
@@ -959,23 +1017,23 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		for (int num = nativePresentationBindings.Count - 1; num >= 0; num--)
 		{
 			NativePresentationBinding nativePresentationBinding = nativePresentationBindings[num];
-			if (nativePresentationBinding == null || nativePresentationBinding.Laptop == null || nativePresentationBinding.Page == null || nativePresentationBinding.ModdedButton == null)
+			if (nativePresentationBinding == null || (Object)(object)nativePresentationBinding.Laptop == (Object)null || (Object)(object)nativePresentationBinding.Page == (Object)null || (Object)(object)nativePresentationBinding.ModdedButton == (Object)null)
 			{
 				nativePresentationBindings.RemoveAt(num);
 			}
 			else
 			{
-				bool flag = (nativePresentationBinding.Laptop.ActiveOperationsTab != null && nativePresentationBinding.Laptop.ActiveOperationsTab.activeSelf) || (nativePresentationBinding.Laptop.SimulationOperationsTab != null && nativePresentationBinding.Laptop.SimulationOperationsTab.activeSelf);
+				bool flag = ((Object)(object)nativePresentationBinding.Laptop.ActiveOperationsTab != (Object)null && nativePresentationBinding.Laptop.ActiveOperationsTab.activeSelf) || ((Object)(object)nativePresentationBinding.Laptop.SimulationOperationsTab != (Object)null && nativePresentationBinding.Laptop.SimulationOperationsTab.activeSelf);
 				bool flag2 = flag || IsNativePanelButtonSelected(nativePresentationBinding.ActiveButton) || IsNativePanelButtonSelected(nativePresentationBinding.SimulationButton);
 				if (nativePresentationBinding.Page.activeSelf && flag2 && Time.frameCount > nativePresentationBinding.LastModdedOpenFrame + 1)
 				{
-					nativePresentationBinding.Page.SetActive(value: false);
-					if (nativePresentationBinding.PreparationPanel != null)
+					nativePresentationBinding.Page.SetActive(false);
+					if ((Object)(object)nativePresentationBinding.PreparationPanel != (Object)null)
 					{
-						nativePresentationBinding.PreparationPanel.SetActive(value: false);
+						nativePresentationBinding.PreparationPanel.SetActive(false);
 					}
 					SetTabSelectedState(nativePresentationBinding.ModdedButton, selected: false);
-					log.LogInfo("Cerberus isolated modded overlay closed after an official tab became selected; laptopId=" + nativePresentationBinding.LaptopId + ", officialPageActive=" + flag + ".");
+					log.LogInfo((object)("Cerberus isolated modded overlay closed after an official tab became selected; laptopId=" + nativePresentationBinding.LaptopId + ", officialPageActive=" + flag + "."));
 				}
 			}
 		}
@@ -983,14 +1041,14 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool IsNativePanelButtonSelected(GameObject button)
 	{
-		if (button == null)
+		if ((Object)(object)button == (Object)null)
 		{
 			return false;
 		}
 		try
 		{
 			PanelButton component = button.GetComponent<PanelButton>();
-			return component != null && component.isSelected;
+			return (Object)(object)component != (Object)null && component.isSelected;
 		}
 		catch
 		{
@@ -1000,92 +1058,102 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static GameObject FindNativeModdedPreparationPanel(MissionLaptop laptop)
 	{
-		if (laptop == null || laptop.opBoardParent == null)
+		if ((Object)(object)laptop == (Object)null || (Object)(object)laptop.opBoardParent == (Object)null)
 		{
 			return null;
 		}
 		Transform parent = laptop.opBoardParent.parent;
-		return FindDeep(((parent == null) ? null : parent.parent) ?? parent ?? laptop.opBoardParent, "MODDED_NATIVE_OPERATION_PREPARATION");
+		return FindDeep((((Object)(object)parent == (Object)null) ? null : parent.parent) ?? parent ?? laptop.opBoardParent, "MODDED_NATIVE_OPERATION_PREPARATION");
 	}
 
 	private static GameObject GetOrCreateCatalogPage(MissionLaptop laptop, Transform operationSelection)
 	{
-		if (laptop == null || operationSelection == null || laptop.ActiveOperationsTab == null)
+		//IL_003e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0043: Unknown result type (might be due to invalid IL or missing references)
+		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0063: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0086: Expected O, but got Unknown
+		if ((Object)(object)laptop == (Object)null || (Object)(object)operationSelection == (Object)null || (Object)(object)laptop.ActiveOperationsTab == (Object)null)
 		{
 			return null;
 		}
-		GameObject gameObject = FindChild(operationSelection, "MODDED_OPERATIONS_PAGE");
-		if (gameObject != null)
+		GameObject val = FindChild(operationSelection, "MODDED_OPERATIONS_PAGE");
+		if ((Object)(object)val != (Object)null)
 		{
-			return gameObject;
+			return val;
 		}
-		GameObject gameObject2 = new GameObject("MODDED_OPERATIONS_PAGE");
-		RectTransform destination = gameObject2.AddComponent<RectTransform>();
-		gameObject2.transform.SetParent(operationSelection, worldPositionStays: false);
+		GameObject val2 = new GameObject("MODDED_OPERATIONS_PAGE");
+		RectTransform destination = val2.AddComponent<RectTransform>();
+		val2.transform.SetParent(operationSelection, false);
 		CopyContentRect(laptop.ActiveOperationsTab, destination);
-		gameObject2.transform.SetSiblingIndex(laptop.ActiveOperationsTab.transform.GetSiblingIndex());
-		gameObject2.SetActive(value: false);
-		return gameObject2;
+		val2.transform.SetSiblingIndex(laptop.ActiveOperationsTab.transform.GetSiblingIndex());
+		val2.SetActive(false);
+		return val2;
 	}
 
 	private bool BuildNativeModdedPresentation(MissionLaptop laptop, GameObject page, GameObject nativeButtonTemplate)
 	{
-		if (laptop == null || page == null || laptop.ActiveOperationsTab == null)
+		//IL_036e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_037a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0386: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0395: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)laptop == (Object)null || (Object)(object)page == (Object)null || (Object)(object)laptop.ActiveOperationsTab == (Object)null)
 		{
 			return false;
 		}
-		int instanceID = laptop.GetInstanceID();
+		int instanceID = ((Object)laptop).GetInstanceID();
 		bool flag = OperatorApi.ModdedOperations.Operations.Count == 0;
-		if (catalogPresentations.TryGetValue(instanceID, out var value) && value != null && value.Page == page && value.HomeShell != null && (flag || value.PreparationPanel != null))
+		if (catalogPresentations.TryGetValue(instanceID, out var value) && value != null && (Object)(object)value.Page == (Object)(object)page && (Object)(object)value.HomeShell != (Object)null && (flag || (Object)(object)value.PreparationPanel != (Object)null))
 		{
 			return true;
 		}
 		if (value != null)
 		{
-			if (value.HomeShell != null)
+			if ((Object)(object)value.HomeShell != (Object)null)
 			{
-				UnityEngine.Object.Destroy(value.HomeShell);
+				Object.Destroy((Object)(object)value.HomeShell);
 			}
-			if (value.PreparationPanel != null)
+			if ((Object)(object)value.PreparationPanel != (Object)null)
 			{
-				UnityEngine.Object.Destroy(value.PreparationPanel);
+				Object.Destroy((Object)(object)value.PreparationPanel);
 			}
-			if (value.NativeBoardData != null)
+			if ((Object)(object)value.NativeBoardData != (Object)null)
 			{
-				UnityEngine.Object.Destroy(value.NativeBoardData);
+				Object.Destroy((Object)(object)value.NativeBoardData);
 			}
-			if (value.NativeTargetData != null)
+			if ((Object)(object)value.NativeTargetData != (Object)null)
 			{
-				UnityEngine.Object.Destroy(value.NativeTargetData);
+				Object.Destroy((Object)(object)value.NativeTargetData);
 			}
-			if (value.NativeInfiltrationMapPrefab != null)
+			if ((Object)(object)value.NativeInfiltrationMapPrefab != (Object)null)
 			{
-				UnityEngine.Object.Destroy(value.NativeInfiltrationMapPrefab);
+				Object.Destroy((Object)(object)value.NativeInfiltrationMapPrefab);
 			}
 		}
 		catalogPresentations.Remove(instanceID);
-		GameObject gameObject = FindDeep(page.transform, "MODDED_NATIVE_HOME");
-		GameObject gameObject2 = FindNativeModdedPreparationPanel(laptop);
-		if (gameObject != null)
+		GameObject val = FindDeep(page.transform, "MODDED_NATIVE_HOME");
+		GameObject val2 = FindNativeModdedPreparationPanel(laptop);
+		if ((Object)(object)val != (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject);
+			Object.Destroy((Object)(object)val);
 		}
-		if (gameObject2 != null)
+		if ((Object)(object)val2 != (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject2);
+			Object.Destroy((Object)(object)val2);
 		}
-		GameObject gameObject3 = ExtractGameObject(ReadMember(laptop, "ActiveOperationsList"));
-		GameObject gameObject4 = ExtractGameObject(ReadMember(laptop, "SimulationOperationList"));
-		GameObject gameObject5 = FindNativeOperationRowTemplate((gameObject3 == null) ? null : gameObject3.transform) ?? FindNativeOperationRowTemplate((gameObject4 == null) ? null : gameObject4.transform);
-		if (gameObject3 == null || gameObject5 == null)
+		GameObject val3 = ExtractGameObject(ReadMember(laptop, "ActiveOperationsList"));
+		GameObject val4 = ExtractGameObject(ReadMember(laptop, "SimulationOperationList"));
+		GameObject val5 = FindNativeOperationRowTemplate(((Object)(object)val3 == (Object)null) ? null : val3.transform) ?? FindNativeOperationRowTemplate(((Object)(object)val4 == (Object)null) ? null : val4.transform);
+		if ((Object)(object)val3 == (Object)null || (Object)(object)val5 == (Object)null)
 		{
-			log.LogWarning("Cerberus native Modded Ops presentation skipped because no shipped operation-row visual was available.");
+			log.LogWarning((object)"Cerberus native Modded Ops presentation skipped because no shipped operation-row visual was available.");
 			return false;
 		}
-		int[] array = BuildRelativeChildIndexPath(laptop.ActiveOperationsTab.transform, gameObject3.transform);
+		int[] array = BuildRelativeChildIndexPath(laptop.ActiveOperationsTab.transform, val3.transform);
 		if (array == null)
 		{
-			log.LogWarning("Cerberus native Modded Ops presentation skipped because the active-list path was outside its page.");
+			log.LogWarning((object)"Cerberus native Modded Ops presentation skipped because the active-list path was outside its page.");
 			return false;
 		}
 		CatalogPresentation catalogPresentation = new CatalogPresentation
@@ -1097,98 +1165,98 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			catalogPresentation.HomeShell = CreateEmptyCatalogShell(page.transform, laptop.ActiveOperationsTab, array, out var briefing);
 			catalogPresentation.HomeBriefing = briefing;
-			if (catalogPresentation.HomeShell == null)
+			if ((Object)(object)catalogPresentation.HomeShell == (Object)null)
 			{
 				return false;
 			}
 			catalogPresentations[instanceID] = catalogPresentation;
 			deferredSetupLoggedLaptops.Remove(instanceID);
 			Canvas.ForceUpdateCanvases();
-			log.LogInfo("Modded Operations framework attached with an empty catalog; install one or more valid data-only map packages under BepInEx\\OperatorMods.");
+			log.LogInfo((object)"Modded Operations framework attached with an empty catalog; install one or more valid data-only map packages under BepInEx\\OperatorMods.");
 			return true;
 		}
 		catalogPresentation.SelectedOperation = OperatorApi.ModdedOperations.Operations[0];
 		catalogPresentation.SelectedTimeCode = catalogPresentation.SelectedOperation.DefaultTimeCode;
-		GameObject gameObject6 = (catalogPresentation.PreparationPanel = CreateCatalogOperationBoardShell(laptop, catalogPresentation));
-		GameObject gameObject7 = null;
+		GameObject val6 = (catalogPresentation.PreparationPanel = CreateCatalogOperationBoardShell(laptop, catalogPresentation));
+		GameObject val7 = null;
 		TMP_Text briefing2 = null;
-		if (gameObject6 != null)
+		if ((Object)(object)val6 != (Object)null)
 		{
-			gameObject7 = (catalogPresentation.HomeShell = CreateCatalogOperationShell(page.transform, laptop.ActiveOperationsTab, array, gameObject5, catalogPresentation, out briefing2));
+			val7 = (catalogPresentation.HomeShell = CreateCatalogOperationShell(page.transform, laptop.ActiveOperationsTab, array, val5, catalogPresentation, out briefing2));
 			catalogPresentation.HomeBriefing = briefing2;
 		}
-		if (gameObject7 == null || gameObject6 == null)
+		if ((Object)(object)val7 == (Object)null || (Object)(object)val6 == (Object)null)
 		{
-			if (gameObject7 != null)
+			if ((Object)(object)val7 != (Object)null)
 			{
-				UnityEngine.Object.Destroy(gameObject7);
+				Object.Destroy((Object)(object)val7);
 			}
-			if (gameObject6 != null)
+			if ((Object)(object)val6 != (Object)null)
 			{
-				UnityEngine.Object.Destroy(gameObject6);
+				Object.Destroy((Object)(object)val6);
 			}
 			if (deferredSetupLoggedLaptops.Add(instanceID))
 			{
-				log.LogInfo("Modded Operations deferred one hidden laptop replica until its shipped list and operation-information surfaces are ready; laptopId=" + instanceID + ".");
+				log.LogInfo((object)("Modded Operations deferred one hidden laptop replica until its shipped list and operation-information surfaces are ready; laptopId=" + instanceID + "."));
 			}
 			return false;
 		}
 		Image component = page.GetComponent<Image>();
-		if (component != null)
+		if ((Object)(object)component != (Object)null)
 		{
-			component.color = new Color(component.color.r, component.color.g, component.color.b, 0f);
-			component.raycastTarget = false;
+			((Graphic)component).color = new Color(((Graphic)component).color.r, ((Graphic)component).color.g, ((Graphic)component).color.b, 0f);
+			((Graphic)component).raycastTarget = false;
 		}
-		gameObject6.SetActive(value: false);
+		val6.SetActive(false);
 		catalogPresentations[instanceID] = catalogPresentation;
 		Canvas.ForceUpdateCanvases();
-		log.LogInfo("Modded Operations presentation built from shipped operation-row and OperationBoardUI visuals; laptopId=" + laptop.GetInstanceID() + ", rows=" + OperatorApi.ModdedOperations.Operations.Count + ", catalog=" + OperatorApi.ModdedOperations.CatalogId + ".");
+		log.LogInfo((object)("Modded Operations presentation built from shipped operation-row and OperationBoardUI visuals; laptopId=" + ((Object)laptop).GetInstanceID() + ", rows=" + OperatorApi.ModdedOperations.Operations.Count + ", catalog=" + OperatorApi.ModdedOperations.CatalogId + "."));
 		return true;
 	}
 
 	private static GameObject CreateEmptyCatalogShell(Transform parent, GameObject nativePageTemplate, int[] relativeListPath, out TMP_Text briefing)
 	{
 		briefing = null;
-		if (parent == null || nativePageTemplate == null || relativeListPath == null)
+		if ((Object)(object)parent == (Object)null || (Object)(object)nativePageTemplate == (Object)null || relativeListPath == null)
 		{
 			return null;
 		}
-		GameObject gameObject = UnityEngine.Object.Instantiate(nativePageTemplate, parent);
-		if (gameObject == null)
+		GameObject val = Object.Instantiate<GameObject>(nativePageTemplate, parent);
+		if ((Object)(object)val == (Object)null)
 		{
 			return null;
 		}
-		gameObject.name = "MODDED_NATIVE_HOME";
-		SetFullStretch(gameObject.GetComponent<RectTransform>());
-		gameObject.SetActive(value: true);
-		RewriteClonedPageHeading(gameObject);
-		Transform transform = FollowRelativeChildIndexPath(gameObject.transform, relativeListPath);
-		if (transform == null)
+		((Object)val).name = "MODDED_NATIVE_HOME";
+		SetFullStretch(val.GetComponent<RectTransform>());
+		val.SetActive(true);
+		RewriteClonedPageHeading(val);
+		Transform val2 = FollowRelativeChildIndexPath(val.transform, relativeListPath);
+		if ((Object)(object)val2 == (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject);
+			Object.Destroy((Object)(object)val);
 			return null;
 		}
-		SetChildrenActive(transform, active: false);
-		briefing = FindNativeBriefingText(gameObject);
-		if (briefing != null)
+		SetChildrenActive(val2, active: false);
+		briefing = FindNativeBriefingText(val);
+		if ((Object)(object)briefing != (Object)null)
 		{
-			DisableLocalizationComponent(briefing.gameObject);
-			if (briefing.transform.parent != null)
+			DisableLocalizationComponent(((Component)briefing).gameObject);
+			if ((Object)(object)briefing.transform.parent != (Object)null)
 			{
-				DisableLocalizationComponent(briefing.transform.parent.gameObject);
+				DisableLocalizationComponent(((Component)briefing.transform.parent).gameObject);
 			}
 			briefing.text = "NO MODDED OPERATIONS INSTALLED\n\nInstall a valid map package in BepInEx\\OperatorMods, then restart OPERATOR.";
 			briefing.enableWordWrapping = true;
 		}
-		foreach (OperationSelectionUI componentsInChild in gameObject.GetComponentsInChildren<OperationSelectionUI>(includeInactive: true))
+		foreach (OperationSelectionUI componentsInChild in val.GetComponentsInChildren<OperationSelectionUI>(true))
 		{
-			if (!(componentsInChild == null))
+			if (!((Object)(object)componentsInChild == (Object)null))
 			{
-				componentsInChild.enabled = false;
-				UnityEngine.Object.Destroy(componentsInChild);
+				((Behaviour)componentsInChild).enabled = false;
+				Object.Destroy((Object)(object)componentsInChild);
 			}
 		}
-		return gameObject;
+		return val;
 	}
 
 	private GameObject CreateCatalogOperationShell(Transform parent, GameObject nativePageTemplate, int[] relativeListPath, GameObject rowTemplate, CatalogPresentation presentation, out TMP_Text briefing)
@@ -1198,41 +1266,41 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		//IL_0127: Unknown result type (might be due to invalid IL or missing references)
 		//IL_012d: Invalid comparison between Unknown and I4
 		briefing = null;
-		if (parent == null || nativePageTemplate == null || rowTemplate == null || presentation == null)
+		if ((Object)(object)parent == (Object)null || (Object)(object)nativePageTemplate == (Object)null || (Object)(object)rowTemplate == (Object)null || presentation == null)
 		{
 			return null;
 		}
-		GameObject gameObject = UnityEngine.Object.Instantiate(nativePageTemplate, parent);
-		if (gameObject == null)
+		GameObject val = Object.Instantiate<GameObject>(nativePageTemplate, parent);
+		if ((Object)(object)val == (Object)null)
 		{
 			return null;
 		}
-		gameObject.name = "MODDED_NATIVE_HOME";
-		SetFullStretch(gameObject.GetComponent<RectTransform>());
-		gameObject.SetActive(value: true);
-		RewriteClonedPageHeading(gameObject);
-		Transform transform = FollowRelativeChildIndexPath(gameObject.transform, relativeListPath);
-		if (transform == null)
+		((Object)val).name = "MODDED_NATIVE_HOME";
+		SetFullStretch(val.GetComponent<RectTransform>());
+		val.SetActive(true);
+		RewriteClonedPageHeading(val);
+		Transform val2 = FollowRelativeChildIndexPath(val.transform, relativeListPath);
+		if ((Object)(object)val2 == (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject);
+			Object.Destroy((Object)(object)val);
 			return null;
 		}
-		SetChildrenActive(transform, active: false);
-		System.Collections.Generic.List<GameObject> list = new System.Collections.Generic.List<GameObject>();
+		SetChildrenActive(val2, active: false);
+		List<GameObject> list = new List<GameObject>();
 		int num = 0;
 		foreach (ModdedOperationDefinition operation in OperatorApi.ModdedOperations.Operations)
 		{
-			GameObject gameObject2 = UnityEngine.Object.Instantiate(rowTemplate, transform);
-			if (!(gameObject2 == null))
+			GameObject val3 = Object.Instantiate<GameObject>(rowTemplate, val2);
+			if (!((Object)(object)val3 == (Object)null))
 			{
-				gameObject2.name = "MODDED_NATIVE_ROW_" + num.ToString("D3");
-				gameObject2.SetActive(value: true);
+				((Object)val3).name = "MODDED_NATIVE_ROW_" + num.ToString("D3");
+				val3.SetActive(true);
 				string mode = (((int)operation.Mode == 2) ? "PVE" : "PVP");
 				string threat = (((int)operation.Mode == 2) ? "HIGH" : "VARIABLE");
-				RewriteNativeOperationRow(gameObject2, operation.DisplayName, "30-45 MIN", threat, mode, operation.AreaOfOperation);
-				list.Add(gameObject2);
+				RewriteNativeOperationRow(val3, operation.DisplayName, "30-45 MIN", threat, mode, operation.AreaOfOperation);
+				list.Add(val3);
 				ModdedOperationDefinition captured = operation;
-				RebindNativeRow(gameObject2, delegate
+				RebindNativeRow(val3, delegate
 				{
 					SelectCatalogOperation(presentation, captured, openPreparation: false);
 				}, delegate
@@ -1244,33 +1312,33 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		if (list.Count == 0)
 		{
-			UnityEngine.Object.Destroy(gameObject);
+			Object.Destroy((Object)(object)val);
 			return null;
 		}
-		if (transform.GetComponent<VerticalLayoutGroup>() == null)
+		if ((Object)(object)((Component)val2).GetComponent<VerticalLayoutGroup>() == (Object)null)
 		{
 			StackNativeRows(list);
 		}
-		briefing = FindNativeBriefingText(gameObject, list.ToArray());
-		if (briefing != null)
+		briefing = FindNativeBriefingText(val, list.ToArray());
+		if ((Object)(object)briefing != (Object)null)
 		{
-			DisableLocalizationComponent(briefing.gameObject);
-			if (briefing.transform.parent != null)
+			DisableLocalizationComponent(((Component)briefing).gameObject);
+			if ((Object)(object)briefing.transform.parent != (Object)null)
 			{
-				DisableLocalizationComponent(briefing.transform.parent.gameObject);
+				DisableLocalizationComponent(((Component)briefing.transform.parent).gameObject);
 			}
 			briefing.text = FormatCatalogBriefing(presentation.SelectedOperation);
 			briefing.enableWordWrapping = true;
 		}
-		foreach (OperationSelectionUI componentsInChild in gameObject.GetComponentsInChildren<OperationSelectionUI>(includeInactive: true))
+		foreach (OperationSelectionUI componentsInChild in val.GetComponentsInChildren<OperationSelectionUI>(true))
 		{
-			if (!(componentsInChild == null))
+			if (!((Object)(object)componentsInChild == (Object)null))
 			{
-				componentsInChild.enabled = false;
-				UnityEngine.Object.Destroy(componentsInChild);
+				((Behaviour)componentsInChild).enabled = false;
+				Object.Destroy((Object)(object)componentsInChild);
 			}
 		}
-		return gameObject;
+		return val;
 	}
 
 	private void SelectCatalogOperation(CatalogPresentation presentation, ModdedOperationDefinition operation, bool openPreparation)
@@ -1279,13 +1347,13 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			presentation.SelectedOperation = operation;
 			presentation.SelectedTimeCode = operation.DefaultTimeCode;
-			if (presentation.HomeBriefing != null)
+			if ((Object)(object)presentation.HomeBriefing != (Object)null)
 			{
 				presentation.HomeBriefing.text = FormatCatalogBriefing(operation);
 			}
 			UpdateCatalogOperationBoard(presentation);
 			BeginSelectedMapPrefetch(operation);
-			log.LogInfo("Modded Operations row " + (openPreparation ? "double-click" : "single-click") + ": operation=" + operation.Id + ".");
+			log.LogInfo((object)("Modded Operations row " + (openPreparation ? "double-click" : "single-click") + ": operation=" + operation.Id + "."));
 			if (openPreparation)
 			{
 				OpenNativeOperationPreparation(presentation.Laptop, presentation.PreparationPanel, null);
@@ -1296,7 +1364,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	private void BeginSelectedMapPrefetch(ModdedOperationDefinition operation)
 	{
 		ModdedMapDefinition val = default(ModdedMapDefinition);
-		if (operation == null || !OperatorApi.ModdedOperations.TryGetMap(operation.MapId, ref val) || val == null || (loadedMapBundles.TryGetValue(val.Id, out var value) && value != null && value.SceneBundle != null && value.Map != null && string.Equals(value.Map.PackageContentId, val.PackageContentId, StringComparison.Ordinal)))
+		if (operation == null || !OperatorApi.ModdedOperations.TryGetMap(operation.MapId, ref val) || val == null || (loadedMapBundles.TryGetValue(val.Id, out var value) && value != null && (Object)(object)value.SceneBundle != (Object)null && value.Map != null && string.Equals(value.Map.PackageContentId, val.PackageContentId, StringComparison.Ordinal)))
 		{
 			return;
 		}
@@ -1304,7 +1372,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			try
 			{
-				value.SceneBundle?.Unload(unloadAllLoadedObjects: false);
+				AssetBundle sceneBundle = value.SceneBundle;
+				if (sceneBundle != null)
+				{
+					sceneBundle.Unload(false);
+				}
 			}
 			catch
 			{
@@ -1313,14 +1385,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 				try
 				{
-					dependency?.Unload(unloadAllLoadedObjects: false);
+					if (dependency != null)
+					{
+						dependency.Unload(false);
+					}
 				}
 				catch
 				{
 				}
 			}
 			loadedMapBundles.Remove(val.Id);
-			log.LogWarning("Modded Operations discarded an incomplete or stale bundle cache entry before selected-map prefetch: map=" + val.Id + ".");
+			log.LogWarning((object)("Modded Operations discarded an incomplete or stale bundle cache entry before selected-map prefetch: map=" + val.Id + "."));
 		}
 		if (pendingLaunch != null)
 		{
@@ -1333,12 +1408,12 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					return;
 				}
 			}
-			ManualLogSource manualLogSource = log;
-			string[] obj3 = new string[5] { "Modded Operations deferred selected-map prefetch for ", val.Id, " while ", null, null };
+			ManualLogSource obj3 = log;
+			string[] obj4 = new string[5] { "Modded Operations deferred selected-map prefetch for ", val.Id, " while ", null, null };
 			ModdedMapDefinition map3 = pendingLaunch.Map;
-			obj3[3] = ((map3 != null) ? map3.Id : null);
-			obj3[4] = " is loading.";
-			manualLogSource.LogInfo(string.Concat(obj3));
+			obj4[3] = ((map3 != null) ? map3.Id : null);
+			obj4[4] = " is loading.";
+			obj3.LogInfo((object)string.Concat(obj4));
 			return;
 		}
 		LoadedMapBundles loadingBundles = new LoadedMapBundles
@@ -1357,7 +1432,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		pendingMapLaunch.BundlePaths.Add(val.SceneBundlePath);
 		pendingLaunch = pendingMapLaunch;
-		log.LogInfo("Modded Operations began selected-map bundle prefetch: map=" + val.Id + ", bundles=" + pendingMapLaunch.BundlePaths.Count + ", bytes=" + GetBundleByteTotal(pendingMapLaunch.BundlePaths) + ".");
+		log.LogInfo((object)("Modded Operations began selected-map bundle prefetch: map=" + val.Id + ", bundles=" + pendingMapLaunch.BundlePaths.Count + ", bytes=" + GetBundleByteTotal(pendingMapLaunch.BundlePaths) + "."));
 	}
 
 	private static string FormatCatalogBriefing(ModdedOperationDefinition operation)
@@ -1371,15 +1446,31 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private GameObject CreateCatalogOperationBoardShell(MissionLaptop laptop, CatalogPresentation presentation)
 	{
-		GameObject gameObject = ResolveNativeOperationBoardVisualTemplate();
-		if (laptop == null || laptop.opBoardParent == null || presentation == null || gameObject == null)
+		//IL_025c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0266: Expected O, but got Unknown
+		//IL_0268: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0272: Expected O, but got Unknown
+		//IL_0274: Unknown result type (might be due to invalid IL or missing references)
+		//IL_027e: Expected O, but got Unknown
+		//IL_029e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02a8: Expected O, but got Unknown
+		//IL_0752: Unknown result type (might be due to invalid IL or missing references)
+		//IL_075c: Expected O, but got Unknown
+		//IL_0762: Unknown result type (might be due to invalid IL or missing references)
+		//IL_076c: Expected O, but got Unknown
+		//IL_0772: Unknown result type (might be due to invalid IL or missing references)
+		//IL_077c: Expected O, but got Unknown
+		//IL_07a3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_07ad: Expected O, but got Unknown
+		GameObject val = ResolveNativeOperationBoardVisualTemplate();
+		if ((Object)(object)laptop == (Object)null || (Object)(object)laptop.opBoardParent == (Object)null || presentation == null || (Object)(object)val == (Object)null)
 		{
 			return null;
 		}
 		Transform opBoardParent = laptop.opBoardParent;
 		Transform parent = opBoardParent.parent;
-		Transform transform = ((parent == null) ? null : parent.parent);
-		if (parent == null || transform == null)
+		Transform val2 = (((Object)(object)parent == (Object)null) ? null : parent.parent);
+		if ((Object)(object)parent == (Object)null || (Object)(object)val2 == (Object)null)
 		{
 			return null;
 		}
@@ -1388,116 +1479,116 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return null;
 		}
-		GameObject gameObject2 = UnityEngine.Object.Instantiate(parent.gameObject, transform);
-		if (gameObject2 == null)
+		GameObject val3 = Object.Instantiate<GameObject>(((Component)parent).gameObject, val2);
+		if ((Object)(object)val3 == (Object)null)
 		{
 			return null;
 		}
-		gameObject2.name = "MODDED_NATIVE_OPERATION_PREPARATION";
-		gameObject2.SetActive(value: true);
-		Transform transform2 = FollowRelativeChildIndexPath(gameObject2.transform, array);
-		if (transform2 == null)
+		((Object)val3).name = "MODDED_NATIVE_OPERATION_PREPARATION";
+		val3.SetActive(true);
+		Transform val4 = FollowRelativeChildIndexPath(val3.transform, array);
+		if ((Object)(object)val4 == (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject2);
+			Object.Destroy((Object)(object)val3);
 			return null;
 		}
-		SetChildrenActive(transform2, active: false);
-		GameObject gameObject3 = UnityEngine.Object.Instantiate(gameObject, transform2);
-		if (gameObject3 == null)
+		SetChildrenActive(val4, active: false);
+		GameObject val5 = Object.Instantiate<GameObject>(val, val4);
+		if ((Object)(object)val5 == (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject2);
+			Object.Destroy((Object)(object)val3);
 			return null;
 		}
-		gameObject3.name = "MODDED_NATIVE_OPERATION_INFORMATION";
-		SetFullStretch(gameObject3.GetComponent<RectTransform>());
-		gameObject3.SetActive(value: false);
-		OperationBoardUI board = gameObject3.GetComponent<OperationBoardUI>() ?? gameObject3.GetComponentInChildren<OperationBoardUI>(includeInactive: true);
-		if (board == null || board.SituationReportText == null || board.SituationReportText.TMP == null || board.ExecuteOperationButton == null || board.ConfirmationWindow == null || board.InfilTimeSlider == null || board.PrearationTimeSlider == null)
+		((Object)val5).name = "MODDED_NATIVE_OPERATION_INFORMATION";
+		SetFullStretch(val5.GetComponent<RectTransform>());
+		val5.SetActive(false);
+		OperationBoardUI board = val5.GetComponent<OperationBoardUI>() ?? val5.GetComponentInChildren<OperationBoardUI>(true);
+		if ((Object)(object)board == (Object)null || (Object)(object)board.SituationReportText == (Object)null || (Object)(object)board.SituationReportText.TMP == (Object)null || (Object)(object)board.ExecuteOperationButton == (Object)null || (Object)(object)board.ConfirmationWindow == (Object)null || (Object)(object)board.InfilTimeSlider == (Object)null || (Object)(object)board.PrearationTimeSlider == (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject2);
+			Object.Destroy((Object)(object)val3);
 			return null;
 		}
-		CerebusOpboard cerebusOpboard = null;
+		CerebusOpboard val6 = null;
 		try
 		{
-			cerebusOpboard = ScriptableObject.CreateInstance<CerebusOpboard>();
-			cerebusOpboard.name = "MODDED_OPERATIONS_PRIVATE_OPBOARD_DATA";
-			CerebusTargetPackage cerebusTargetPackage = ScriptableObject.CreateInstance<CerebusTargetPackage>();
-			if (cerebusOpboard == null || cerebusTargetPackage == null)
+			val6 = ScriptableObject.CreateInstance<CerebusOpboard>();
+			((Object)val6).name = "MODDED_OPERATIONS_PRIVATE_OPBOARD_DATA";
+			CerebusTargetPackage val7 = ScriptableObject.CreateInstance<CerebusTargetPackage>();
+			if ((Object)(object)val6 == (Object)null || (Object)(object)val7 == (Object)null)
 			{
 				throw new InvalidOperationException("package-owned operation data could not be allocated");
 			}
-			cerebusTargetPackage.name = "MODDED_OPERATIONS_PRIVATE_TARGET_PACKAGE";
-			cerebusTargetPackage.TargetPackage = cerebusOpboard;
-			cerebusTargetPackage.TargetPackageIndex = 0;
-			cerebusTargetPackage.isLocked = false;
-			cerebusTargetPackage.isSimulation = false;
-			cerebusTargetPackage.isRegion = false;
-			cerebusTargetPackage.MissionRequiredForUnlock = null;
-			cerebusTargetPackage.unlockCode = string.Empty;
-			cerebusTargetPackage.progressionUnlockCode = string.Empty;
-			cerebusTargetPackage.OperationType = new LocalizedString();
-			cerebusTargetPackage.EnemyCount = new LocalizedString();
-			cerebusTargetPackage.OperationDescription = new LocalizedString();
-			cerebusOpboard.ThisMissionTargetPackage = cerebusTargetPackage;
-			presentation.NativeTargetData = cerebusTargetPackage;
-			cerebusOpboard.MapPrefab = null;
-			cerebusOpboard.SituationReport = new LocalizedString();
-			cerebusOpboard.requireEnoughExfils = false;
-			cerebusOpboard.requireEnoughInfils = false;
-			cerebusOpboard.isLocked = false;
-			cerebusOpboard.unlockCode = string.Empty;
-			cerebusOpboard.exfilUnlockingKey = string.Empty;
-			cerebusOpboard.TargetRaidTime = 0f;
-			cerebusOpboard.AchievementName = string.Empty;
-			cerebusOpboard.achievement_min_ai_amount = 0;
-			cerebusOpboard.INFILTRATION_TARGET = string.Empty;
-			cerebusOpboard.INFILTRATION_TIME = string.Empty;
-			cerebusOpboard.SelectedInfiltrationTime = 0;
-			cerebusOpboard.PrepTimeInSeconds = 5;
-			cerebusOpboard.isCompleted = false;
-			cerebusOpboard.UnlockOnExfil = string.Empty;
-			cerebusOpboard.HVTSpawnIsRandom = false;
-			cerebusOpboard.isSimulation = false;
-			cerebusOpboard.missionLaptop = laptop;
-			cerebusOpboard.OperationBoardUI = board;
-			board.CerebusOpboard = cerebusOpboard;
+			((Object)val7).name = "MODDED_OPERATIONS_PRIVATE_TARGET_PACKAGE";
+			val7.TargetPackage = val6;
+			val7.TargetPackageIndex = 0;
+			val7.isLocked = false;
+			val7.isSimulation = false;
+			val7.isRegion = false;
+			val7.MissionRequiredForUnlock = null;
+			val7.unlockCode = string.Empty;
+			val7.progressionUnlockCode = string.Empty;
+			val7.OperationType = new LocalizedString();
+			val7.EnemyCount = new LocalizedString();
+			val7.OperationDescription = new LocalizedString();
+			val6.ThisMissionTargetPackage = val7;
+			presentation.NativeTargetData = val7;
+			val6.MapPrefab = null;
+			val6.SituationReport = new LocalizedString();
+			val6.requireEnoughExfils = false;
+			val6.requireEnoughInfils = false;
+			val6.isLocked = false;
+			val6.unlockCode = string.Empty;
+			val6.exfilUnlockingKey = string.Empty;
+			val6.TargetRaidTime = 0f;
+			val6.AchievementName = string.Empty;
+			val6.achievement_min_ai_amount = 0;
+			val6.INFILTRATION_TARGET = string.Empty;
+			val6.INFILTRATION_TIME = string.Empty;
+			val6.SelectedInfiltrationTime = 0;
+			val6.PrepTimeInSeconds = 5;
+			val6.isCompleted = false;
+			val6.UnlockOnExfil = string.Empty;
+			val6.HVTSpawnIsRandom = false;
+			val6.isSimulation = false;
+			val6.missionLaptop = laptop;
+			val6.OperationBoardUI = board;
+			board.CerebusOpboard = val6;
 			board.Laptop = laptop;
-			deferredSetupLoggedLaptops.Remove(laptop.GetInstanceID());
+			deferredSetupLoggedLaptops.Remove(((Object)laptop).GetInstanceID());
 		}
 		catch (Exception ex)
 		{
-			int instanceID = laptop.GetInstanceID();
+			int instanceID = ((Object)laptop).GetInstanceID();
 			if (deferredSetupLoggedLaptops.Add(instanceID))
 			{
-				log.LogInfo("Modded Operations deferred one hidden laptop replica until its shipped OperationBoardUI ownership graph is ready; laptopId=" + instanceID + ", reason=" + ex.GetType().Name + ".");
+				log.LogInfo((object)("Modded Operations deferred one hidden laptop replica until its shipped OperationBoardUI ownership graph is ready; laptopId=" + instanceID + ", reason=" + ex.GetType().Name + "."));
 			}
-			if (cerebusOpboard != null)
+			if ((Object)(object)val6 != (Object)null)
 			{
-				UnityEngine.Object.Destroy(cerebusOpboard);
+				Object.Destroy((Object)(object)val6);
 			}
-			if (presentation.NativeTargetData != null)
+			if ((Object)(object)presentation.NativeTargetData != (Object)null)
 			{
-				UnityEngine.Object.Destroy(presentation.NativeTargetData);
+				Object.Destroy((Object)(object)presentation.NativeTargetData);
 			}
 			presentation.NativeTargetData = null;
-			if (presentation.NativeInfiltrationMapPrefab != null)
+			if ((Object)(object)presentation.NativeInfiltrationMapPrefab != (Object)null)
 			{
-				UnityEngine.Object.Destroy(presentation.NativeInfiltrationMapPrefab);
+				Object.Destroy((Object)(object)presentation.NativeInfiltrationMapPrefab);
 			}
 			presentation.NativeInfiltrationMapPrefab = null;
-			UnityEngine.Object.Destroy(gameObject2);
+			Object.Destroy((Object)(object)val3);
 			return null;
 		}
 		presentation.Board = board;
-		presentation.NativeBoardData = cerebusOpboard;
-		presentation.SituationReport = board.SituationReportText.TMP;
-		presentation.SituationReport.gameObject.name = "MODDED_NATIVE_SITREP";
-		DisableLocalizationComponent(board.SituationReportText.gameObject);
-		DisableLocalizationComponent(presentation.SituationReport.gameObject);
-		if (presentation.SituationReport.transform.parent != null)
+		presentation.NativeBoardData = val6;
+		presentation.SituationReport = (TMP_Text)(object)board.SituationReportText.TMP;
+		((Object)((Component)presentation.SituationReport).gameObject).name = "MODDED_NATIVE_SITREP";
+		DisableLocalizationComponent(((Component)board.SituationReportText).gameObject);
+		DisableLocalizationComponent(((Component)presentation.SituationReport).gameObject);
+		if ((Object)(object)presentation.SituationReport.transform.parent != (Object)null)
 		{
-			DisableLocalizationComponent(presentation.SituationReport.transform.parent.gameObject);
+			DisableLocalizationComponent(((Component)presentation.SituationReport.transform.parent).gameObject);
 		}
 		presentation.SituationReport.enableWordWrapping = true;
 		SetActiveSafe(board.SimulationButton, active: false);
@@ -1508,17 +1599,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		SetActiveSafe(board.AbortOperationButton, active: false);
 		SetActiveSafe(board.ExecuteOperationButton, active: true);
 		SetActiveSafe(board.InfiltrationTargetParent, active: false);
-		SetComponentActiveSafe(board.InfilTargetSlider, active: false);
-		SetComponentActiveSafe(board.InfilTimeSlider, active: true);
-		SetComponentActiveSafe(board.PrearationTimeSlider, active: true);
-		SetComponentActiveSafe(board.OpforCountSlider, active: false);
-		SetComponentActiveSafe(board.EnemyCountSlider, active: false);
-		SetComponentActiveSafe(board.OpforDifficultySlider, active: false);
-		SetComponentActiveSafe(board.HVT_OpforCountSlider, active: false);
-		SetComponentActiveSafe(board.HVTEnemyCountSlider, active: false);
-		SetComponentActiveSafe(board.HVTOpforDifficultySlider, active: false);
-		SetComponentActiveSafe(board.HVTCountSlider, active: false);
-		SetComponentActiveSafe(board.HVTDifficultySlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.InfilTargetSlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.InfilTimeSlider, active: true);
+		SetComponentActiveSafe((Component)(object)board.PrearationTimeSlider, active: true);
+		SetComponentActiveSafe((Component)(object)board.OpforCountSlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.EnemyCountSlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.OpforDifficultySlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.HVT_OpforCountSlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.HVTEnemyCountSlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.HVTOpforDifficultySlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.HVTCountSlider, active: false);
+		SetComponentActiveSafe((Component)(object)board.HVTDifficultySlider, active: false);
 		SetGameObjectsActive(board.SimulationParameters, active: false);
 		SetGameObjectsActive(board.HVTSimulationParameters, active: false);
 		SetGameObjectsActive(board.PVPParameters, active: false);
@@ -1536,24 +1627,24 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		confirmation.onOpen = new UnityEvent();
 		confirmation.onClose = new UnityEvent();
 		confirmation.onConfirm = new UnityEvent();
-		confirmation.onConfirm.AddListener((Action)delegate
+		confirmation.onConfirm.AddListener(UnityAction.op_Implicit((Action)delegate
 		{
 			BeginCatalogOperationLaunch(presentation);
-		});
+		}));
 		confirmation.onCancel = new UnityEvent();
-		confirmation.onCancel.AddListener((Action)delegate
+		confirmation.onCancel.AddListener(UnityAction.op_Implicit((Action)delegate
 		{
 			CloseNativeMapConfirmation(board, logClose: true);
-		});
-		if (confirmation.windowTitle != null)
+		}));
+		if ((Object)(object)confirmation.windowTitle != (Object)null)
 		{
-			DisableLocalizationComponent(confirmation.windowTitle.gameObject);
-			confirmation.windowTitle.text = confirmation.titleText;
+			DisableLocalizationComponent(((Component)confirmation.windowTitle).gameObject);
+			((TMP_Text)confirmation.windowTitle).text = confirmation.titleText;
 		}
-		if (confirmation.windowDescription != null)
+		if ((Object)(object)confirmation.windowDescription != (Object)null)
 		{
-			DisableLocalizationComponent(confirmation.windowDescription.gameObject);
-			confirmation.windowDescription.text = confirmation.descriptionText;
+			DisableLocalizationComponent(((Component)confirmation.windowDescription).gameObject);
+			((TMP_Text)confirmation.windowDescription).text = confirmation.descriptionText;
 		}
 		try
 		{
@@ -1562,48 +1653,48 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		catch
 		{
 		}
-		if (!ReplaceNativeButtonAction(confirmation.confirmButton, delegate
+		if (!ReplaceNativeButtonAction((Object)(object)confirmation.confirmButton, delegate
 		{
 			BeginCatalogOperationLaunch(presentation);
-		}) || !ReplaceNativeButtonAction(confirmation.cancelButton, delegate
+		}) || !ReplaceNativeButtonAction((Object)(object)confirmation.cancelButton, delegate
 		{
 			confirmation.onCancel.Invoke();
-		}) || !ReplaceNativeButtonAction(board.ExecuteOperationButton, delegate
+		}) || !ReplaceNativeButtonAction((Object)(object)board.ExecuteOperationButton, delegate
 		{
 			confirmation.OpenWindow();
 		}))
 		{
-			UnityEngine.Object.Destroy(cerebusOpboard);
-			UnityEngine.Object.Destroy(presentation.NativeTargetData);
-			UnityEngine.Object.Destroy(presentation.NativeInfiltrationMapPrefab);
+			Object.Destroy((Object)(object)val6);
+			Object.Destroy((Object)(object)presentation.NativeTargetData);
+			Object.Destroy((Object)(object)presentation.NativeInfiltrationMapPrefab);
 			presentation.NativeBoardData = null;
 			presentation.NativeTargetData = null;
 			presentation.NativeInfiltrationMapPrefab = null;
-			UnityEngine.Object.Destroy(gameObject2);
+			Object.Destroy((Object)(object)val3);
 			return null;
 		}
-		RebindNativeFullscreenControls(board, gameObject2);
-		BindNativePreparationBack(laptop, gameObject2, null, warnIfMissing: false);
+		RebindNativeFullscreenControls(board, val3);
+		BindNativePreparationBack(laptop, val3, null, warnIfMissing: false);
 		UpdateCatalogOperationBoard(presentation);
-		gameObject3.SetActive(value: true);
-		gameObject2.SetActive(value: false);
-		return gameObject2;
+		val5.SetActive(true);
+		val3.SetActive(false);
+		return val3;
 	}
 
 	private GameObject ResolveNativeOperationBoardVisualTemplate()
 	{
-		if (operationBoardVisualTemplate != null)
+		if ((Object)(object)operationBoardVisualTemplate != (Object)null)
 		{
 			return operationBoardVisualTemplate;
 		}
-		if (OperationsManager.singleton != null && OperationsManager.singleton.OperationBoardUIPrefab != null)
+		if ((Object)(object)OperationsManager.singleton != (Object)null && (Object)(object)OperationsManager.singleton.OperationBoardUIPrefab != (Object)null)
 		{
 			operationBoardVisualTemplate = OperationsManager.singleton.OperationBoardUIPrefab;
 			return operationBoardVisualTemplate;
 		}
 		foreach (OperationsManager item in Resources.FindObjectsOfTypeAll<OperationsManager>())
 		{
-			if (!(item == null) && !(item.OperationBoardUIPrefab == null))
+			if (!((Object)(object)item == (Object)null) && !((Object)(object)item.OperationBoardUIPrefab == (Object)null))
 			{
 				operationBoardVisualTemplate = item.OperationBoardUIPrefab;
 				return operationBoardVisualTemplate;
@@ -1611,9 +1702,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		foreach (OperationBoardUI item2 in Resources.FindObjectsOfTypeAll<OperationBoardUI>())
 		{
-			if (!(item2 == null) && !(item2.gameObject == null) && !item2.gameObject.name.StartsWith("MODDED_NATIVE_", StringComparison.Ordinal) && !(item2.SituationReportText == null) && !(item2.SituationReportText.TMP == null) && !(item2.ExecuteOperationButton == null) && !(item2.ConfirmationWindow == null) && !(item2.InfilTimeSlider == null) && !(item2.PrearationTimeSlider == null))
+			if (!((Object)(object)item2 == (Object)null) && !((Object)(object)((Component)item2).gameObject == (Object)null) && !((Object)((Component)item2).gameObject).name.StartsWith("MODDED_NATIVE_", StringComparison.Ordinal) && !((Object)(object)item2.SituationReportText == (Object)null) && !((Object)(object)item2.SituationReportText.TMP == (Object)null) && !((Object)(object)item2.ExecuteOperationButton == (Object)null) && !((Object)(object)item2.ConfirmationWindow == (Object)null) && !((Object)(object)item2.InfilTimeSlider == (Object)null) && !((Object)(object)item2.PrearationTimeSlider == (Object)null))
 			{
-				operationBoardVisualTemplate = item2.gameObject;
+				operationBoardVisualTemplate = ((Component)item2).gameObject;
 				return operationBoardVisualTemplate;
 			}
 		}
@@ -1622,13 +1713,20 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void UpdateCatalogOperationBoard(CatalogPresentation presentation)
 	{
+		//IL_016d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0173: Expected O, but got Unknown
+		//IL_01a7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01ac: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01b8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01c9: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01d3: Expected O, but got Unknown
 		//IL_030a: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0310: Invalid comparison between Unknown and I4
 		//IL_041c: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0422: Invalid comparison between Unknown and I4
 		//IL_0439: Unknown result type (might be due to invalid IL or missing references)
 		//IL_043f: Invalid comparison between Unknown and I4
-		if (presentation == null || presentation.SelectedOperation == null || presentation.Board == null || presentation.NativeBoardData == null)
+		if (presentation == null || presentation.SelectedOperation == null || (Object)(object)presentation.Board == (Object)null || (Object)(object)presentation.NativeBoardData == (Object)null)
 		{
 			return;
 		}
@@ -1642,12 +1740,12 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			presentation.SelectedTimeCode = operation.DefaultTimeCode;
 		}
-		if (presentation.SituationReport != null)
+		if ((Object)(object)presentation.SituationReport != (Object)null)
 		{
 			presentation.SituationReport.text = FormatCatalogBriefing(operation);
 		}
 		Sprite orLoadPreviewSprite = GetOrLoadPreviewSprite(val);
-		if (orLoadPreviewSprite != null)
+		if ((Object)(object)orLoadPreviewSprite != (Object)null)
 		{
 			ReplaceNativeMapPreview(presentation.Board.MapParent, orLoadPreviewSprite, "MODDED_NATIVE_MAP_PREVIEW");
 			ReplaceNativeMapPreview(presentation.Board.FullscreenMapParent, orLoadPreviewSprite, "MODDED_NATIVE_MAP_FULLSCREEN");
@@ -1657,19 +1755,19 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			SetGameObjectsActive(CaptureDirectChildren(presentation.Board.MapParent), active: false);
 			SetGameObjectsActive(CaptureDirectChildren(presentation.Board.FullscreenMapParent), active: false);
 		}
-		Il2CppStringArray il2CppStringArray = new Il2CppStringArray(operation.Infiltrations.Count);
-		Il2CppReferenceArray<TARGETPACKAGE_DETAILS> il2CppReferenceArray = new Il2CppReferenceArray<TARGETPACKAGE_DETAILS>(operation.SupportedTimeCodes.Count);
+		Il2CppStringArray val2 = new Il2CppStringArray((long)operation.Infiltrations.Count);
+		Il2CppReferenceArray<TARGETPACKAGE_DETAILS> val3 = new Il2CppReferenceArray<TARGETPACKAGE_DETAILS>((long)operation.SupportedTimeCodes.Count);
 		int num = 0;
 		for (int i = 0; i < operation.SupportedTimeCodes.Count; i++)
 		{
 			string text = operation.SupportedTimeCodes[i];
-			TARGETPACKAGE_DETAILS value = new TARGETPACKAGE_DETAILS
+			TARGETPACKAGE_DETAILS val4 = new TARGETPACKAGE_DETAILS
 			{
 				OPERATION_SCENE = val.ScenePath,
 				DISPLAY_NAME = operation.DisplayName,
 				INFILTRATION_TIME = text
 			};
-			il2CppReferenceArray[i] = value;
+			((Il2CppArrayBase<TARGETPACKAGE_DETAILS>)(object)val3)[i] = val4;
 			if (string.Equals(text, presentation.SelectedTimeCode, StringComparison.Ordinal))
 			{
 				num = i;
@@ -1677,24 +1775,24 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		for (int j = 0; j < operation.Infiltrations.Count; j++)
 		{
-			il2CppStringArray[j] = operation.Infiltrations[j].DisplayName;
+			((Il2CppArrayBase<string>)(object)val2)[j] = operation.Infiltrations[j].DisplayName;
 		}
-		if (presentation.NativeInfiltrationMapPrefab != null)
+		if ((Object)(object)presentation.NativeInfiltrationMapPrefab != (Object)null)
 		{
-			UnityEngine.Object.Destroy(presentation.NativeInfiltrationMapPrefab);
+			Object.Destroy((Object)(object)presentation.NativeInfiltrationMapPrefab);
 		}
 		presentation.NativeInfiltrationMapPrefab = BuildPackageInfiltrationMapPrefab(presentation, operation, orLoadPreviewSprite);
-		if (presentation.NativeInfiltrationMapPrefab == null)
+		if ((Object)(object)presentation.NativeInfiltrationMapPrefab == (Object)null)
 		{
-			log.LogError("Modded Operations refused to arm operation '" + operation.Id + "' because no sanitized native infiltration selector map could be built.");
+			log.LogError((object)("Modded Operations refused to arm operation '" + operation.Id + "' because no sanitized native infiltration selector map could be built."));
 			return;
 		}
 		CerebusOpboard data = presentation.NativeBoardData;
 		data.requireEnoughExfils = false;
 		data.requireEnoughInfils = false;
 		data.AffectGamemode = true;
-		data.GameModeOverride = (((int)operation.Mode != 2) ? OperationsManager.GameMode.StandardPVP : OperationsManager.GameMode.PVE_HVTKILL);
-		if (presentation.NativeTargetData != null)
+		data.GameModeOverride = (GameMode)(((int)operation.Mode != 2) ? 1 : 3);
+		if ((Object)(object)presentation.NativeTargetData != (Object)null)
 		{
 			presentation.NativeTargetData.TargetPackage = data;
 			presentation.NativeTargetData.OPERATION_AREA_OF_OPERATION = operation.AreaOfOperation;
@@ -1707,8 +1805,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			presentation.NativeTargetData.isSimulation = false;
 			data.ThisMissionTargetPackage = presentation.NativeTargetData;
 		}
-		data.TARGETPACKAGE = il2CppReferenceArray;
-		data.AvailableInfils = il2CppStringArray;
+		data.TARGETPACKAGE = val3;
+		data.AvailableInfils = val2;
 		data.MinAI = (((int)operation.Mode == 2) ? 8 : 0);
 		data.MaxAI = (((int)operation.Mode == 2) ? 16 : 0);
 		data.MapPrefab = presentation.NativeInfiltrationMapPrefab;
@@ -1729,19 +1827,19 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		data.missionLaptop = presentation.Laptop;
 		data.OperationBoardUI = presentation.Board;
 		ModalWindowManager confirmation = presentation.Board.ConfirmationWindow;
-		if (confirmation != null)
+		if ((Object)(object)confirmation != (Object)null)
 		{
 			confirmation.useLocalization = false;
 			confirmation.useCustomContent = true;
 			confirmation.titleText = "Start Operation";
 			confirmation.descriptionText = "Start " + operation.DisplayName + " at " + presentation.SelectedTimeCode + "?";
-			if (confirmation.windowTitle != null)
+			if ((Object)(object)confirmation.windowTitle != (Object)null)
 			{
-				confirmation.windowTitle.text = confirmation.titleText;
+				((TMP_Text)confirmation.windowTitle).text = confirmation.titleText;
 			}
-			if (confirmation.windowDescription != null)
+			if ((Object)(object)confirmation.windowDescription != (Object)null)
 			{
-				confirmation.windowDescription.text = confirmation.descriptionText;
+				((TMP_Text)confirmation.windowDescription).text = confirmation.descriptionText;
 			}
 			try
 			{
@@ -1758,12 +1856,12 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				presentation.SelectedTimeCode = operation.SupportedTimeCodes[index];
 				data.SelectedInfiltrationTime = index;
 				data.INFILTRATION_TIME = presentation.SelectedTimeCode;
-				if (confirmation != null)
+				if ((Object)(object)confirmation != (Object)null)
 				{
 					confirmation.descriptionText = "Start " + operation.DisplayName + " at " + presentation.SelectedTimeCode + "?";
-					if (confirmation.windowDescription != null)
+					if ((Object)(object)confirmation.windowDescription != (Object)null)
 					{
-						confirmation.windowDescription.text = confirmation.descriptionText;
+						((TMP_Text)confirmation.windowDescription).text = confirmation.descriptionText;
 					}
 					try
 					{
@@ -1779,110 +1877,127 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private Sprite GetOrLoadPreviewSprite(ModdedMapDefinition map)
 	{
+		//IL_0037: Unknown result type (might be due to invalid IL or missing references)
+		//IL_003c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0053: Expected O, but got Unknown
+		//IL_0090: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009f: Unknown result type (might be due to invalid IL or missing references)
 		if (map == null)
 		{
 			return null;
 		}
-		if (previewSprites.TryGetValue(map.Id, out var value) && value != null)
+		if (previewSprites.TryGetValue(map.Id, out var value) && (Object)(object)value != (Object)null)
 		{
 			return value;
 		}
 		try
 		{
 			byte[] array = File.ReadAllBytes(map.PreviewImagePath);
-			Texture2D texture2D = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: false, linear: true)
+			Texture2D val = new Texture2D(2, 2, (TextureFormat)4, false, true)
 			{
 				name = "MODDED_OPERATIONS_PREVIEW_" + map.Id
 			};
-			if (!texture2D.LoadImage(array, markNonReadable: false))
+			if (!ImageConversion.LoadImage(val, Il2CppStructArray<byte>.op_Implicit(array), false))
 			{
-				UnityEngine.Object.Destroy(texture2D);
+				Object.Destroy((Object)(object)val);
 				return null;
 			}
-			texture2D.wrapMode = TextureWrapMode.Clamp;
-			Sprite sprite = Sprite.Create(texture2D, new Rect(0f, 0f, texture2D.width, texture2D.height), new Vector2(0.5f, 0.5f), 100f);
-			sprite.name = "MODDED_OPERATIONS_PREVIEW_" + map.Id;
-			previewTextures[map.Id] = texture2D;
-			previewSprites[map.Id] = sprite;
-			return sprite;
+			((Texture)val).wrapMode = (TextureWrapMode)1;
+			Sprite val2 = Sprite.Create(val, new Rect(0f, 0f, (float)((Texture)val).width, (float)((Texture)val).height), new Vector2(0.5f, 0.5f), 100f);
+			((Object)val2).name = "MODDED_OPERATIONS_PREVIEW_" + map.Id;
+			previewTextures[map.Id] = val;
+			previewSprites[map.Id] = val2;
+			return val2;
 		}
 		catch (Exception ex)
 		{
-			log.LogWarning("Modded Operations preview load failed for " + map.Id + ": " + ex.GetType().Name + ": " + ex.Message);
+			log.LogWarning((object)("Modded Operations preview load failed for " + map.Id + ": " + ex.GetType().Name + ": " + ex.Message));
 			return null;
 		}
 	}
 
 	private GameObject BuildPackageInfiltrationMapPrefab(CatalogPresentation presentation, ModdedOperationDefinition operation, Sprite preview)
 	{
-		if (presentation == null || presentation.Board == null || operation == null || preview == null || operation.Infiltrations == null || operation.Infiltrations.Count == 0)
+		//IL_005a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0060: Expected O, but got Unknown
+		//IL_0070: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0075: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0087: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01cc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01d4: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01dc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01e6: Unknown result type (might be due to invalid IL or missing references)
+		if (presentation == null || (Object)(object)presentation.Board == (Object)null || operation == null || (Object)(object)preview == (Object)null || operation.Infiltrations == null || operation.Infiltrations.Count == 0)
 		{
 			return null;
 		}
-		MapInfilMarker mapInfilMarker = ResolveNativeInfiltrationMarkerTemplate();
-		if (mapInfilMarker == null || mapInfilMarker.gameObject == null)
+		MapInfilMarker val = ResolveNativeInfiltrationMarkerTemplate();
+		if ((Object)(object)val == (Object)null || (Object)(object)((Component)val).gameObject == (Object)null)
 		{
 			return null;
 		}
-		GameObject gameObject = null;
+		GameObject val2 = null;
 		try
 		{
-			gameObject = new GameObject("MODDED_OPERATIONS_PACKAGE_INFILTRATION_MAP");
-			SetFullStretch(gameObject.AddComponent<RectTransform>());
-			GameObject gameObject2 = new GameObject("PACKAGE_MAP_PREVIEW");
-			gameObject2.transform.SetParent(gameObject.transform, worldPositionStays: false);
-			SetFullStretch(gameObject2.AddComponent<RectTransform>());
-			Image image = gameObject2.AddComponent<Image>();
-			image.sprite = preview;
-			image.color = Color.white;
-			image.preserveAspect = true;
-			image.raycastTarget = false;
+			val2 = new GameObject("MODDED_OPERATIONS_PACKAGE_INFILTRATION_MAP");
+			SetFullStretch(val2.AddComponent<RectTransform>());
+			GameObject val3 = new GameObject("PACKAGE_MAP_PREVIEW");
+			val3.transform.SetParent(val2.transform, false);
+			SetFullStretch(val3.AddComponent<RectTransform>());
+			Image obj = val3.AddComponent<Image>();
+			obj.sprite = preview;
+			((Graphic)obj).color = Color.white;
+			obj.preserveAspect = true;
+			((Graphic)obj).raycastTarget = false;
+			Vector2 val7 = default(Vector2);
 			for (int i = 0; i < operation.Infiltrations.Count; i++)
 			{
-				ModdedInfiltrationDefinition val = operation.Infiltrations[i];
-				GameObject gameObject3 = UnityEngine.Object.Instantiate(mapInfilMarker.gameObject, gameObject.transform);
-				if (gameObject3 == null)
+				ModdedInfiltrationDefinition val4 = operation.Infiltrations[i];
+				GameObject val5 = Object.Instantiate<GameObject>(((Component)val).gameObject, val2.transform);
+				if ((Object)(object)val5 == (Object)null)
 				{
 					throw new InvalidOperationException("the shipped infiltration marker visual could not be duplicated");
 				}
-				gameObject3.name = "PACKAGE_INFIL_" + val.Id;
-				MapInfilMarker mapInfilMarker2 = gameObject3.GetComponent<MapInfilMarker>() ?? gameObject3.GetComponentInChildren<MapInfilMarker>(includeInactive: true);
-				if (mapInfilMarker2 == null)
+				((Object)val5).name = "PACKAGE_INFIL_" + val4.Id;
+				MapInfilMarker val6 = val5.GetComponent<MapInfilMarker>() ?? val5.GetComponentInChildren<MapInfilMarker>(true);
+				if ((Object)(object)val6 == (Object)null)
 				{
 					throw new InvalidOperationException("the duplicated infiltration marker lost its native component");
 				}
-				mapInfilMarker2.MaxPlayers = val.MaximumPlayers;
-				mapInfilMarker2.InfilName = val.DisplayName;
-				mapInfilMarker2.IsGroundInfil = true;
-				mapInfilMarker2.IsHeliInfil = false;
-				mapInfilMarker2.IsExfil = false;
-				mapInfilMarker2.OpboardUI = presentation.Board;
-				mapInfilMarker2.MarkerIndex = i;
-				mapInfilMarker2.individualSelectMode = false;
-				mapInfilMarker2.CurrentNumPlayers = 0;
-				mapInfilMarker2.isSelectedLocal = false;
-				RectTransform obj = gameObject3.GetComponent<RectTransform>() ?? mapInfilMarker2.GetComponent<RectTransform>();
-				if (obj == null)
+				val6.MaxPlayers = val4.MaximumPlayers;
+				val6.InfilName = val4.DisplayName;
+				val6.IsGroundInfil = true;
+				val6.IsHeliInfil = false;
+				val6.IsExfil = false;
+				val6.OpboardUI = presentation.Board;
+				val6.MarkerIndex = i;
+				val6.individualSelectMode = false;
+				val6.CurrentNumPlayers = 0;
+				val6.isSelectedLocal = false;
+				RectTransform obj2 = val5.GetComponent<RectTransform>() ?? ((Component)val6).GetComponent<RectTransform>();
+				if ((Object)(object)obj2 == (Object)null)
 				{
 					throw new InvalidOperationException("the shipped infiltration marker visual has no RectTransform");
 				}
-				Vector2 anchorMax = (obj.anchorMin = new Vector2(val.MapPositionX, val.MapPositionY));
-				obj.anchorMax = anchorMax;
-				obj.anchoredPosition = Vector2.zero;
-				obj.localScale = Vector3.one;
-				gameObject3.SetActive(value: true);
+				((Vector2)(ref val7))._002Ector(val4.MapPositionX, val4.MapPositionY);
+				obj2.anchorMin = val7;
+				obj2.anchorMax = val7;
+				obj2.anchoredPosition = Vector2.zero;
+				((Transform)obj2).localScale = Vector3.one;
+				val5.SetActive(true);
 			}
-			gameObject.SetActive(value: false);
-			log.LogInfo("Modded Operations built a package-owned native infiltration selector map: operation=" + operation.Id + ", markers=" + operation.Infiltrations.Count + ", visualSource=" + mapInfilMarker.gameObject.name + ".");
-			return gameObject;
+			val2.SetActive(false);
+			log.LogInfo((object)("Modded Operations built a package-owned native infiltration selector map: operation=" + operation.Id + ", markers=" + operation.Infiltrations.Count + ", visualSource=" + ((Object)((Component)val).gameObject).name + "."));
+			return val2;
 		}
 		catch (Exception ex)
 		{
-			if (gameObject != null)
+			if ((Object)(object)val2 != (Object)null)
 			{
-				UnityEngine.Object.Destroy(gameObject);
+				Object.Destroy((Object)(object)val2);
 			}
-			log.LogError("Modded Operations could not build the package-owned infiltration selector map: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogError((object)("Modded Operations could not build the package-owned infiltration selector map: " + ex.GetType().Name + ": " + ex.Message));
 			return null;
 		}
 	}
@@ -1900,11 +2015,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			foreach (CerebusOpboard item2 in Resources.FindObjectsOfTypeAll<CerebusOpboard>())
 			{
-				if (item2 == null || item2.MapPrefab == null || item2.MapPrefab.name.StartsWith("MODDED_OPERATIONS_", StringComparison.Ordinal))
+				if ((Object)(object)item2 == (Object)null || (Object)(object)item2.MapPrefab == (Object)null || ((Object)item2.MapPrefab).name.StartsWith("MODDED_OPERATIONS_", StringComparison.Ordinal))
 				{
 					continue;
 				}
-				foreach (MapInfilMarker componentsInChild in item2.MapPrefab.GetComponentsInChildren<MapInfilMarker>(includeInactive: true))
+				foreach (MapInfilMarker componentsInChild in item2.MapPrefab.GetComponentsInChildren<MapInfilMarker>(true))
 				{
 					if (IsUsableNativeInfiltrationMarkerTemplate(componentsInChild))
 					{
@@ -1921,9 +2036,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool IsUsableNativeInfiltrationMarkerTemplate(MapInfilMarker marker)
 	{
-		if (marker != null && marker.gameObject != null && !marker.gameObject.name.StartsWith("PACKAGE_INFIL_", StringComparison.Ordinal) && marker.SelectedParent != null && marker.DeselectedParent != null)
+		if ((Object)(object)marker != (Object)null && (Object)(object)((Component)marker).gameObject != (Object)null && !((Object)((Component)marker).gameObject).name.StartsWith("PACKAGE_INFIL_", StringComparison.Ordinal) && (Object)(object)marker.SelectedParent != (Object)null && (Object)(object)marker.DeselectedParent != (Object)null)
 		{
-			return marker.canvasGroup != null;
+			return (Object)(object)marker.canvasGroup != (Object)null;
 		}
 		return false;
 	}
@@ -1938,26 +2053,26 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		ModdedMapDefinition val = default(ModdedMapDefinition);
 		if (!OperatorApi.ModdedOperations.TryGetMap(operation.MapId, ref val) || val == null)
 		{
-			log.LogError("Modded Operations launch rejected because map " + operation.MapId + " is no longer in the frozen catalog.");
+			log.LogError((object)("Modded Operations launch rejected because map " + operation.MapId + " is no longer in the frozen catalog."));
 			return;
 		}
 		if (!val.Operations.Any((ModdedOperationDefinition candidate) => string.Equals(candidate.Id, operation.Id, StringComparison.Ordinal)) || !operation.SupportedTimeCodes.Contains<string>(presentation.SelectedTimeCode, StringComparer.Ordinal))
 		{
-			log.LogError("Modded Operations launch rejected because the selected operation/time pair is not owned by its frozen package map.");
+			log.LogError((object)"Modded Operations launch rejected because the selected operation/time pair is not owned by its frozen package map.");
 			return;
 		}
-		log.LogInfo("Modded Operations launch request captured: operation=" + operation.Id + ", laptopId=" + presentation.Laptop.GetInstanceID() + ", time=" + presentation.SelectedTimeCode + ".");
-		MissionLaptop missionLaptop = ResolveLaunchLaptop(presentation.Laptop);
-		PlayerNetworking playerNetworking = ((missionLaptop == null) ? null : missionLaptop.playerNetworking);
-		if (!IsPlayerOwnedLaunchLaptop(missionLaptop) || playerNetworking == null)
+		log.LogInfo((object)("Modded Operations launch request captured: operation=" + operation.Id + ", laptopId=" + ((Object)presentation.Laptop).GetInstanceID() + ", time=" + presentation.SelectedTimeCode + "."));
+		MissionLaptop val2 = ResolveLaunchLaptop(presentation.Laptop);
+		PlayerNetworking val3 = (((Object)(object)val2 == (Object)null) ? null : val2.playerNetworking);
+		if (!IsPlayerOwnedLaunchLaptop(val2) || (Object)(object)val3 == (Object)null)
 		{
-			log.LogError("Modded Operations launch rejected before package loading because no player-owned mission laptop was available.");
+			log.LogError((object)"Modded Operations launch rejected before package loading because no player-owned mission laptop was available.");
 			return;
 		}
 		SetNativeConfirmationLoadingState(presentation, loading: true);
-		if (loadedMapBundles.TryGetValue(val.Id, out var value) && value != null && value.SceneBundle != null && value.Map != null && string.Equals(value.Map.PackageContentId, val.PackageContentId, StringComparison.Ordinal))
+		if (loadedMapBundles.TryGetValue(val.Id, out var value) && value != null && (Object)(object)value.SceneBundle != (Object)null && value.Map != null && string.Equals(value.Map.PackageContentId, val.PackageContentId, StringComparison.Ordinal))
 		{
-			InvokeNativeCatalogLaunch(presentation, val, operation, presentation.SelectedTimeCode, missionLaptop, playerNetworking);
+			InvokeNativeCatalogLaunch(presentation, val, operation, presentation.SelectedTimeCode, val2, val3);
 			return;
 		}
 		if (pendingLaunch != null)
@@ -1971,28 +2086,32 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					pendingLaunch.Presentation = presentation;
 					pendingLaunch.Operation = operation;
 					pendingLaunch.TimeCode = presentation.SelectedTimeCode;
-					pendingLaunch.LaunchLaptop = missionLaptop;
-					pendingLaunch.LaunchPlayer = playerNetworking;
+					pendingLaunch.LaunchLaptop = val2;
+					pendingLaunch.LaunchPlayer = val3;
 					pendingLaunch.LaunchRequested = true;
 					pendingLaunch.LaunchRequestedTimestamp = Stopwatch.GetTimestamp();
-					log.LogInfo("Modded Operations attached Confirm to the selected-map prefetch: map=" + val.Id + ", completedBundles=" + pendingLaunch.RequestIndex + "/" + pendingLaunch.BundlePaths.Count + ".");
+					log.LogInfo((object)("Modded Operations attached Confirm to the selected-map prefetch: map=" + val.Id + ", completedBundles=" + pendingLaunch.RequestIndex + "/" + pendingLaunch.BundlePaths.Count + "."));
 					return;
 				}
 			}
 			SetNativeConfirmationLoadingState(presentation, loading: false);
-			ManualLogSource manualLogSource = log;
-			string[] obj = new string[5] { "Modded Operations ignored a launch while another selected map is still loading: requested=", val.Id, ", loading=", null, null };
+			ManualLogSource obj = log;
+			string[] obj2 = new string[5] { "Modded Operations ignored a launch while another selected map is still loading: requested=", val.Id, ", loading=", null, null };
 			ModdedMapDefinition map3 = pendingLaunch.Map;
-			obj[3] = ((map3 != null) ? map3.Id : null);
-			obj[4] = ".";
-			manualLogSource.LogWarning(string.Concat(obj));
+			obj2[3] = ((map3 != null) ? map3.Id : null);
+			obj2[4] = ".";
+			obj.LogWarning((object)string.Concat(obj2));
 			return;
 		}
 		if (value != null)
 		{
 			try
 			{
-				value.SceneBundle?.Unload(unloadAllLoadedObjects: false);
+				AssetBundle sceneBundle = value.SceneBundle;
+				if (sceneBundle != null)
+				{
+					sceneBundle.Unload(false);
+				}
 			}
 			catch
 			{
@@ -2001,14 +2120,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 				try
 				{
-					dependency?.Unload(unloadAllLoadedObjects: false);
+					if (dependency != null)
+					{
+						dependency.Unload(false);
+					}
 				}
 				catch
 				{
 				}
 			}
 			loadedMapBundles.Remove(val.Id);
-			log.LogWarning("Modded Operations discarded an incomplete or stale bundle cache entry before loading map=" + val.Id + ".");
+			log.LogWarning((object)("Modded Operations discarded an incomplete or stale bundle cache entry before loading map=" + val.Id + "."));
 		}
 		LoadedMapBundles loadingBundles = new LoadedMapBundles
 		{
@@ -2020,8 +2142,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			Map = val,
 			Operation = operation,
 			TimeCode = presentation.SelectedTimeCode,
-			LaunchLaptop = missionLaptop,
-			LaunchPlayer = playerNetworking,
+			LaunchLaptop = val2,
+			LaunchPlayer = val3,
 			LoadingBundles = loadingBundles,
 			LaunchRequested = true,
 			LoadStartedTimestamp = Stopwatch.GetTimestamp(),
@@ -2033,7 +2155,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		pendingMapLaunch.BundlePaths.Add(val.SceneBundlePath);
 		pendingLaunch = pendingMapLaunch;
-		log.LogInfo("Modded Operations began asynchronous package load: map=" + val.Id + ", bundles=" + pendingMapLaunch.BundlePaths.Count + ".");
+		log.LogInfo((object)("Modded Operations began asynchronous package load: map=" + val.Id + ", bundles=" + pendingMapLaunch.BundlePaths.Count + "."));
 	}
 
 	private void ProcessPendingLaunch()
@@ -2056,10 +2178,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					}
 					loadedMapBundles[pendingMapLaunch.Map.Id] = pendingMapLaunch.LoadingBundles;
 					pendingLaunch = null;
-					log.LogInfo("Modded Operations completed verified bundle registration: map=" + pendingMapLaunch.Map.Id + ", seconds=" + FormatElapsedSeconds(pendingMapLaunch.LoadStartedTimestamp) + ", launchRequested=" + pendingMapLaunch.LaunchRequested + ".");
+					log.LogInfo((object)("Modded Operations completed verified bundle registration: map=" + pendingMapLaunch.Map.Id + ", seconds=" + FormatElapsedSeconds(pendingMapLaunch.LoadStartedTimestamp) + ", launchRequested=" + pendingMapLaunch.LaunchRequested + "."));
 					if (pendingMapLaunch.LaunchRequested)
 					{
-						log.LogInfo("Modded Operations Confirm waited " + FormatElapsedSeconds(pendingMapLaunch.LaunchRequestedTimestamp) + " seconds for remaining selected-map bundle work.");
+						log.LogInfo((object)("Modded Operations Confirm waited " + FormatElapsedSeconds(pendingMapLaunch.LaunchRequestedTimestamp) + " seconds for remaining selected-map bundle work."));
 						InvokeNativeCatalogLaunch(pendingMapLaunch.Presentation, pendingMapLaunch.Map, pendingMapLaunch.Operation, pendingMapLaunch.TimeCode, pendingMapLaunch.LaunchLaptop, pendingMapLaunch.LaunchPlayer);
 					}
 				}
@@ -2076,13 +2198,13 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			else
 			{
-				if (!pendingMapLaunch.CurrentRequest.isDone)
+				if (!((AsyncOperation)pendingMapLaunch.CurrentRequest).isDone)
 				{
 					return;
 				}
 				AssetBundle assetBundle = pendingMapLaunch.CurrentRequest.assetBundle;
 				pendingMapLaunch.CurrentRequest = null;
-				if (assetBundle == null)
+				if ((Object)(object)assetBundle == (Object)null)
 				{
 					FailPendingLaunch("Unity could not load bundle " + pendingMapLaunch.BundlePaths[pendingMapLaunch.RequestIndex]);
 					return;
@@ -2095,7 +2217,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				catch
 				{
 				}
-				log.LogInfo("Modded Operations loaded verified bundle " + (pendingMapLaunch.RequestIndex + 1) + "/" + pendingMapLaunch.BundlePaths.Count + ": file=" + Path.GetFileName(pendingMapLaunch.BundlePaths[pendingMapLaunch.RequestIndex]) + ", bytes=" + num + ", seconds=" + FormatElapsedSeconds(pendingMapLaunch.CurrentRequestStartedTimestamp) + ".");
+				log.LogInfo((object)("Modded Operations loaded verified bundle " + (pendingMapLaunch.RequestIndex + 1) + "/" + pendingMapLaunch.BundlePaths.Count + ": file=" + Path.GetFileName(pendingMapLaunch.BundlePaths[pendingMapLaunch.RequestIndex]) + ", bytes=" + num + ", seconds=" + FormatElapsedSeconds(pendingMapLaunch.CurrentRequestStartedTimestamp) + "."));
 				if (pendingMapLaunch.RequestIndex == pendingMapLaunch.BundlePaths.Count - 1)
 				{
 					pendingMapLaunch.LoadingBundles.SceneBundle = assetBundle;
@@ -2105,7 +2227,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					string[] array = null;
 					try
 					{
-						array = assetBundle.GetAllScenePaths();
+						array = Il2CppArrayBase<string>.op_Implicit((Il2CppArrayBase<string>)(object)assetBundle.GetAllScenePaths());
 					}
 					catch
 					{
@@ -2114,7 +2236,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					{
 						try
 						{
-							assetBundle.Unload(unloadAllLoadedObjects: false);
+							assetBundle.Unload(false);
 						}
 						catch
 						{
@@ -2134,7 +2256,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 	}
 
-	private static long GetBundleByteTotal(System.Collections.Generic.IEnumerable<string> paths)
+	private static long GetBundleByteTotal(IEnumerable<string> paths)
 	{
 		long num = 0L;
 		foreach (string item in paths ?? Enumerable.Empty<string>())
@@ -2161,7 +2283,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool ValidateLoadedSceneBundle(ModdedMapDefinition map, LoadedMapBundles bundles)
 	{
-		if (map == null || bundles == null || bundles.SceneBundle == null)
+		if (map == null || bundles == null || (Object)(object)bundles.SceneBundle == (Object)null)
 		{
 			return false;
 		}
@@ -2175,13 +2297,13 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				return false;
 			}
 			bool result = false;
-			foreach (string allScenePath in bundles.SceneBundle.GetAllScenePaths())
+			foreach (string item in (Il2CppArrayBase<string>)(object)bundles.SceneBundle.GetAllScenePaths())
 			{
-				if (!hashSet.Contains(allScenePath))
+				if (!hashSet.Contains(item))
 				{
 					return false;
 				}
-				if (string.Equals(allScenePath, map.ScenePath, StringComparison.OrdinalIgnoreCase))
+				if (string.Equals(item, map.ScenePath, StringComparison.OrdinalIgnoreCase))
 				{
 					result = true;
 				}
@@ -2202,7 +2324,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			try
 			{
-				pendingMapLaunch.LoadingBundles.SceneBundle?.Unload(unloadAllLoadedObjects: false);
+				AssetBundle sceneBundle = pendingMapLaunch.LoadingBundles.SceneBundle;
+				if (sceneBundle != null)
+				{
+					sceneBundle.Unload(false);
+				}
 			}
 			catch
 			{
@@ -2211,14 +2337,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 				try
 				{
-					dependency?.Unload(unloadAllLoadedObjects: false);
+					if (dependency != null)
+					{
+						dependency.Unload(false);
+					}
 				}
 				catch
 				{
 				}
 			}
 		}
-		log.LogError("Modded Operations package " + ((pendingMapLaunch != null && pendingMapLaunch.LaunchRequested) ? "launch" : "prefetch") + " failed closed: " + reason + ".");
+		log.LogError((object)("Modded Operations package " + ((pendingMapLaunch != null && pendingMapLaunch.LaunchRequested) ? "launch" : "prefetch") + " failed closed: " + reason + "."));
 		if (pendingMapLaunch?.Presentation != null)
 		{
 			SetNativeConfirmationLoadingState(pendingMapLaunch.Presentation, loading: false);
@@ -2227,7 +2356,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void InvokeNativeCatalogLaunch(CatalogPresentation presentation, ModdedMapDefinition map, ModdedOperationDefinition operation, string timeCode, MissionLaptop launchLaptop, PlayerNetworking launchPlayer)
 	{
-		if (presentation == null || presentation.NativeBoardData == null || map == null || operation == null)
+		if (presentation == null || (Object)(object)presentation.NativeBoardData == (Object)null || map == null || operation == null)
 		{
 			return;
 		}
@@ -2247,7 +2376,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				TimeCode = timeCode,
 				SceneHandle = 0
 			};
-			log.LogInfo("Modded Operations accepted an isolated package launch: operation=" + operation.Id + ", map=" + map.Id + ", content=" + map.PackageContentId + ", scene=" + map.ScenePath + ", time=" + timeCode + ".");
+			log.LogInfo((object)("Modded Operations accepted an isolated package launch: operation=" + operation.Id + ", map=" + map.Id + ", content=" + map.PackageContentId + ", scene=" + map.ScenePath + ", time=" + timeCode + "."));
 			LogNativeLaunchContract(presentation.NativeBoardData);
 			InvokeNativeBoardStart(presentation, map, operation, timeCode, launchLaptop, launchPlayer);
 		}
@@ -2255,15 +2384,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			activeOperation = null;
 			SetNativeConfirmationLoadingState(presentation, loading: false);
-			log.LogError("Modded Operations native start failed closed: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogError((object)("Modded Operations native start failed closed: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
 	private void InvokeNativeBoardStart(CatalogPresentation presentation, ModdedMapDefinition map, ModdedOperationDefinition operation, string timeCode, MissionLaptop capturedLaptop, PlayerNetworking capturedPlayer)
 	{
+		//IL_0096: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a0: Expected O, but got Unknown
 		OperationsManager singleton = OperationsManager.singleton;
-		CerebusOpboard cerebusOpboard = presentation?.NativeBoardData;
-		if (singleton == null || cerebusOpboard == null || map == null || operation == null)
+		CerebusOpboard val = presentation?.NativeBoardData;
+		if ((Object)(object)singleton == (Object)null || (Object)(object)val == (Object)null || map == null || operation == null)
 		{
 			throw new InvalidOperationException("native operation manager was unavailable");
 		}
@@ -2271,8 +2402,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			throw new InvalidOperationException("package operation ownership changed before native start");
 		}
-		MissionLaptop missionLaptop = RestoreCapturedLaunchLaptop(capturedLaptop, capturedPlayer, presentation.Laptop);
-		if (missionLaptop == null)
+		MissionLaptop val2 = RestoreCapturedLaunchLaptop(capturedLaptop, capturedPlayer, presentation.Laptop);
+		if ((Object)(object)val2 == (Object)null)
 		{
 			throw new InvalidOperationException("no player-owned mission laptop was available for native launch");
 		}
@@ -2284,27 +2415,27 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			throw new InvalidOperationException("native current-operation state could not be allocated");
 		}
-		cerebusOpboard.missionLaptop = missionLaptop;
-		singleton.activeMissionLaptop = missionLaptop;
-		if (cerebusOpboard.TARGETPACKAGE == null || cerebusOpboard.TARGETPACKAGE.Length == 0 || cerebusOpboard.SelectedInfiltrationTime < 0 || cerebusOpboard.SelectedInfiltrationTime >= cerebusOpboard.TARGETPACKAGE.Length || cerebusOpboard.missionLaptop == null || cerebusOpboard.OperationBoardUI == null)
+		val.missionLaptop = val2;
+		singleton.activeMissionLaptop = val2;
+		if (val.TARGETPACKAGE == null || ((Il2CppArrayBase<TARGETPACKAGE_DETAILS>)(object)val.TARGETPACKAGE).Length == 0 || val.SelectedInfiltrationTime < 0 || val.SelectedInfiltrationTime >= ((Il2CppArrayBase<TARGETPACKAGE_DETAILS>)(object)val.TARGETPACKAGE).Length || (Object)(object)val.missionLaptop == (Object)null || (Object)(object)val.OperationBoardUI == (Object)null)
 		{
 			throw new InvalidOperationException("private operation board launch contract was incomplete");
 		}
-		log.LogInfo("Modded Operations completed the native board ownership graph: sourceLaptop=" + presentation.Laptop.GetInstanceID() + ", launchLaptop=" + missionLaptop.GetInstanceID() + ", playerOwned=" + (missionLaptop.playerNetworking != null) + ", currentOperationInfo=" + (singleton.currentOpInfo != null) + ".");
+		log.LogInfo((object)("Modded Operations completed the native board ownership graph: sourceLaptop=" + ((Object)presentation.Laptop).GetInstanceID() + ", launchLaptop=" + ((Object)val2).GetInstanceID() + ", playerOwned=" + ((Object)(object)val2.playerNetworking != (Object)null) + ", currentOperationInfo=" + (singleton.currentOpInfo != null) + "."));
 		CloseNativeMapConfirmation(presentation.Board, logClose: false);
-		PrimeNativeInfiltrationSelector(cerebusOpboard, operation);
-		cerebusOpboard.Start_Operation();
-		log.LogInfo("Modded Operations entered the shipped board launch pipeline through CerebusOpboard.Start_Operation: operation=" + operation.Id + ", scene=" + map.ScenePath + ".");
+		PrimeNativeInfiltrationSelector(val, operation);
+		val.Start_Operation();
+		log.LogInfo((object)("Modded Operations entered the shipped board launch pipeline through CerebusOpboard.Start_Operation: operation=" + operation.Id + ", scene=" + map.ScenePath + "."));
 	}
 
 	private void PrimeNativeInfiltrationSelector(CerebusOpboard board, ModdedOperationDefinition operation)
 	{
-		if (board == null || board.MapPrefab == null || operation == null || operation.Infiltrations == null || operation.Infiltrations.Count == 0)
+		if ((Object)(object)board == (Object)null || (Object)(object)board.MapPrefab == (Object)null || operation == null || operation.Infiltrations == null || operation.Infiltrations.Count == 0)
 		{
 			throw new InvalidOperationException("package infiltration selector data was unavailable");
 		}
-		InfilSelectorDisplayer infilSelectorDisplayer = InfilSelectorDisplayer.instance ?? Resources.FindObjectsOfTypeAll<InfilSelectorDisplayer>().FirstOrDefault((InfilSelectorDisplayer item) => item != null && item.MapParent != null && item.SelectInfilUI != null);
-		if (infilSelectorDisplayer == null)
+		InfilSelectorDisplayer val = InfilSelectorDisplayer.instance ?? ((IEnumerable<InfilSelectorDisplayer>)Resources.FindObjectsOfTypeAll<InfilSelectorDisplayer>()).FirstOrDefault((InfilSelectorDisplayer item) => (Object)(object)item != (Object)null && (Object)(object)item.MapParent != (Object)null && (Object)(object)item.SelectInfilUI != (Object)null);
+		if ((Object)(object)val == (Object)null)
 		{
 			throw new InvalidOperationException("the shipped infiltration selector was unavailable");
 		}
@@ -2313,62 +2444,62 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			if (!activeSelf)
 			{
-				board.MapPrefab.SetActive(value: true);
+				board.MapPrefab.SetActive(true);
 			}
-			infilSelectorDisplayer.SpawnMap(board.MapPrefab);
+			val.SpawnMap(board.MapPrefab);
 		}
 		finally
 		{
-			if (board.MapPrefab != null && board.MapPrefab.activeSelf != activeSelf)
+			if ((Object)(object)board.MapPrefab != (Object)null && board.MapPrefab.activeSelf != activeSelf)
 			{
 				board.MapPrefab.SetActive(activeSelf);
 			}
 		}
-		MapInfilMarker[] array = ((infilSelectorDisplayer.MapInfilMarkers == null) ? Array.Empty<MapInfilMarker>() : infilSelectorDisplayer.MapInfilMarkers.ToArray());
-		if (infilSelectorDisplayer.ActiveMap == null || !infilSelectorDisplayer.ActiveMap.name.StartsWith("MODDED_OPERATIONS_PACKAGE_INFILTRATION_MAP", StringComparison.Ordinal) || array.Length != operation.Infiltrations.Count)
+		MapInfilMarker[] array = ((val.MapInfilMarkers == null) ? Array.Empty<MapInfilMarker>() : ((IEnumerable<MapInfilMarker>)val.MapInfilMarkers).ToArray());
+		if ((Object)(object)val.ActiveMap == (Object)null || !((Object)val.ActiveMap).name.StartsWith("MODDED_OPERATIONS_PACKAGE_INFILTRATION_MAP", StringComparison.Ordinal) || array.Length != operation.Infiltrations.Count)
 		{
-			throw new InvalidOperationException("the shipped infiltration selector did not instantiate the package map (selector=" + infilSelectorDisplayer.GetInstanceID() + ", activeMap=" + ((infilSelectorDisplayer.ActiveMap == null) ? "null" : infilSelectorDisplayer.ActiveMap.name) + ", markers=" + array.Length + ", expectedMarkers=" + operation.Infiltrations.Count + ")");
+			throw new InvalidOperationException("the shipped infiltration selector did not instantiate the package map (selector=" + ((Object)val).GetInstanceID() + ", activeMap=" + (((Object)(object)val.ActiveMap == (Object)null) ? "null" : ((Object)val.ActiveMap).name) + ", markers=" + array.Length + ", expectedMarkers=" + operation.Infiltrations.Count + ")");
 		}
 		for (int num = 0; num < array.Length; num++)
 		{
-			MapInfilMarker mapInfilMarker = array[num];
-			ModdedInfiltrationDefinition val = operation.Infiltrations[num];
-			if (mapInfilMarker == null || mapInfilMarker.MarkerIndex != num || !string.Equals(mapInfilMarker.InfilName, val.DisplayName, StringComparison.Ordinal) || mapInfilMarker.MaxPlayers != val.MaximumPlayers || !mapInfilMarker.IsGroundInfil || mapInfilMarker.IsHeliInfil || mapInfilMarker.IsExfil)
+			MapInfilMarker val2 = array[num];
+			ModdedInfiltrationDefinition val3 = operation.Infiltrations[num];
+			if ((Object)(object)val2 == (Object)null || val2.MarkerIndex != num || !string.Equals(val2.InfilName, val3.DisplayName, StringComparison.Ordinal) || val2.MaxPlayers != val3.MaximumPlayers || !val2.IsGroundInfil || val2.IsHeliInfil || val2.IsExfil)
 			{
 				throw new InvalidOperationException("the shipped infiltration selector retained non-package marker data");
 			}
 		}
-		log.LogInfo("Modded Operations primed the shipped infiltration selector through InfilSelectorDisplayer.SpawnMap: operation=" + operation.Id + ", activeMap=" + infilSelectorDisplayer.ActiveMap.name + ", markers=" + array.Length + ".");
+		log.LogInfo((object)("Modded Operations primed the shipped infiltration selector through InfilSelectorDisplayer.SpawnMap: operation=" + operation.Id + ", activeMap=" + ((Object)val.ActiveMap).name + ", markers=" + array.Length + "."));
 	}
 
 	private static MissionLaptop ResolveLaunchLaptop(MissionLaptop preferred)
 	{
-		MissionLaptop missionLaptop = ((OperationsManager.singleton == null) ? null : OperationsManager.singleton.activeMissionLaptop);
-		if (IsPlayerOwnedLaunchLaptop(missionLaptop))
+		MissionLaptop val = (((Object)(object)OperationsManager.singleton == (Object)null) ? null : OperationsManager.singleton.activeMissionLaptop);
+		if (IsPlayerOwnedLaunchLaptop(val))
 		{
-			return missionLaptop;
+			return val;
 		}
 		if (IsPlayerOwnedLaunchLaptop(preferred))
 		{
 			return preferred;
 		}
-		MissionLaptop missionLaptop2 = null;
+		MissionLaptop val2 = null;
 		foreach (Component item in FindMissionLaptopComponents(ResolveMissionLaptopType()))
 		{
-			MissionLaptop missionLaptop3 = item as MissionLaptop;
-			if (IsPlayerOwnedLaunchLaptop(missionLaptop3))
+			MissionLaptop val3 = (MissionLaptop)(object)((item is MissionLaptop) ? item : null);
+			if (IsPlayerOwnedLaunchLaptop(val3))
 			{
-				if (missionLaptop3.gameObject.activeInHierarchy)
+				if (((Component)val3).gameObject.activeInHierarchy)
 				{
-					return missionLaptop3;
+					return val3;
 				}
-				if ((object)missionLaptop2 == null)
+				if (val2 == null)
 				{
-					missionLaptop2 = missionLaptop3;
+					val2 = val3;
 				}
 			}
 		}
-		return missionLaptop2;
+		return val2;
 	}
 
 	private static MissionLaptop RestoreCapturedLaunchLaptop(MissionLaptop capturedLaptop, PlayerNetworking capturedPlayer, MissionLaptop preferred)
@@ -2377,7 +2508,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return capturedLaptop;
 		}
-		if (capturedLaptop != null && capturedPlayer != null && capturedPlayer.gameObject != null && capturedPlayer.isOwned)
+		if ((Object)(object)capturedLaptop != (Object)null && (Object)(object)capturedPlayer != (Object)null && (Object)(object)((Component)capturedPlayer).gameObject != (Object)null && ((NetworkBehaviour)capturedPlayer).isOwned)
 		{
 			capturedLaptop.playerNetworking = capturedPlayer;
 			if (IsPlayerOwnedLaunchLaptop(capturedLaptop))
@@ -2390,7 +2521,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool IsPlayerOwnedLaunchLaptop(MissionLaptop laptop)
 	{
-		if (laptop != null && laptop.gameObject != null && laptop.playerNetworking != null && laptop.LaptopPlayerCamera != null && laptop.computerManager != null && laptop.uiRaycaster != null && laptop.PlayerBlocker != null)
+		if ((Object)(object)laptop != (Object)null && (Object)(object)((Component)laptop).gameObject != (Object)null && (Object)(object)laptop.playerNetworking != (Object)null && (Object)(object)laptop.LaptopPlayerCamera != (Object)null && (Object)(object)laptop.computerManager != (Object)null && (Object)(object)laptop.uiRaycaster != (Object)null && (Object)(object)laptop.PlayerBlocker != (Object)null)
 		{
 			return laptop.ShitToKillWhenNotUsing != null;
 		}
@@ -2399,7 +2530,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void LogNativeLaunchContract(CerebusOpboard board)
 	{
-		if (board == null)
+		if ((Object)(object)board == (Object)null)
 		{
 			return;
 		}
@@ -2407,26 +2538,29 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			CerebusTargetPackage thisMissionTargetPackage = board.ThisMissionTargetPackage;
 			MissionLaptop missionLaptop = board.missionLaptop;
-			log.LogInfo("Modded Operations private UI launch contract: mapPrefab=" + ((board.MapPrefab == null) ? "null" : board.MapPrefab.name) + ", targetPackage=" + ((thisMissionTargetPackage == null) ? "null" : thisMissionTargetPackage.name) + ", targetBackref=" + ((thisMissionTargetPackage == null || thisMissionTargetPackage.TargetPackage == null) ? "null" : thisMissionTargetPackage.TargetPackage.name) + ", targets=" + ((board.TARGETPACKAGE == null) ? (-1) : board.TARGETPACKAGE.Length) + ", selectedInfil=" + board.SelectedInfiltrationTime + ", operationBoard=" + (board.OperationBoardUI != null) + ", laptop=" + (missionLaptop != null) + ", laptopPlayer=" + (missionLaptop != null && missionLaptop.playerNetworking != null) + ", operationsManager=" + (OperationsManager.singleton != null) + ", gameManagerNetwork=" + (GameManagerNetwork.instance != null) + ".");
+			log.LogInfo((object)("Modded Operations private UI launch contract: mapPrefab=" + (((Object)(object)board.MapPrefab == (Object)null) ? "null" : ((Object)board.MapPrefab).name) + ", targetPackage=" + (((Object)(object)thisMissionTargetPackage == (Object)null) ? "null" : ((Object)thisMissionTargetPackage).name) + ", targetBackref=" + (((Object)(object)thisMissionTargetPackage == (Object)null || (Object)(object)thisMissionTargetPackage.TargetPackage == (Object)null) ? "null" : ((Object)thisMissionTargetPackage.TargetPackage).name) + ", targets=" + ((board.TARGETPACKAGE == null) ? (-1) : ((Il2CppArrayBase<TARGETPACKAGE_DETAILS>)(object)board.TARGETPACKAGE).Length) + ", selectedInfil=" + board.SelectedInfiltrationTime + ", operationBoard=" + ((Object)(object)board.OperationBoardUI != (Object)null) + ", laptop=" + ((Object)(object)missionLaptop != (Object)null) + ", laptopPlayer=" + ((Object)(object)missionLaptop != (Object)null && (Object)(object)missionLaptop.playerNetworking != (Object)null) + ", operationsManager=" + ((Object)(object)OperationsManager.singleton != (Object)null) + ", gameManagerNetwork=" + ((Object)(object)GameManagerNetwork.instance != (Object)null) + "."));
 		}
 		catch (Exception ex)
 		{
-			log.LogWarning("Modded Operations could not describe the native launch contract: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogWarning((object)("Modded Operations could not describe the native launch contract: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
 	private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
 	{
+		//IL_0024: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0033: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0088: Unknown result type (might be due to invalid IL or missing references)
 		ActiveMapOperation activeMapOperation = activeOperation;
-		if (activeMapOperation != null && activeMapOperation.Map != null && scene.IsValid() && scene.isLoaded && SceneMatchesMap(scene, activeMapOperation.Map))
+		if (activeMapOperation != null && activeMapOperation.Map != null && ((Scene)(ref scene)).IsValid() && ((Scene)(ref scene)).isLoaded && SceneMatchesMap(scene, activeMapOperation.Map))
 		{
 			if (!ValidateStandaloneSceneContract(scene, activeMapOperation, out var error))
 			{
-				log.LogError("Standalone package scene contract rejected map=" + activeMapOperation.Map.Id + ": " + error + ".");
+				log.LogError((object)("Standalone package scene contract rejected map=" + activeMapOperation.Map.Id + ": " + error + "."));
 				return;
 			}
 			ReleaseStandaloneSceneContracts(activeMapOperation);
-			activeMapOperation.SceneHandle = scene.handle;
+			activeMapOperation.SceneHandle = SceneHandle.op_Implicit(((Scene)(ref scene)).handle);
 			activeMapOperation.BootstrapRoot = null;
 			activeMapOperation.BootstrapIdentity = null;
 			activeMapOperation.BootstrapPrefabRoot = null;
@@ -2463,8 +2597,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void OnSceneUnloaded(Scene scene)
 	{
+		//IL_000c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0017: Unknown result type (might be due to invalid IL or missing references)
 		ActiveMapOperation activeMapOperation = activeOperation;
-		if (activeMapOperation != null && !(scene.handle != activeMapOperation.SceneHandle))
+		if (activeMapOperation != null && !(((Scene)(ref scene)).handle != SceneHandle.op_Implicit(activeMapOperation.SceneHandle)))
 		{
 			ReleaseStandaloneSceneContracts(activeMapOperation);
 			activeMapOperation.SceneHandle = 0;
@@ -2496,25 +2632,32 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			activeMapOperation.PveSpawnAttempted = false;
 			activeMapOperation.PveEnemyCount = 0;
 			activeMapOperation.RaidUtilityRoot = null;
-			log.LogInfo("Modded Operations map scene unloaded; package bundles remain resident so the shipped Restart Operation route can reload the same scene.");
+			log.LogInfo((object)"Modded Operations map scene unloaded; package bundles remain resident so the shipped Restart Operation route can reload the same scene.");
 		}
 	}
 
 	private void PrepareStandaloneScene(Scene scene, ActiveMapOperation operation)
 	{
-		if (activeOperation != operation || operation.SceneHandle != scene.handle || !scene.IsValid() || !scene.isLoaded)
+		//IL_000f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0016: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0036: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0087: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e9: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00f1: Unknown result type (might be due to invalid IL or missing references)
+		if (activeOperation != operation || SceneHandle.op_Implicit(operation.SceneHandle) != ((Scene)(ref scene)).handle || !((Scene)(ref scene)).IsValid() || !((Scene)(ref scene)).isLoaded)
 		{
 			return;
 		}
 		if (!TryPrepareRuntimeTerrain(scene, operation, out var error))
 		{
-			log.LogError("Standalone package terrain preparation failed closed: map=" + operation.Map.Id + ", reason=" + error + ".");
+			log.LogError((object)("Standalone package terrain preparation failed closed: map=" + operation.Map.Id + ", reason=" + error + "."));
 			return;
 		}
 		Physics.SyncTransforms();
 		if (!ValidateWalkableGroundContract(scene, operation, out var error2))
 		{
-			log.LogError("Standalone package walkable-ground contract failed closed: map=" + operation.Map.Id + ", reason=" + error2 + ".");
+			log.LogError((object)("Standalone package walkable-ground contract failed closed: map=" + operation.Map.Id + ", reason=" + error2 + "."));
 			ReleaseRuntimeTerrain(operation);
 		}
 		else
@@ -2524,7 +2667,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			CreateStandaloneGameplayBootstrap(scene, operation);
 			ApplyStandaloneRenderContract(scene, operation);
 			operation.ScenePreparationComplete = operation.BootstrapCreated;
-			log.LogInfo("Standalone package scene services are ready before native player spawn: map=" + operation.Map.Id + ", terrain=" + (operation.Map.RuntimeTerrain != null) + ", walkableGround=true, bootstrap=" + operation.BootstrapCreated + ".");
+			log.LogInfo((object)("Standalone package scene services are ready before native player spawn: map=" + operation.Map.Id + ", terrain=" + (operation.Map.RuntimeTerrain != null) + ", walkableGround=true, bootstrap=" + operation.BootstrapCreated + "."));
 		}
 	}
 
@@ -2534,15 +2677,47 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return false;
 		}
-		if (!string.IsNullOrEmpty(scene.path) && string.Equals(scene.path, map.ScenePath, StringComparison.OrdinalIgnoreCase))
+		if (!string.IsNullOrEmpty(((Scene)(ref scene)).path) && string.Equals(((Scene)(ref scene)).path, map.ScenePath, StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}
-		return string.Equals(scene.name, Path.GetFileNameWithoutExtension(map.ScenePath), StringComparison.OrdinalIgnoreCase);
+		return string.Equals(((Scene)(ref scene)).name, Path.GetFileNameWithoutExtension(map.ScenePath), StringComparison.OrdinalIgnoreCase);
 	}
 
 	private bool TryPrepareRuntimeTerrain(Scene scene, ActiveMapOperation operation, out string error)
 	{
+		//IL_008f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0224: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0229: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0244: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0250: Unknown result type (might be due to invalid IL or missing references)
+		//IL_025c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0268: Unknown result type (might be due to invalid IL or missing references)
+		//IL_027b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0287: Expected O, but got Unknown
+		//IL_02e3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02e8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02fd: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0306: Unknown result type (might be due to invalid IL or missing references)
+		//IL_036b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0370: Unknown result type (might be due to invalid IL or missing references)
+		//IL_037d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0388: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0393: Unknown result type (might be due to invalid IL or missing references)
+		//IL_039e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03ad: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03b7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03b8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03c2: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03cf: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03dc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03eb: Expected O, but got Unknown
+		//IL_047d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0482: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0491: Unknown result type (might be due to invalid IL or missing references)
+		//IL_05a7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0706: Unknown result type (might be due to invalid IL or missing references)
+		//IL_070b: Unknown result type (might be due to invalid IL or missing references)
 		error = string.Empty;
 		object obj;
 		if (operation == null)
@@ -2559,50 +2734,50 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return true;
 		}
-		if (!loadedMapBundles.TryGetValue(operation.Map.Id, out var value) || value == null || value.Map == null || !string.Equals(value.Map.PackageContentId, operation.Map.PackageContentId, StringComparison.Ordinal) || !value.DependenciesByPath.TryGetValue(val.VerifiedDependencyBundlePath, out var value2) || value2 == null)
+		if (!loadedMapBundles.TryGetValue(operation.Map.Id, out var value) || value == null || value.Map == null || !string.Equals(value.Map.PackageContentId, operation.Map.PackageContentId, StringComparison.Ordinal) || !value.DependenciesByPath.TryGetValue(val.VerifiedDependencyBundlePath, out var value2) || (Object)(object)value2 == (Object)null)
 		{
 			error = "the verified terrain dependency bundle is not resident";
 			return false;
 		}
 		int matches;
-		Transform transform = FindExactSceneTransform(scene, val.RootObjectName, out matches);
-		if (transform == null || matches != 1)
+		Transform val2 = FindExactSceneTransform(scene, val.RootObjectName, out matches);
+		if ((Object)(object)val2 == (Object)null || matches != 1)
 		{
 			error = "runtimeTerrain rootObject must resolve to exactly one scene object";
 			return false;
 		}
-		TerrainData terrainData = null;
-		System.Collections.Generic.List<TerrainLayer> list = new System.Collections.Generic.List<TerrainLayer>();
+		TerrainData val3 = null;
+		List<TerrainLayer> list = new List<TerrainLayer>();
 		try
 		{
-			Texture2D texture2D = LoadRequiredTerrainTexture(value2, val.HeightPayloadAssetPath, requireReadable: true);
-			Texture2D texture2D2 = LoadRequiredTerrainTexture(value2, val.SurfaceWeightsPayloadAssetPath, requireReadable: true);
-			if (texture2D == null || texture2D2 == null)
+			Texture2D val4 = LoadRequiredTerrainTexture(value2, val.HeightPayloadAssetPath, requireReadable: true);
+			Texture2D val5 = LoadRequiredTerrainTexture(value2, val.SurfaceWeightsPayloadAssetPath, requireReadable: true);
+			if ((Object)(object)val4 == (Object)null || (Object)(object)val5 == (Object)null)
 			{
 				error = "one or more numerical terrain payloads could not be loaded";
 				return false;
 			}
-			if (texture2D.width != val.HeightmapResolution || texture2D.height != val.HeightmapResolution || texture2D2.width != val.AlphamapResolution || texture2D2.height != val.AlphamapResolution)
+			if (((Texture)val4).width != val.HeightmapResolution || ((Texture)val4).height != val.HeightmapResolution || ((Texture)val5).width != val.AlphamapResolution || ((Texture)val5).height != val.AlphamapResolution)
 			{
 				error = "terrain payload dimensions do not match the frozen manifest";
 				return false;
 			}
-			Texture2D[] array = new Texture2D[val.Layers.Count];
-			Texture2D[] array2 = new Texture2D[val.Layers.Count];
-			Texture2D[] array3 = new Texture2D[val.Layers.Count];
+			Texture2D[] array = (Texture2D[])(object)new Texture2D[val.Layers.Count];
+			Texture2D[] array2 = (Texture2D[])(object)new Texture2D[val.Layers.Count];
+			Texture2D[] array3 = (Texture2D[])(object)new Texture2D[val.Layers.Count];
 			for (int i = 0; i < val.Layers.Count; i++)
 			{
-				ModdedRuntimeTerrainLayerDefinition val2 = val.Layers[i];
-				array[i] = LoadRequiredTerrainTexture(value2, val2.DiffuseAssetPath, requireReadable: false);
-				array2[i] = LoadRequiredTerrainTexture(value2, val2.NormalAssetPath, requireReadable: false);
-				array3[i] = LoadRequiredTerrainTexture(value2, val2.MaskAssetPath, requireReadable: false);
-				if (array[i] == null || array2[i] == null || array3[i] == null)
+				ModdedRuntimeTerrainLayerDefinition val6 = val.Layers[i];
+				array[i] = LoadRequiredTerrainTexture(value2, val6.DiffuseAssetPath, requireReadable: false);
+				array2[i] = LoadRequiredTerrainTexture(value2, val6.NormalAssetPath, requireReadable: false);
+				array3[i] = LoadRequiredTerrainTexture(value2, val6.MaskAssetPath, requireReadable: false);
+				if ((Object)(object)array[i] == (Object)null || (Object)(object)array2[i] == (Object)null || (Object)(object)array3[i] == (Object)null)
 				{
 					error = "one or more terrain-layer textures could not be loaded";
 					return false;
 				}
 			}
-			terrainData = new TerrainData
+			val3 = new TerrainData
 			{
 				name = "MODDED_OPERATIONS_RUNTIME_TERRAIN_" + operation.Map.Id,
 				heightmapResolution = val.HeightmapResolution,
@@ -2610,50 +2785,50 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				baseMapResolution = val.BaseMapResolution,
 				size = new Vector3(val.Width, val.Height, val.Length)
 			};
-			terrainData.SetDetailResolution(val.DetailResolution, val.DetailResolutionPerPatch);
-			Il2CppStructArray<Color32> pixels = texture2D.GetPixels32();
-			Il2CppStructArray<float> il2CppStructArray = AllocateIl2CppFloatArray(val.HeightmapResolution, val.HeightmapResolution);
-			Span<float> span = il2CppStructArray.AsSpan();
+			val3.SetDetailResolution(val.DetailResolution, val.DetailResolutionPerPatch);
+			Il2CppStructArray<Color32> pixels = val4.GetPixels32();
+			Il2CppStructArray<float> val7 = AllocateIl2CppFloatArray(val.HeightmapResolution, val.HeightmapResolution);
+			Span<float> span = val7.AsSpan();
 			for (int j = 0; j < val.HeightmapResolution; j++)
 			{
 				for (int k = 0; k < val.HeightmapResolution; k++)
 				{
-					Color32 color = pixels[j * val.HeightmapResolution + k];
-					span[j * val.HeightmapResolution + k] = (float)((color.r << 8) | color.g) / 65535f;
+					Color32 val8 = ((Il2CppArrayBase<Color32>)(object)pixels)[j * val.HeightmapResolution + k];
+					span[j * val.HeightmapResolution + k] = (float)((val8.r << 8) | val8.g) / 65535f;
 				}
 			}
-			terrainData.SetHeights(0, 0, il2CppStructArray);
-			Il2CppReferenceArray<TerrainLayer> il2CppReferenceArray = new Il2CppReferenceArray<TerrainLayer>(val.Layers.Count);
+			val3.SetHeights(0, 0, (Il2CppObjectBase)(object)val7);
+			Il2CppReferenceArray<TerrainLayer> val9 = new Il2CppReferenceArray<TerrainLayer>((long)val.Layers.Count);
 			for (int l = 0; l < val.Layers.Count; l++)
 			{
-				ModdedRuntimeTerrainLayerDefinition val3 = val.Layers[l];
-				TerrainLayer terrainLayer = new TerrainLayer
+				ModdedRuntimeTerrainLayerDefinition val10 = val.Layers[l];
+				TerrainLayer val11 = new TerrainLayer
 				{
-					name = val3.Name,
+					name = val10.Name,
 					diffuseTexture = array[l],
 					normalMapTexture = array2[l],
 					maskMapTexture = array3[l],
-					tileSize = new Vector2(val3.TileSizeX, val3.TileSizeZ),
+					tileSize = new Vector2(val10.TileSizeX, val10.TileSizeZ),
 					tileOffset = Vector2.zero,
-					normalScale = val3.NormalScale,
-					metallic = val3.Metallic,
-					smoothness = val3.Smoothness
+					normalScale = val10.NormalScale,
+					metallic = val10.Metallic,
+					smoothness = val10.Smoothness
 				};
-				list.Add(terrainLayer);
-				il2CppReferenceArray[l] = terrainLayer;
+				list.Add(val11);
+				((Il2CppArrayBase<TerrainLayer>)(object)val9)[l] = val11;
 			}
-			terrainData.terrainLayers = il2CppReferenceArray;
-			Il2CppStructArray<Color32> pixels2 = texture2D2.GetPixels32();
-			Il2CppStructArray<float> il2CppStructArray2 = AllocateIl2CppFloatArray(val.AlphamapResolution, val.AlphamapResolution, val.Layers.Count);
-			Span<float> span2 = il2CppStructArray2.AsSpan();
+			val3.terrainLayers = val9;
+			Il2CppStructArray<Color32> pixels2 = val5.GetPixels32();
+			Il2CppStructArray<float> val12 = AllocateIl2CppFloatArray(val.AlphamapResolution, val.AlphamapResolution, val.Layers.Count);
+			Span<float> span2 = val12.AsSpan();
 			for (int m = 0; m < val.AlphamapResolution; m++)
 			{
 				for (int n = 0; n < val.AlphamapResolution; n++)
 				{
-					Color32 color2 = pixels2[m * val.AlphamapResolution + n];
-					float num = (float)(int)color2.r / 255f;
-					float num2 = (float)(int)color2.g / 255f;
-					float num3 = (float)(int)color2.b / 255f;
+					Color32 val13 = ((Il2CppArrayBase<Color32>)(object)pixels2)[m * val.AlphamapResolution + n];
+					float num = (float)(int)val13.r / 255f;
+					float num2 = (float)(int)val13.g / 255f;
+					float num3 = (float)(int)val13.b / 255f;
 					float num4 = num + num2 + num3;
 					if (num4 <= 1E-05f)
 					{
@@ -2673,45 +2848,45 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					span2[num5 + 2] = num3;
 				}
 			}
-			terrainData.SetAlphamaps(0, 0, il2CppStructArray2);
-			Terrain terrain = transform.GetComponent<Terrain>();
-			if (terrain == null)
+			val3.SetAlphamaps(0, 0, (Il2CppObjectBase)(object)val12);
+			Terrain val14 = ((Component)val2).GetComponent<Terrain>();
+			if ((Object)(object)val14 == (Object)null)
 			{
-				terrain = transform.gameObject.AddComponent<Terrain>();
+				val14 = ((Component)val2).gameObject.AddComponent<Terrain>();
 			}
-			TerrainCollider terrainCollider = transform.GetComponent<TerrainCollider>();
-			if (terrainCollider == null)
+			TerrainCollider val15 = ((Component)val2).GetComponent<TerrainCollider>();
+			if ((Object)(object)val15 == (Object)null)
 			{
-				terrainCollider = transform.gameObject.AddComponent<TerrainCollider>();
+				val15 = ((Component)val2).gameObject.AddComponent<TerrainCollider>();
 			}
-			transform.position = new Vector3(val.OriginX, val.OriginY, val.OriginZ);
-			terrain.terrainData = terrainData;
-			terrainCollider.terrainData = terrainData;
-			terrain.materialType = Terrain.MaterialType.Custom;
-			terrain.drawInstanced = true;
-			terrain.drawTreesAndFoliage = false;
-			terrain.heightmapPixelError = 5f;
-			terrain.basemapDistance = 1000f;
-			terrain.treeDistance = 5000f;
-			terrain.treeBillboardDistance = 50f;
-			terrain.detailObjectDistance = 200f;
-			terrain.detailObjectDensity = 1f;
-			terrain.Flush();
-			Transform transform2 = transform.Find("NATIVE_Ground_HillyTerrain_RenderFallback");
-			if (transform2 != null && transform2.gameObject.activeSelf)
+			val2.position = new Vector3(val.OriginX, val.OriginY, val.OriginZ);
+			val14.terrainData = val3;
+			val15.terrainData = val3;
+			val14.materialType = (MaterialType)3;
+			val14.drawInstanced = true;
+			val14.drawTreesAndFoliage = false;
+			val14.heightmapPixelError = 5f;
+			val14.basemapDistance = 1000f;
+			val14.treeDistance = 5000f;
+			val14.treeBillboardDistance = 50f;
+			val14.detailObjectDistance = 200f;
+			val14.detailObjectDensity = 1f;
+			val14.Flush();
+			Transform val16 = val2.Find("NATIVE_Ground_HillyTerrain_RenderFallback");
+			if ((Object)(object)val16 != (Object)null && ((Component)val16).gameObject.activeSelf)
 			{
-				transform2.gameObject.SetActive(value: false);
-				log.LogInfo("Disabled package terrain render fallback after TerrainData bind: " + transform2.name + ".");
+				((Component)val16).gameObject.SetActive(false);
+				log.LogInfo((object)("Disabled package terrain render fallback after TerrainData bind: " + ((Object)val16).name + "."));
 			}
 			Physics.SyncTransforms();
-			if (terrain.terrainData != terrainData || terrainCollider.terrainData != terrainData)
+			if ((Object)(object)val14.terrainData != (Object)(object)val3 || (Object)(object)val15.terrainData != (Object)(object)val3)
 			{
 				error = "Unity did not bind the reconstructed TerrainData to rendering and collision";
 				return false;
 			}
-			operation.RuntimeTerrainData = terrainData;
+			operation.RuntimeTerrainData = val3;
 			operation.RuntimeTerrainLayers.AddRange(list);
-			log.LogInfo("Standalone reconstructed package-owned runtime terrain: map=" + operation.Map.Id + ", root=" + val.RootObjectName + ", size=" + terrainData.size.ToString() + ", heightmap=" + terrainData.heightmapResolution + ", alphamap=" + terrainData.alphamapResolution + ", layers=" + terrainData.terrainLayers.Length + ", colliderBound=true.");
+			log.LogInfo((object)("Standalone reconstructed package-owned runtime terrain: map=" + operation.Map.Id + ", root=" + val.RootObjectName + ", size=" + ((object)val3.size/*cast due to constrained. prefix*/).ToString() + ", heightmap=" + val3.heightmapResolution + ", alphamap=" + val3.alphamapResolution + ", layers=" + ((Il2CppArrayBase<TerrainLayer>)(object)val3.terrainLayers).Length + ", colliderBound=true."));
 			return true;
 		}
 		catch (Exception ex)
@@ -2721,17 +2896,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		finally
 		{
-			if (operation.RuntimeTerrainData != terrainData)
+			if ((Object)(object)operation.RuntimeTerrainData != (Object)(object)val3)
 			{
-				if (terrainData != null)
+				if ((Object)(object)val3 != (Object)null)
 				{
-					UnityEngine.Object.Destroy(terrainData);
+					Object.Destroy((Object)(object)val3);
 				}
 				foreach (TerrainLayer item in list)
 				{
-					if (item != null)
+					if ((Object)(object)item != (Object)null)
 					{
-						UnityEngine.Object.Destroy(item);
+						Object.Destroy((Object)(object)item);
 					}
 				}
 			}
@@ -2741,57 +2916,63 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	private Texture2D LoadRequiredTerrainTexture(AssetBundle bundle, string assetPath, bool requireReadable)
 	{
 		string diagnostic;
-		Texture2D texture2D = NativeBundleAssetLoader.LoadTexture2D(bundle, assetPath, out diagnostic);
-		if (texture2D == null)
+		Texture2D val = NativeBundleAssetLoader.LoadTexture2D(bundle, assetPath, out diagnostic);
+		if ((Object)(object)val == (Object)null)
 		{
-			log.LogError("Required package terrain Texture2D could not be loaded: asset=" + assetPath + ", diagnostic=" + diagnostic);
+			log.LogError((object)("Required package terrain Texture2D could not be loaded: asset=" + assetPath + ", diagnostic=" + diagnostic));
 			return null;
 		}
-		if (requireReadable && !texture2D.isReadable)
+		if (requireReadable && !((Texture)val).isReadable)
 		{
-			log.LogError("Required numerical package terrain texture is not readable: " + assetPath + ".");
+			log.LogError((object)("Required numerical package terrain texture is not readable: " + assetPath + "."));
 			return null;
 		}
-		return texture2D;
+		return val;
 	}
 
 	private static Transform FindExactSceneTransform(Scene scene, string exactName, out int matches)
 	{
 		matches = 0;
-		Transform transform = null;
-		foreach (GameObject rootGameObject in scene.GetRootGameObjects())
+		Transform val = null;
+		foreach (GameObject item in (Il2CppArrayBase<GameObject>)(object)((Scene)(ref scene)).GetRootGameObjects())
 		{
-			foreach (Transform componentsInChild in rootGameObject.GetComponentsInChildren<Transform>(includeInactive: true))
+			foreach (Transform componentsInChild in item.GetComponentsInChildren<Transform>(true))
 			{
-				if (componentsInChild != null && string.Equals(componentsInChild.name, exactName, StringComparison.Ordinal))
+				if ((Object)(object)componentsInChild != (Object)null && string.Equals(((Object)componentsInChild).name, exactName, StringComparison.Ordinal))
 				{
 					matches++;
-					if ((object)transform == null)
+					if (val == null)
 					{
-						transform = componentsInChild;
+						val = componentsInChild;
 					}
 				}
 			}
 		}
-		return transform;
+		return val;
 	}
 
 	private static bool ValidateWalkableGroundContract(Scene scene, ActiveMapOperation operation, out string error)
 	{
+		//IL_0007: Unknown result type (might be due to invalid IL or missing references)
 		//IL_000e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ae: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0167: Unknown result type (might be due to invalid IL or missing references)
+		//IL_016c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0176: Unknown result type (might be due to invalid IL or missing references)
+		//IL_017b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0180: Unknown result type (might be due to invalid IL or missing references)
+		//IL_019e: Unknown result type (might be due to invalid IL or missing references)
 		error = string.Empty;
-		System.Collections.Generic.List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
+		List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
 		if (list.Count == 0)
 		{
 			error = "no compatible player markers were available for ground checks";
 			return false;
 		}
-		System.Collections.Generic.List<Collider> list2 = new System.Collections.Generic.List<Collider>();
-		foreach (GameObject rootGameObject in scene.GetRootGameObjects())
+		List<Collider> list2 = new List<Collider>();
+		foreach (GameObject item in (Il2CppArrayBase<GameObject>)(object)((Scene)(ref scene)).GetRootGameObjects())
 		{
-			list2.AddRange(from collider in rootGameObject.GetComponentsInChildren<Collider>(includeInactive: true)
-				where collider != null && collider.enabled && collider.gameObject.activeInHierarchy && !collider.isTrigger
-				select collider);
+			list2.AddRange(((IEnumerable<Collider>)item.GetComponentsInChildren<Collider>(true)).Where((Collider collider) => (Object)(object)collider != (Object)null && collider.enabled && ((Component)collider).gameObject.activeInHierarchy && !collider.isTrigger));
 		}
 		if (list2.Count == 0)
 		{
@@ -2801,23 +2982,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		if (operation.Map.RuntimeTerrain != null)
 		{
 			int matches;
-			Transform transform = FindExactSceneTransform(scene, operation.Map.RuntimeTerrain.RootObjectName, out matches);
-			Terrain terrain = ((transform == null) ? null : transform.GetComponent<Terrain>());
-			TerrainCollider terrainCollider = ((transform == null) ? null : transform.GetComponent<TerrainCollider>());
-			if (matches != 1 || terrain == null || terrainCollider == null || terrain.terrainData == null || terrain.terrainData != terrainCollider.terrainData || terrain.terrainData != operation.RuntimeTerrainData)
+			Transform val = FindExactSceneTransform(scene, operation.Map.RuntimeTerrain.RootObjectName, out matches);
+			Terrain val2 = (((Object)(object)val == (Object)null) ? null : ((Component)val).GetComponent<Terrain>());
+			TerrainCollider val3 = (((Object)(object)val == (Object)null) ? null : ((Component)val).GetComponent<TerrainCollider>());
+			if (matches != 1 || (Object)(object)val2 == (Object)null || (Object)(object)val3 == (Object)null || (Object)(object)val2.terrainData == (Object)null || (Object)(object)val2.terrainData != (Object)(object)val3.terrainData || (Object)(object)val2.terrainData != (Object)(object)operation.RuntimeTerrainData)
 			{
 				error = "the declared terrain root does not own one shared render/collision TerrainData";
 				return false;
 			}
 		}
 		int num = 0;
-		foreach (Transform item in list)
+		Ray val4 = default(Ray);
+		RaycastHit val5 = default(RaycastHit);
+		foreach (Transform item2 in list)
 		{
-			Ray ray = new Ray(item.position + Vector3.up * 64f, Vector3.down);
+			((Ray)(ref val4))._002Ector(item2.position + Vector3.up * 64f, Vector3.down);
 			bool flag = false;
-			foreach (Collider item2 in list2)
+			foreach (Collider item3 in list2)
 			{
-				if (item2.Raycast(ray, out var _, 256f))
+				if (item3.Raycast(val4, ref val5, 256f))
 				{
 					flag = true;
 					break;
@@ -2842,16 +3025,16 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return;
 		}
-		if (operation.RuntimeTerrainData != null)
+		if ((Object)(object)operation.RuntimeTerrainData != (Object)null)
 		{
-			UnityEngine.Object.Destroy(operation.RuntimeTerrainData);
+			Object.Destroy((Object)(object)operation.RuntimeTerrainData);
 		}
 		operation.RuntimeTerrainData = null;
 		foreach (TerrainLayer runtimeTerrainLayer in operation.RuntimeTerrainLayers)
 		{
-			if (runtimeTerrainLayer != null)
+			if ((Object)(object)runtimeTerrainLayer != (Object)null)
 			{
-				UnityEngine.Object.Destroy(runtimeTerrainLayer);
+				Object.Destroy((Object)(object)runtimeTerrainLayer);
 			}
 		}
 		operation.RuntimeTerrainLayers.Clear();
@@ -2873,7 +3056,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			array[i] = (ulong)dimensions[i];
 		}
-		IntPtr intPtr = IL2CPP.il2cpp_array_class_get(IL2CPP.il2cpp_class_get_element_class(new Il2CppStructArray<float>(1L).ObjectClass), (uint)dimensions.Length);
+		IntPtr intPtr = IL2CPP.il2cpp_array_class_get(IL2CPP.il2cpp_class_get_element_class(((Il2CppObjectBase)new Il2CppStructArray<float>(1L)).ObjectClass), (uint)dimensions.Length);
 		if (intPtr == IntPtr.Zero)
 		{
 			throw new InvalidOperationException("Could not resolve the native float array class.");
@@ -2895,29 +3078,30 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void ConfigureStandalonePlayerSpawnContract(Scene scene, ActiveMapOperation operation)
 	{
+		//IL_0017: Unknown result type (might be due to invalid IL or missing references)
 		//IL_001e: Unknown result type (might be due to invalid IL or missing references)
-		if (operation == null || !scene.IsValid() || !scene.isLoaded)
+		if (operation == null || !((Scene)(ref scene)).IsValid() || !((Scene)(ref scene)).isLoaded)
 		{
 			return;
 		}
 		try
 		{
-			System.Collections.Generic.List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
+			List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
 			if (list.Count == 0)
 			{
 				throw new InvalidOperationException("package scene has no compatible player spawn markers");
 			}
-			Il2CppSystem.Collections.Generic.List<SpawnPoint> list2 = new Il2CppSystem.Collections.Generic.List<SpawnPoint>();
-			Il2CppReferenceArray<GameObject> il2CppReferenceArray = new Il2CppReferenceArray<GameObject>(list.Count);
+			List<SpawnPoint> val = new List<SpawnPoint>();
+			Il2CppReferenceArray<GameObject> val2 = new Il2CppReferenceArray<GameObject>((long)list.Count);
 			int num = 0;
 			int num2 = 0;
 			for (int i = 0; i < list.Count; i++)
 			{
-				Transform transform = list[i];
-				SpawnPoint spawnPoint = transform.GetComponent<SpawnPoint>() ?? transform.gameObject.AddComponent<SpawnPoint>();
-				bool flag = IsTeamTwoPlayerMarker(transform.name);
-				spawnPoint.CanSpawnPlayer = true;
-				spawnPoint.Team = ((!flag) ? 1 : 2);
+				Transform val3 = list[i];
+				SpawnPoint val4 = ((Component)val3).GetComponent<SpawnPoint>() ?? ((Component)val3).gameObject.AddComponent<SpawnPoint>();
+				bool flag = IsTeamTwoPlayerMarker(((Object)val3).name);
+				val4.CanSpawnPlayer = true;
+				val4.Team = ((!flag) ? 1 : 2);
 				if (flag)
 				{
 					num2++;
@@ -2926,32 +3110,32 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				{
 					num++;
 				}
-				list2.Add(spawnPoint);
-				il2CppReferenceArray[i] = transform.gameObject;
+				val.Add(val4);
+				((Il2CppArrayBase<GameObject>)(object)val2)[i] = ((Component)val3).gameObject;
 			}
 			RestoreStandalonePlayerSpawnContract(operation);
 			operation.PreviousSpawnPoints = GameManager.SpawnPointsInScene;
-			operation.OwnedSpawnPoints = list2;
+			operation.OwnedSpawnPoints = val;
 			operation.SpawnContractInstalled = true;
-			GameManager.SpawnPointsInScene = list2;
-			if (GameManager.instance != null)
+			GameManager.SpawnPointsInScene = val;
+			if ((Object)(object)GameManager.instance != (Object)null)
 			{
 				operation.PreviousFallbackSpawns = GameManager.instance.Pspawns;
 				operation.PreviousNextSpawnIndex = GameManager.instance.PnextSpawnIndex;
 				operation.PreviousRandomSpawns = GameManager.instance.RandomSpawns;
 				operation.OwnedRandomSpawns = false;
 				operation.RandomSpawnsCaptured = true;
-				operation.OwnedFallbackSpawns = il2CppReferenceArray;
-				GameManager.instance.Pspawns = il2CppReferenceArray;
+				operation.OwnedFallbackSpawns = val2;
+				GameManager.instance.Pspawns = val2;
 				GameManager.instance.PnextSpawnIndex = 0;
 				GameManager.instance.RandomSpawns = operation.OwnedRandomSpawns;
 			}
-			log.LogInfo("Standalone registered the package-owned shipped player spawn contract: total=" + list.Count + ", team1=" + num + ", team2=" + num2 + ", gameManager=" + (GameManager.instance != null) + ", randomSpawns=" + ((GameManager.instance == null) ? "unavailable" : GameManager.instance.RandomSpawns.ToString()) + ".");
+			log.LogInfo((object)("Standalone registered the package-owned shipped player spawn contract: total=" + list.Count + ", team1=" + num + ", team2=" + num2 + ", gameManager=" + ((Object)(object)GameManager.instance != (Object)null) + ", randomSpawns=" + (((Object)(object)GameManager.instance == (Object)null) ? "unavailable" : GameManager.instance.RandomSpawns.ToString()) + "."));
 		}
 		catch (Exception ex)
 		{
 			RestoreStandalonePlayerSpawnContract(operation);
-			log.LogError("Standalone package player spawn contract failed: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogError((object)("Standalone package player spawn contract failed: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
@@ -2975,25 +3159,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			if (SameNativeSpawnList(GameManager.SpawnPointsInScene, operation.OwnedSpawnPoints))
 			{
-				GameManager.SpawnPointsInScene = (IsUsableSpawnList(operation.PreviousSpawnPoints) ? operation.PreviousSpawnPoints : new Il2CppSystem.Collections.Generic.List<SpawnPoint>());
+				GameManager.SpawnPointsInScene = (IsUsableSpawnList(operation.PreviousSpawnPoints) ? operation.PreviousSpawnPoints : new List<SpawnPoint>());
 			}
-			GameManager gameManager = GameManager.instance;
-			if (gameManager != null && SameNativeGameObjectArray(gameManager.Pspawns, operation.OwnedFallbackSpawns))
+			GameManager val = GameManager.instance;
+			if ((Object)(object)val != (Object)null && SameNativeGameObjectArray(val.Pspawns, operation.OwnedFallbackSpawns))
 			{
-				gameManager.Pspawns = (IsUsableSpawnArray(operation.PreviousFallbackSpawns) ? operation.PreviousFallbackSpawns : new Il2CppReferenceArray<GameObject>(0L));
-				gameManager.PnextSpawnIndex = Math.Max(0, operation.PreviousNextSpawnIndex);
+				val.Pspawns = (IsUsableSpawnArray(operation.PreviousFallbackSpawns) ? operation.PreviousFallbackSpawns : new Il2CppReferenceArray<GameObject>(0L));
+				val.PnextSpawnIndex = Math.Max(0, operation.PreviousNextSpawnIndex);
 			}
-			if (gameManager != null && operation.RandomSpawnsCaptured && gameManager.RandomSpawns == operation.OwnedRandomSpawns)
+			if ((Object)(object)val != (Object)null && operation.RandomSpawnsCaptured && val.RandomSpawns == operation.OwnedRandomSpawns)
 			{
-				gameManager.RandomSpawns = operation.PreviousRandomSpawns;
+				val.RandomSpawns = operation.PreviousRandomSpawns;
 			}
 		}
 		catch
 		{
 			try
 			{
-				GameManager.SpawnPointsInScene = new Il2CppSystem.Collections.Generic.List<SpawnPoint>();
-				if (GameManager.instance != null)
+				GameManager.SpawnPointsInScene = new List<SpawnPoint>();
+				if ((Object)(object)GameManager.instance != (Object)null)
 				{
 					GameManager.instance.Pspawns = new Il2CppReferenceArray<GameObject>(0L);
 					GameManager.instance.PnextSpawnIndex = 0;
@@ -3018,7 +3202,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 	}
 
-	private static bool SameNativeSpawnList(Il2CppSystem.Collections.Generic.List<SpawnPoint> left, Il2CppSystem.Collections.Generic.List<SpawnPoint> right)
+	private static bool SameNativeSpawnList(List<SpawnPoint> left, List<SpawnPoint> right)
 	{
 		if (left == right)
 		{
@@ -3026,7 +3210,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		try
 		{
-			return left != null && right != null && left.Pointer == right.Pointer;
+			return left != null && right != null && ((Il2CppObjectBase)left).Pointer == ((Il2CppObjectBase)right).Pointer;
 		}
 		catch
 		{
@@ -3042,7 +3226,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		try
 		{
-			return left != null && right != null && left.Pointer == right.Pointer;
+			return left != null && right != null && ((Il2CppObjectBase)left).Pointer == ((Il2CppObjectBase)right).Pointer;
 		}
 		catch
 		{
@@ -3050,21 +3234,36 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 	}
 
-	private static bool IsUsableSpawnList(Il2CppSystem.Collections.Generic.List<SpawnPoint> spawns)
+	private static bool IsUsableSpawnList(List<SpawnPoint> spawns)
 	{
+		//IL_002f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0034: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0044: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0049: Unknown result type (might be due to invalid IL or missing references)
 		if (spawns == null)
 		{
 			return false;
 		}
 		try
 		{
-			for (int i = 0; i < spawns.Count; i++)
+			int num = 0;
+			while (num < spawns.Count)
 			{
-				SpawnPoint spawnPoint = spawns[i];
-				if (spawnPoint == null || spawnPoint.gameObject == null || !spawnPoint.gameObject.scene.IsValid() || !spawnPoint.gameObject.scene.isLoaded)
+				SpawnPoint val = spawns[num];
+				if (!((Object)(object)val == (Object)null) && !((Object)(object)((Component)val).gameObject == (Object)null))
 				{
-					return false;
+					Scene scene = ((Component)val).gameObject.scene;
+					if (((Scene)(ref scene)).IsValid())
+					{
+						scene = ((Component)val).gameObject.scene;
+						if (((Scene)(ref scene)).isLoaded)
+						{
+							num++;
+							continue;
+						}
+					}
 				}
+				return false;
 			}
 			return true;
 		}
@@ -3076,19 +3275,34 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool IsUsableSpawnArray(Il2CppReferenceArray<GameObject> spawns)
 	{
+		//IL_001c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0021: Unknown result type (might be due to invalid IL or missing references)
+		//IL_002c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0031: Unknown result type (might be due to invalid IL or missing references)
 		if (spawns == null)
 		{
 			return false;
 		}
 		try
 		{
-			for (int i = 0; i < spawns.Length; i++)
+			int num = 0;
+			while (num < ((Il2CppArrayBase<GameObject>)(object)spawns).Length)
 			{
-				GameObject gameObject = spawns[i];
-				if (gameObject == null || !gameObject.scene.IsValid() || !gameObject.scene.isLoaded)
+				GameObject val = ((Il2CppArrayBase<GameObject>)(object)spawns)[num];
+				if (!((Object)(object)val == (Object)null))
 				{
-					return false;
+					Scene scene = val.scene;
+					if (((Scene)(ref scene)).IsValid())
+					{
+						scene = val.scene;
+						if (((Scene)(ref scene)).isLoaded)
+						{
+							num++;
+							continue;
+						}
+					}
 				}
+				return false;
 			}
 			return true;
 		}
@@ -3100,11 +3314,15 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool ValidateStandaloneSceneContract(Scene scene, ActiveMapOperation operation, out string error)
 	{
+		//IL_0007: Unknown result type (might be due to invalid IL or missing references)
+		//IL_002d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0053: Unknown result type (might be due to invalid IL or missing references)
 		//IL_005a: Unknown result type (might be due to invalid IL or missing references)
 		//IL_007c: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0082: Invalid comparison between Unknown and I4
 		//IL_00a5: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00ab: Invalid comparison between Unknown and I4
+		//IL_0084: Unknown result type (might be due to invalid IL or missing references)
 		error = string.Empty;
 		if (!HasExactSceneMarker(scene, "MAP_ID_" + operation.Map.Id))
 		{
@@ -3116,7 +3334,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			error = "missing declared SPAWN_SET_ metadata marker";
 			return false;
 		}
-		System.Collections.Generic.List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
+		List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
 		if (list.Count == 0)
 		{
 			error = "no compatible player spawn markers";
@@ -3129,8 +3347,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		if ((int)operation.Operation.Mode == 1)
 		{
-			bool flag = list.Any((Transform marker) => marker.name.StartsWith("Team1", StringComparison.OrdinalIgnoreCase) || marker.name.StartsWith("PVP_Team1", StringComparison.OrdinalIgnoreCase));
-			bool flag2 = list.Any((Transform marker) => marker.name.StartsWith("Team2", StringComparison.OrdinalIgnoreCase) || marker.name.StartsWith("PVP_Team2", StringComparison.OrdinalIgnoreCase));
+			bool flag = list.Any((Transform marker) => ((Object)marker).name.StartsWith("Team1", StringComparison.OrdinalIgnoreCase) || ((Object)marker).name.StartsWith("PVP_Team1", StringComparison.OrdinalIgnoreCase));
+			bool flag2 = list.Any((Transform marker) => ((Object)marker).name.StartsWith("Team2", StringComparison.OrdinalIgnoreCase) || ((Object)marker).name.StartsWith("PVP_Team2", StringComparison.OrdinalIgnoreCase));
 			if (!flag || !flag2)
 			{
 				error = "PVP mode requires separated Team1 and Team2 spawn markers";
@@ -3138,9 +3356,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 		}
 		bool flag3 = false;
-		foreach (GameObject rootGameObject in scene.GetRootGameObjects())
+		foreach (GameObject item in (Il2CppArrayBase<GameObject>)(object)((Scene)(ref scene)).GetRootGameObjects())
 		{
-			if (rootGameObject.GetComponentsInChildren<Light>(includeInactive: true).Any((Light light) => light != null && light.type == LightType.Directional))
+			if (((IEnumerable<Light>)item.GetComponentsInChildren<Light>(true)).Any((Light light) => (Object)(object)light != (Object)null && (int)light.type == 1))
 			{
 				flag3 = true;
 				break;
@@ -3156,11 +3374,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool HasExactSceneMarker(Scene scene, string name)
 	{
-		foreach (GameObject rootGameObject in scene.GetRootGameObjects())
+		foreach (GameObject item in (Il2CppArrayBase<GameObject>)(object)((Scene)(ref scene)).GetRootGameObjects())
 		{
-			foreach (Transform componentsInChild in rootGameObject.GetComponentsInChildren<Transform>(includeInactive: true))
+			foreach (Transform componentsInChild in item.GetComponentsInChildren<Transform>(true))
 			{
-				if (componentsInChild != null && string.Equals(componentsInChild.name, name, StringComparison.Ordinal))
+				if ((Object)(object)componentsInChild != (Object)null && string.Equals(((Object)componentsInChild).name, name, StringComparison.Ordinal))
 				{
 					return true;
 				}
@@ -3171,10 +3389,16 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void CreateStandaloneGameplayBootstrap(Scene scene, ActiveMapOperation operation)
 	{
+		//IL_0012: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0018: Expected O, but got Unknown
+		//IL_0020: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0033: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0039: Invalid comparison between Unknown and I4
+		//IL_0072: Unknown result type (might be due to invalid IL or missing references)
 		//IL_014d: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0152: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01b4: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01b9: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00fc: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0102: Invalid comparison between Unknown and I4
 		if (operation == null || operation.BootstrapCreated)
@@ -3183,42 +3407,42 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		try
 		{
-			GameObject gameObject = new GameObject("MODDED_OPERATIONS_GAME_MODE_TEMPLATE");
-			gameObject.SetActive(value: false);
-			SceneManager.MoveGameObjectToScene(gameObject, scene);
-			NetworkIdentity networkIdentity = gameObject.AddComponent<NetworkIdentity>();
-			GameMode gameMode;
+			GameObject val = new GameObject("MODDED_OPERATIONS_GAME_MODE_TEMPLATE");
+			val.SetActive(false);
+			SceneManager.MoveGameObjectToScene(val, scene);
+			NetworkIdentity val2 = val.AddComponent<NetworkIdentity>();
+			GameMode val3;
 			uint num;
 			if ((int)operation.Operation.Mode == 2)
 			{
-				StandalonePveGameMode standalonePveGameMode = gameObject.AddComponent<StandalonePveGameMode>();
-				standalonePveGameMode.enabled = false;
-				standalonePveGameMode.AllowRespawns = false;
-				standalonePveGameMode.NetworkRaidTimer = 0f;
-				InfiltrationManager.instance = standalonePveGameMode;
-				gameMode = standalonePveGameMode;
+				StandalonePveGameMode standalonePveGameMode = val.AddComponent<StandalonePveGameMode>();
+				((Behaviour)standalonePveGameMode).enabled = false;
+				((InfiltrationManager)standalonePveGameMode).AllowRespawns = false;
+				((InfiltrationManager)standalonePveGameMode).NetworkRaidTimer = 0f;
+				InfiltrationManager.instance = (InfiltrationManager)(object)standalonePveGameMode;
+				val3 = (GameMode)(object)standalonePveGameMode;
 				num = 1297043457u;
 			}
 			else
 			{
-				StandalonePvpGameMode standalonePvpGameMode = gameObject.AddComponent<StandalonePvpGameMode>();
-				ConfigureStandalonePvpController(scene, operation, gameObject, standalonePvpGameMode);
-				gameMode = standalonePvpGameMode;
+				StandalonePvpGameMode standalonePvpGameMode = val.AddComponent<StandalonePvpGameMode>();
+				ConfigureStandalonePvpController(scene, operation, val, standalonePvpGameMode);
+				val3 = (GameMode)(object)standalonePvpGameMode;
 				num = 1297043458u;
 			}
-			gameMode.isNight = ParseTimeHour(operation.TimeCode) < 6;
-			GameMode.singleton = gameMode;
-			operation.BootstrapRoot = gameObject;
-			operation.BootstrapIdentity = networkIdentity;
-			operation.BootstrapPrefabRoot = gameObject;
-			operation.BootstrapPrefabIdentity = networkIdentity;
+			val3.isNight = ParseTimeHour(operation.TimeCode) < 6;
+			GameMode.singleton = val3;
+			operation.BootstrapRoot = val;
+			operation.BootstrapIdentity = val2;
+			operation.BootstrapPrefabRoot = val;
+			operation.BootstrapPrefabIdentity = val2;
 			operation.BootstrapAssetId = num;
-			operation.GameModeComponent = gameMode;
+			operation.GameModeComponent = val3;
 			operation.BootstrapCreated = true;
 			operation.BootstrapFrame = Time.frameCount;
-			networkIdentity.assetId = num;
+			val2.assetId = num;
 			EnsureStandaloneBootstrapPrefabRegistered(operation);
-			if (OperationsManager.singleton != null)
+			if ((Object)(object)OperationsManager.singleton != (Object)null)
 			{
 				if ((int)operation.Operation.Mode == 2)
 				{
@@ -3229,11 +3453,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					OperationsManager.singleton.AssignTeamsTDM();
 				}
 			}
-			log.LogInfo("Standalone gameplay bootstrap created in package scene: map=" + operation.Map.Id + ", mode=" + ((object)operation.Operation.Mode/*cast due to constrained. prefix*/).ToString() + ", owner=" + gameMode.GetType().Name + ", mirrorAssetId=0x" + num.ToString("X8") + ", prefabRegistered=" + operation.BootstrapPrefabRegistered + ", donorScene=false, sceneHandle=" + scene.handle.ToString() + ".");
+			log.LogInfo((object)("Standalone gameplay bootstrap created in package scene: map=" + operation.Map.Id + ", mode=" + ((object)operation.Operation.Mode/*cast due to constrained. prefix*/).ToString() + ", owner=" + ((object)val3).GetType().Name + ", mirrorAssetId=0x" + num.ToString("X8") + ", prefabRegistered=" + operation.BootstrapPrefabRegistered + ", donorScene=false, sceneHandle=" + ((object)((Scene)(ref scene)).handle/*cast due to constrained. prefix*/).ToString() + "."));
 		}
 		catch (Exception ex)
 		{
-			log.LogError("Standalone gameplay bootstrap failed: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogError((object)("Standalone gameplay bootstrap failed: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
@@ -3241,206 +3465,262 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	{
 		//IL_0185: Unknown result type (might be due to invalid IL or missing references)
 		//IL_018a: Unknown result type (might be due to invalid IL or missing references)
-		if (operation == null || operation.BootstrapPrefabRegistered || !NetworkClient.active || operation.BootstrapPrefabRoot == null || operation.BootstrapPrefabIdentity == null || operation.BootstrapAssetId == 0)
+		if (operation == null || operation.BootstrapPrefabRegistered || !NetworkClient.active || (Object)(object)operation.BootstrapPrefabRoot == (Object)null || (Object)(object)operation.BootstrapPrefabIdentity == (Object)null || operation.BootstrapAssetId == 0)
 		{
 			return;
 		}
-		Il2CppSystem.Collections.Generic.Dictionary<uint, GameObject> prefabs = NetworkClient.prefabs;
-		if (prefabs != null && prefabs.TryGetValue(operation.BootstrapAssetId, out var value))
+		Dictionary<uint, GameObject> prefabs = NetworkClient.prefabs;
+		GameObject val = default(GameObject);
+		if (prefabs != null && prefabs.TryGetValue(operation.BootstrapAssetId, ref val))
 		{
-			if (!(value == null))
+			if (!((Object)(object)val == (Object)null))
 			{
-				if (value == operation.BootstrapPrefabRoot)
+				if ((Object)(object)val == (Object)(object)operation.BootstrapPrefabRoot)
 				{
 					operation.BootstrapPrefabRegistered = true;
 					operation.BootstrapPrefabIdentity.assetId = operation.BootstrapAssetId;
 					return;
 				}
-				throw new InvalidOperationException("Mirror prefab asset ID collision for standalone game mode 0x" + operation.BootstrapAssetId.ToString("X8") + ": existing=" + value.name + ".");
+				throw new InvalidOperationException("Mirror prefab asset ID collision for standalone game mode 0x" + operation.BootstrapAssetId.ToString("X8") + ": existing=" + ((Object)val).name + ".");
 			}
 			prefabs.Remove(operation.BootstrapAssetId);
 			NetworkClient.UnregisterSpawnHandler(operation.BootstrapAssetId);
-			instance?.log?.LogInfo("Removed destroyed standalone game-mode Mirror prefab before repeat registration: assetId=0x" + operation.BootstrapAssetId.ToString("X8") + ".");
+			CerberusNativeTabFix cerberusNativeTabFix = instance;
+			if (cerberusNativeTabFix != null)
+			{
+				ManualLogSource obj = cerberusNativeTabFix.log;
+				if (obj != null)
+				{
+					obj.LogInfo((object)("Removed destroyed standalone game-mode Mirror prefab before repeat registration: assetId=0x" + operation.BootstrapAssetId.ToString("X8") + "."));
+				}
+			}
 		}
 		NetworkClient.RegisterPrefab(operation.BootstrapPrefabRoot, operation.BootstrapAssetId);
 		operation.BootstrapPrefabIdentity.assetId = operation.BootstrapAssetId;
 		operation.BootstrapPrefabRegistered = true;
-		log.LogInfo("Standalone game-mode Mirror prefab registered on this peer: assetId=0x" + operation.BootstrapAssetId.ToString("X8") + ", mode=" + ((object)operation.Operation.Mode/*cast due to constrained. prefix*/).ToString() + ".");
+		log.LogInfo((object)("Standalone game-mode Mirror prefab registered on this peer: assetId=0x" + operation.BootstrapAssetId.ToString("X8") + ", mode=" + ((object)operation.Operation.Mode/*cast due to constrained. prefix*/).ToString() + "."));
 	}
 
 	private void ConfigureStandalonePvpController(Scene scene, ActiveMapOperation operation, GameObject bootstrapRoot, StandalonePvpGameMode pvp)
 	{
-		if (operation == null || bootstrapRoot == null || pvp == null)
+		//IL_002d: Unknown result type (might be due to invalid IL or missing references)
+		if (operation == null || (Object)(object)bootstrapRoot == (Object)null || (Object)(object)pvp == (Object)null)
 		{
 			throw new ArgumentNullException("pvp");
 		}
-		Il2CppSystem.Collections.Generic.List<SpawnPoint> list = new Il2CppSystem.Collections.Generic.List<SpawnPoint>();
-		Il2CppSystem.Collections.Generic.List<SpawnPoint> list2 = new Il2CppSystem.Collections.Generic.List<SpawnPoint>();
+		List<SpawnPoint> val = new List<SpawnPoint>();
+		List<SpawnPoint> val2 = new List<SpawnPoint>();
 		foreach (Transform item in FindStandalonePlayerMarkers(scene, (ModdedOperationMode)1))
 		{
-			if (!(item == null))
+			if (!((Object)(object)item == (Object)null))
 			{
-				SpawnPoint spawnPoint = item.GetComponent<SpawnPoint>() ?? item.gameObject.AddComponent<SpawnPoint>();
-				bool flag = IsTeamTwoPlayerMarker(item.name);
-				spawnPoint.CanSpawnPlayer = true;
-				spawnPoint.Team = ((!flag) ? 1 : 2);
+				SpawnPoint val3 = ((Component)item).GetComponent<SpawnPoint>() ?? ((Component)item).gameObject.AddComponent<SpawnPoint>();
+				bool flag = IsTeamTwoPlayerMarker(((Object)item).name);
+				val3.CanSpawnPlayer = true;
+				val3.Team = ((!flag) ? 1 : 2);
 				if (flag)
 				{
-					list2.Add(spawnPoint);
+					val2.Add(val3);
 				}
 				else
 				{
-					list.Add(spawnPoint);
+					val.Add(val3);
 				}
 			}
 		}
-		if (list.Count == 0 || list2.Count == 0)
+		if (val.Count == 0 || val2.Count == 0)
 		{
 			throw new InvalidOperationException("PvpGameode requires non-empty Team1SpawnPoints and Team2SpawnPoints lists");
 		}
-		pvp.Team1SpawnPoints = list;
-		pvp.Team2SpawnPoints = list2;
-		pvp.MaxRounds = 13;
-		pvp.RoundsToWin = 7;
-		pvp.currentRound = 0;
-		pvp.RoundTime = 120;
-		pvp.RoundTimer = 0;
-		pvp.Team1Score = 0;
-		pvp.Team2Score = 0;
-		pvp.CurrentScoreUI = 0;
-		pvp.Team1Players = new Il2CppSystem.Collections.Generic.List<TeamIdentifier>();
-		pvp.Team2Players = new Il2CppSystem.Collections.Generic.List<TeamIdentifier>();
-		pvp._roundEnded = false;
-		pvp._roundEndTimer = 0f;
-		pvp._waitingForPlayerSpawn = false;
-		pvp._waitingForPlayerSpawnTimer = 0f;
-		pvp._respawningPlayers = false;
-		pvp._freezeTimer = 0f;
-		pvp._isFreezeTime = false;
-		pvp._roundActive = false;
+		((PvpGameode)pvp).Team1SpawnPoints = val;
+		((PvpGameode)pvp).Team2SpawnPoints = val2;
+		((PvpGameode)pvp).MaxRounds = 13;
+		((PvpGameode)pvp).RoundsToWin = 7;
+		((PvpGameode)pvp).currentRound = 0;
+		((PvpGameode)pvp).RoundTime = 120;
+		((PvpGameode)pvp).RoundTimer = 0;
+		((PvpGameode)pvp).Team1Score = 0;
+		((PvpGameode)pvp).Team2Score = 0;
+		((PvpGameode)pvp).CurrentScoreUI = 0;
+		((PvpGameode)pvp).Team1Players = new List<TeamIdentifier>();
+		((PvpGameode)pvp).Team2Players = new List<TeamIdentifier>();
+		((PvpGameode)pvp)._roundEnded = false;
+		((PvpGameode)pvp)._roundEndTimer = 0f;
+		((PvpGameode)pvp)._waitingForPlayerSpawn = false;
+		((PvpGameode)pvp)._waitingForPlayerSpawnTimer = 0f;
+		((PvpGameode)pvp)._respawningPlayers = false;
+		((PvpGameode)pvp)._freezeTimer = 0f;
+		((PvpGameode)pvp)._isFreezeTime = false;
+		((PvpGameode)pvp)._roundActive = false;
 		ConfigureStandalonePvpPresentation(operation, bootstrapRoot, pvp);
-		PvpGameode.instance = pvp;
-		log.LogInfo("Standalone StandardPVP owner wired to shipped PvpGameode: team1Spawns=" + list.Count + ", team2Spawns=" + list2.Count + ", MaxRounds=13, RoundsToWin=7, RoundTime=120.");
+		PvpGameode.instance = (PvpGameode)(object)pvp;
+		log.LogInfo((object)("Standalone StandardPVP owner wired to shipped PvpGameode: team1Spawns=" + val.Count + ", team2Spawns=" + val2.Count + ", MaxRounds=13, RoundsToWin=7, RoundTime=120."));
 	}
 
 	private static void ConfigureStandalonePvpPresentation(ActiveMapOperation operation, GameObject bootstrapRoot, StandalonePvpGameMode pvp)
 	{
-		AudioSource audioSource = bootstrapRoot.AddComponent<AudioSource>();
-		audioSource.playOnAwake = false;
-		audioSource.loop = false;
-		AudioSource audioSource2 = bootstrapRoot.AddComponent<AudioSource>();
-		audioSource2.playOnAwake = false;
-		audioSource2.loop = false;
-		pvp.MusicSource = audioSource;
-		pvp.AnnouncerSource = audioSource2;
-		AudioClip audioClip = AudioClip.Create("MODDED_PVP_SILENT_ANNOUNCER", 1, 1, 48000, stream: false);
-		operation.RuntimePvpAssets.Add(audioClip);
-		pvp.bluforSpawn = CreatePvpClipArray(audioClip, 3);
-		pvp.bluforSpawnShort = CreatePvpClipArray(audioClip, 3);
-		pvp.bluforRoundWin = CreatePvpClipArray(audioClip, 3);
-		pvp.bluforGameWin = CreatePvpClipArray(audioClip, 3);
-		pvp.bluforGameLose = CreatePvpClipArray(audioClip, 3);
-		pvp.bluforRoundLose = CreatePvpClipArray(audioClip, 3);
-		pvp.bluforGameDraw = CreatePvpClipArray(audioClip, 1);
-		pvp.bluforRoundDraw = CreatePvpClipArray(audioClip, 1);
-		pvp.opforSpawn = CreatePvpClipArray(audioClip, 3);
-		pvp.opforSpawnShort = CreatePvpClipArray(audioClip, 3);
-		pvp.opforRoundWin = CreatePvpClipArray(audioClip, 3);
-		pvp.opforGameWin = CreatePvpClipArray(audioClip, 3);
-		pvp.opforGameLose = CreatePvpClipArray(audioClip, 3);
-		pvp.opforRoundLose = CreatePvpClipArray(audioClip, 3);
-		pvp.opforGameDraw = CreatePvpClipArray(audioClip, 1);
-		pvp.opforRoundDraw = CreatePvpClipArray(audioClip, 1);
-		GameObject gameObject = new GameObject("MODDED_PVP_NATIVE_UI");
-		gameObject.layer = 5;
-		gameObject.transform.SetParent(bootstrapRoot.transform, worldPositionStays: false);
-		Canvas canvas = gameObject.AddComponent<Canvas>();
-		canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-		canvas.sortingOrder = 160;
-		CanvasScaler canvasScaler = gameObject.AddComponent<CanvasScaler>();
-		canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-		canvasScaler.referenceResolution = new Vector2(1920f, 1080f);
-		canvasScaler.matchWidthOrHeight = 0.5f;
-		TextMeshProUGUI textMeshProUGUI = CreatePvpLabel(gameObject.transform, "BLUFOR_SCORE", "0", new Vector2(0.42f, 0.94f), new Vector2(0.48f, 0.99f), 28f);
-		TextMeshProUGUI clock = CreatePvpLabel(gameObject.transform, "ROUND_CLOCK", "02:00", new Vector2(0.48f, 0.94f), new Vector2(0.52f, 0.99f), 28f);
-		TextMeshProUGUI textMeshProUGUI2 = CreatePvpLabel(gameObject.transform, "OPFOR_SCORE", "0", new Vector2(0.52f, 0.94f), new Vector2(0.58f, 0.99f), 28f);
-		pvp.bluforScore = textMeshProUGUI;
-		pvp.opforScore = textMeshProUGUI2;
-		pvp.clock = clock;
-		pvp.GameUI_bluforScore = textMeshProUGUI;
-		pvp.GameUI_opforScore = textMeshProUGUI2;
-		TextMeshProUGUI textMeshProUGUI3 = CreatePvpLabel(gameObject.transform, "ROUND_CAUSE", string.Empty, new Vector2(0.25f, 0.38f), new Vector2(0.75f, 0.48f), 30f);
-		TeleType teleType = textMeshProUGUI3.gameObject.AddComponent<TeleType>();
-		teleType.m_textMeshPro = textMeshProUGUI3;
-		teleType.autoReveal = false;
-		teleType.label01 = string.Empty;
-		teleType.label02 = string.Empty;
-		pvp.Cause = teleType;
-		GameObject gameObject2 = CreatePvpUiGroup(gameObject.transform, "ROUND_END_UI");
-		pvp.RoundEndAnimator = gameObject2.AddComponent<Animator>();
-		pvp.RoundWinImage = CreatePvpOutcome(gameObject2.transform, "ROUND_WIN", "ROUND WON");
-		pvp.RoundLoseImage = CreatePvpOutcome(gameObject2.transform, "ROUND_LOSS", "ROUND LOST");
-		pvp.RoundDrawImage = CreatePvpOutcome(gameObject2.transform, "ROUND_DRAW", "ROUND DRAW");
-		GameObject gameObject3 = CreatePvpUiGroup(gameObject.transform, "GAME_END_UI");
-		pvp.GameUiAnimator = gameObject3.AddComponent<Animator>();
-		pvp.GameWinImage = CreatePvpOutcome(gameObject3.transform, "GAME_VICTORY", "VICTORY");
-		pvp.GameLoseImage = CreatePvpOutcome(gameObject3.transform, "GAME_DEFEAT", "DEFEAT");
-		pvp.GameDrawImage = CreatePvpOutcome(gameObject3.transform, "GAME_DRAW", "GAME DRAW");
-		pvp.GameUI_Winning = CreatePvpLabel(gameObject3.transform, "GAME_UI_WINNING", "WINNING", new Vector2(0.35f, 0.8f), new Vector2(0.65f, 0.87f), 26f);
-		pvp.GameUI_Losing = CreatePvpLabel(gameObject3.transform, "GAME_UI_LOSING", "LOSING", new Vector2(0.35f, 0.8f), new Vector2(0.65f, 0.87f), 26f);
-		pvp.GameUI_Tie = CreatePvpLabel(gameObject3.transform, "GAME_UI_TIE", "TIED", new Vector2(0.35f, 0.8f), new Vector2(0.65f, 0.87f), 26f);
-		pvp.GameUI_Winning.gameObject.SetActive(value: false);
-		pvp.GameUI_Losing.gameObject.SetActive(value: false);
-		pvp.GameUI_Tie.gameObject.SetActive(value: false);
-		pvp.FadeOut = "FadeOut";
-		pvp.FadeIn = "FadeIn";
+		//IL_012c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0131: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0138: Unknown result type (might be due to invalid IL or missing references)
+		//IL_014a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0161: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0179: Unknown result type (might be due to invalid IL or missing references)
+		//IL_018d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01a7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01b6: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01c6: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01e0: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01ef: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0200: Unknown result type (might be due to invalid IL or missing references)
+		//IL_021a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0229: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0260: Unknown result type (might be due to invalid IL or missing references)
+		//IL_027a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0289: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02d9: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03da: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03e9: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0419: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0428: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0458: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0467: Unknown result type (might be due to invalid IL or missing references)
+		AudioSource val = bootstrapRoot.AddComponent<AudioSource>();
+		val.playOnAwake = false;
+		val.loop = false;
+		AudioSource val2 = bootstrapRoot.AddComponent<AudioSource>();
+		val2.playOnAwake = false;
+		val2.loop = false;
+		((PvpGameode)pvp).MusicSource = val;
+		((PvpGameode)pvp).AnnouncerSource = val2;
+		AudioClip val3 = AudioClip.Create("MODDED_PVP_SILENT_ANNOUNCER", 1, 1, 48000, false);
+		operation.RuntimePvpAssets.Add((Object)(object)val3);
+		((PvpGameode)pvp).bluforSpawn = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).bluforSpawnShort = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).bluforRoundWin = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).bluforGameWin = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).bluforGameLose = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).bluforRoundLose = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).bluforGameDraw = CreatePvpClipArray(val3, 1);
+		((PvpGameode)pvp).bluforRoundDraw = CreatePvpClipArray(val3, 1);
+		((PvpGameode)pvp).opforSpawn = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).opforSpawnShort = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).opforRoundWin = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).opforGameWin = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).opforGameLose = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).opforRoundLose = CreatePvpClipArray(val3, 3);
+		((PvpGameode)pvp).opforGameDraw = CreatePvpClipArray(val3, 1);
+		((PvpGameode)pvp).opforRoundDraw = CreatePvpClipArray(val3, 1);
+		GameObject val4 = new GameObject("MODDED_PVP_NATIVE_UI")
+		{
+			layer = 5
+		};
+		val4.transform.SetParent(bootstrapRoot.transform, false);
+		Canvas obj = val4.AddComponent<Canvas>();
+		obj.renderMode = (RenderMode)0;
+		obj.sortingOrder = 160;
+		CanvasScaler obj2 = val4.AddComponent<CanvasScaler>();
+		obj2.uiScaleMode = (ScaleMode)1;
+		obj2.referenceResolution = new Vector2(1920f, 1080f);
+		obj2.matchWidthOrHeight = 0.5f;
+		TextMeshProUGUI val5 = CreatePvpLabel(val4.transform, "BLUFOR_SCORE", "0", new Vector2(0.42f, 0.94f), new Vector2(0.48f, 0.99f), 28f);
+		TextMeshProUGUI clock = CreatePvpLabel(val4.transform, "ROUND_CLOCK", "02:00", new Vector2(0.48f, 0.94f), new Vector2(0.52f, 0.99f), 28f);
+		TextMeshProUGUI val6 = CreatePvpLabel(val4.transform, "OPFOR_SCORE", "0", new Vector2(0.52f, 0.94f), new Vector2(0.58f, 0.99f), 28f);
+		((PvpGameode)pvp).bluforScore = val5;
+		((PvpGameode)pvp).opforScore = val6;
+		((PvpGameode)pvp).clock = clock;
+		((PvpGameode)pvp).GameUI_bluforScore = val5;
+		((PvpGameode)pvp).GameUI_opforScore = val6;
+		TextMeshProUGUI val7 = CreatePvpLabel(val4.transform, "ROUND_CAUSE", string.Empty, new Vector2(0.25f, 0.38f), new Vector2(0.75f, 0.48f), 30f);
+		TeleType val8 = ((Component)val7).gameObject.AddComponent<TeleType>();
+		val8.m_textMeshPro = (TMP_Text)(object)val7;
+		val8.autoReveal = false;
+		val8.label01 = string.Empty;
+		val8.label02 = string.Empty;
+		((PvpGameode)pvp).Cause = val8;
+		GameObject val9 = CreatePvpUiGroup(val4.transform, "ROUND_END_UI");
+		((PvpGameode)pvp).RoundEndAnimator = val9.AddComponent<Animator>();
+		((PvpGameode)pvp).RoundWinImage = CreatePvpOutcome(val9.transform, "ROUND_WIN", "ROUND WON");
+		((PvpGameode)pvp).RoundLoseImage = CreatePvpOutcome(val9.transform, "ROUND_LOSS", "ROUND LOST");
+		((PvpGameode)pvp).RoundDrawImage = CreatePvpOutcome(val9.transform, "ROUND_DRAW", "ROUND DRAW");
+		GameObject val10 = CreatePvpUiGroup(val4.transform, "GAME_END_UI");
+		((PvpGameode)pvp).GameUiAnimator = val10.AddComponent<Animator>();
+		((PvpGameode)pvp).GameWinImage = CreatePvpOutcome(val10.transform, "GAME_VICTORY", "VICTORY");
+		((PvpGameode)pvp).GameLoseImage = CreatePvpOutcome(val10.transform, "GAME_DEFEAT", "DEFEAT");
+		((PvpGameode)pvp).GameDrawImage = CreatePvpOutcome(val10.transform, "GAME_DRAW", "GAME DRAW");
+		((PvpGameode)pvp).GameUI_Winning = CreatePvpLabel(val10.transform, "GAME_UI_WINNING", "WINNING", new Vector2(0.35f, 0.8f), new Vector2(0.65f, 0.87f), 26f);
+		((PvpGameode)pvp).GameUI_Losing = CreatePvpLabel(val10.transform, "GAME_UI_LOSING", "LOSING", new Vector2(0.35f, 0.8f), new Vector2(0.65f, 0.87f), 26f);
+		((PvpGameode)pvp).GameUI_Tie = CreatePvpLabel(val10.transform, "GAME_UI_TIE", "TIED", new Vector2(0.35f, 0.8f), new Vector2(0.65f, 0.87f), 26f);
+		((Component)((PvpGameode)pvp).GameUI_Winning).gameObject.SetActive(false);
+		((Component)((PvpGameode)pvp).GameUI_Losing).gameObject.SetActive(false);
+		((Component)((PvpGameode)pvp).GameUI_Tie).gameObject.SetActive(false);
+		((PvpGameode)pvp).FadeOut = "FadeOut";
+		((PvpGameode)pvp).FadeIn = "FadeIn";
 	}
 
 	private static Il2CppReferenceArray<AudioClip> CreatePvpClipArray(AudioClip clip, int count)
 	{
-		Il2CppReferenceArray<AudioClip> il2CppReferenceArray = new Il2CppReferenceArray<AudioClip>(count);
+		Il2CppReferenceArray<AudioClip> val = new Il2CppReferenceArray<AudioClip>((long)count);
 		for (int i = 0; i < count; i++)
 		{
-			il2CppReferenceArray[i] = clip;
+			((Il2CppArrayBase<AudioClip>)(object)val)[i] = clip;
 		}
-		return il2CppReferenceArray;
+		return val;
 	}
 
 	private static GameObject CreatePvpUiGroup(Transform parent, string name)
 	{
-		GameObject gameObject = new GameObject(name);
-		gameObject.layer = 5;
-		gameObject.transform.SetParent(parent, worldPositionStays: false);
-		return gameObject;
+		//IL_0001: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0006: Unknown result type (might be due to invalid IL or missing references)
+		//IL_000d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_001b: Expected O, but got Unknown
+		GameObject val = new GameObject(name)
+		{
+			layer = 5
+		};
+		val.transform.SetParent(parent, false);
+		return val;
 	}
 
 	private static GameObject CreatePvpOutcome(Transform parent, string name, string text)
 	{
-		GameObject gameObject = CreatePvpUiGroup(parent, name);
-		CreatePvpLabel(gameObject.transform, name + "_TEXT", text, new Vector2(0.3f, 0.5f), new Vector2(0.7f, 0.62f), 48f);
-		gameObject.SetActive(value: false);
-		return gameObject;
+		//IL_0023: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
+		GameObject obj = CreatePvpUiGroup(parent, name);
+		CreatePvpLabel(obj.transform, name + "_TEXT", text, new Vector2(0.3f, 0.5f), new Vector2(0.7f, 0.62f), 48f);
+		obj.SetActive(false);
+		return obj;
 	}
 
 	private static TextMeshProUGUI CreatePvpLabel(Transform parent, string name, string text, Vector2 anchorMin, Vector2 anchorMax, float fontSize)
 	{
-		GameObject gameObject = new GameObject(name);
-		gameObject.layer = 5;
-		gameObject.transform.SetParent(parent, worldPositionStays: false);
-		TextMeshProUGUI textMeshProUGUI = gameObject.AddComponent<TextMeshProUGUI>();
-		textMeshProUGUI.text = text ?? string.Empty;
-		textMeshProUGUI.fontSize = fontSize;
-		textMeshProUGUI.alignment = TextAlignmentOptions.Center;
-		textMeshProUGUI.color = Color.white;
-		textMeshProUGUI.raycastTarget = false;
-		textMeshProUGUI.enableWordWrapping = false;
-		RectTransform rectTransform = textMeshProUGUI.rectTransform;
+		//IL_0001: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0006: Unknown result type (might be due to invalid IL or missing references)
+		//IL_000d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0043: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0062: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0069: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0071: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0086: Unknown result type (might be due to invalid IL or missing references)
+		GameObject val = new GameObject(name)
+		{
+			layer = 5
+		};
+		val.transform.SetParent(parent, false);
+		TextMeshProUGUI obj = val.AddComponent<TextMeshProUGUI>();
+		((TMP_Text)obj).text = text ?? string.Empty;
+		((TMP_Text)obj).fontSize = fontSize;
+		((TMP_Text)obj).alignment = (TextAlignmentOptions)514;
+		((Graphic)obj).color = Color.white;
+		((Graphic)obj).raycastTarget = false;
+		((TMP_Text)obj).enableWordWrapping = false;
+		RectTransform rectTransform = ((TMP_Text)obj).rectTransform;
 		rectTransform.anchorMin = anchorMin;
 		rectTransform.anchorMax = anchorMax;
 		rectTransform.offsetMin = Vector2.zero;
 		rectTransform.offsetMax = Vector2.zero;
-		rectTransform.localScale = Vector3.one;
-		return textMeshProUGUI;
+		((Transform)rectTransform).localScale = Vector3.one;
+		return obj;
 	}
 
 	private static int ParseTimeHour(string timeCode)
@@ -3454,7 +3734,36 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void ApplyStandaloneRenderContract(Scene scene, ActiveMapOperation operation)
 	{
-		if (operation == null || !scene.IsValid() || !scene.isLoaded)
+		//IL_0016: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0024: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00bc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c2: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c8: Expected O, but got Unknown
+		//IL_006a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0070: Invalid comparison between Unknown and I4
+		//IL_015d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0142: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0168: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02d6: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02db: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02dc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02e2: Expected O, but got Unknown
+		//IL_03ba: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03de: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0401: Unknown result type (might be due to invalid IL or missing references)
+		//IL_023a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_023f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0240: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0246: Expected O, but got Unknown
+		//IL_0246: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0260: Unknown result type (might be due to invalid IL or missing references)
+		//IL_026a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0278: Unknown result type (might be due to invalid IL or missing references)
+		//IL_06ed: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0711: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0734: Unknown result type (might be due to invalid IL or missing references)
+		if (operation == null || !((Scene)(ref scene)).IsValid() || !((Scene)(ref scene)).isLoaded)
 		{
 			return;
 		}
@@ -3465,31 +3774,31 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		try
 		{
-			Light light = null;
-			foreach (GameObject rootGameObject in scene.GetRootGameObjects())
+			Light val = null;
+			foreach (GameObject item in (Il2CppArrayBase<GameObject>)(object)((Scene)(ref scene)).GetRootGameObjects())
 			{
-				foreach (Light componentsInChild in rootGameObject.GetComponentsInChildren<Light>(includeInactive: true))
+				foreach (Light componentsInChild in item.GetComponentsInChildren<Light>(true))
 				{
-					if (componentsInChild != null && componentsInChild.type == LightType.Directional)
+					if ((Object)(object)componentsInChild != (Object)null && (int)componentsInChild.type == 1)
 					{
-						light = componentsInChild;
+						val = componentsInChild;
 						break;
 					}
 				}
-				if (light != null)
+				if ((Object)(object)val != (Object)null)
 				{
 					break;
 				}
 			}
-			if (light == null)
+			if ((Object)(object)val == (Object)null)
 			{
-				GameObject gameObject = new GameObject("MODDED_OPERATIONS_DIRECTIONAL_LIGHT");
-				SceneManager.MoveGameObjectToScene(gameObject, scene);
-				light = gameObject.AddComponent<Light>();
-				light.type = LightType.Directional;
+				GameObject val2 = new GameObject("MODDED_OPERATIONS_DIRECTIONAL_LIGHT");
+				SceneManager.MoveGameObjectToScene(val2, scene);
+				val = val2.AddComponent<Light>();
+				val.type = (LightType)1;
 			}
 			bool flag = ParseTimeHour(operation.TimeCode) < 6;
-			if (flag && GameManager.instance != null)
+			if (flag && (Object)(object)GameManager.instance != (Object)null)
 			{
 				if (!operation.NvgColorCaptured)
 				{
@@ -3499,182 +3808,192 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				GameManager.instance.SetNVGColor(0);
 				operation.WhitePhosphorApplied = true;
 			}
-			light.transform.rotation = (flag ? new Quaternion(0.1168685f, 0.6386099f, -0.6774567f, 0.3457913f) : new Quaternion(0.115319036f, 0.019461127f, 0.11803713f, 0.9860984f));
-			light.color = Color.white;
-			light.useColorTemperature = true;
-			light.colorTemperature = (flag ? 9754f : 5500f);
-			light.intensity = (flag ? 40f : 30000f);
-			light.bounceIntensity = (flag ? 1f : 5f);
-			light.shadows = LightShadows.Soft;
-			light.shadowResolution = LightShadowResolution.VeryHigh;
-			light.shadowStrength = 1f;
-			light.shadowBias = 0.05f;
-			light.shadowNormalBias = 0.4f;
-			light.shadowNearPlane = 0.2f;
-			HDAdditionalLightData obj = light.GetComponent<HDAdditionalLightData>() ?? light.gameObject.AddComponent<HDAdditionalLightData>();
-			obj.lightUnit = LightUnit.Lux;
-			obj.intensity = light.intensity;
+			((Component)val).transform.rotation = (flag ? new Quaternion(0.1168685f, 0.6386099f, -0.6774567f, 0.3457913f) : new Quaternion(0.115319036f, 0.019461127f, 0.11803713f, 0.9860984f));
+			val.color = Color.white;
+			val.useColorTemperature = true;
+			val.colorTemperature = (flag ? 9754f : 5500f);
+			val.intensity = (flag ? 40f : 30000f);
+			val.bounceIntensity = (flag ? 1f : 5f);
+			val.shadows = (LightShadows)2;
+			val.shadowResolution = (LightShadowResolution)3;
+			val.shadowStrength = 1f;
+			val.shadowBias = 0.05f;
+			val.shadowNormalBias = 0.4f;
+			val.shadowNearPlane = 0.2f;
+			HDAdditionalLightData obj = ((Component)val).GetComponent<HDAdditionalLightData>() ?? ((Component)val).gameObject.AddComponent<HDAdditionalLightData>();
+			obj.lightUnit = (LightUnit)2;
+			obj.intensity = val.intensity;
 			obj.volumetricDimmer = 1f;
 			obj.angularDiameter = 0.5f;
 			if (flag)
 			{
-				GameObject gameObject2 = new GameObject("MODDED_OPERATIONS_NIGHT_AMBIENT");
-				SceneManager.MoveGameObjectToScene(gameObject2, scene);
-				gameObject2.transform.rotation = new Quaternion(0.96095735f, 0.14374454f, 0.22723518f, -0.06528974f);
-				Light light2 = gameObject2.AddComponent<Light>();
-				light2.type = LightType.Directional;
-				light2.color = Color.white;
-				light2.useColorTemperature = true;
-				light2.colorTemperature = 6570f;
-				light2.intensity = 3500f;
-				light2.bounceIntensity = 1f;
-				light2.shadows = LightShadows.None;
-				HDAdditionalLightData hDAdditionalLightData = gameObject2.AddComponent<HDAdditionalLightData>();
-				hDAdditionalLightData.lightUnit = LightUnit.Lux;
-				hDAdditionalLightData.intensity = 3500f;
-				hDAdditionalLightData.volumetricDimmer = 1f;
+				GameObject val3 = new GameObject("MODDED_OPERATIONS_NIGHT_AMBIENT");
+				SceneManager.MoveGameObjectToScene(val3, scene);
+				val3.transform.rotation = new Quaternion(0.96095735f, 0.14374454f, 0.22723518f, -0.06528974f);
+				Light obj2 = val3.AddComponent<Light>();
+				obj2.type = (LightType)1;
+				obj2.color = Color.white;
+				obj2.useColorTemperature = true;
+				obj2.colorTemperature = 6570f;
+				obj2.intensity = 3500f;
+				obj2.bounceIntensity = 1f;
+				obj2.shadows = (LightShadows)0;
+				HDAdditionalLightData obj3 = val3.AddComponent<HDAdditionalLightData>();
+				obj3.lightUnit = (LightUnit)2;
+				obj3.intensity = 3500f;
+				obj3.volumetricDimmer = 1f;
 			}
-			GameObject gameObject3 = new GameObject("MODDED_OPERATIONS_OUTDOOR_ENVIRONMENT");
-			SceneManager.MoveGameObjectToScene(gameObject3, scene);
-			Volume volume = gameObject3.AddComponent<Volume>();
-			volume.isGlobal = true;
-			volume.priority = 500000f;
-			volume.weight = 1f;
-			VolumeProfile volumeProfile = ScriptableObject.CreateInstance<VolumeProfile>();
-			volumeProfile.name = "MODDED_OPERATIONS_OUTDOOR_PROFILE";
-			volume.sharedProfile = volumeProfile;
-			operation.RuntimeRenderProfiles.Add(volumeProfile);
-			VisualEnvironment visualEnvironment = volumeProfile.Add<VisualEnvironment>(overrides: true);
-			visualEnvironment.skyType.Override(4);
-			visualEnvironment.skyAmbientMode.Override(SkyAmbientMode.Dynamic);
-			visualEnvironment.renderingSpace.Override(RenderingSpace.Camera);
-			visualEnvironment.windOrientation.Override(18f);
-			visualEnvironment.windSpeed.Override(14f);
-			PhysicallyBasedSky physicallyBasedSky = volumeProfile.Add<PhysicallyBasedSky>(overrides: true);
-			physicallyBasedSky.type.Override(PhysicallyBasedSkyModel.EarthSimple);
-			physicallyBasedSky.atmosphericScattering.Override(x: true);
-			physicallyBasedSky.aerosolDensity.Override(0.18f);
-			physicallyBasedSky.groundTint.Override(new Color(0.13f, 0.105f, 0.075f, 1f));
-			physicallyBasedSky.horizonTint.Override(new Color(0.96f, 0.98f, 1f, 1f));
-			physicallyBasedSky.zenithTint.Override(new Color(0.84f, 0.91f, 1f, 1f));
-			Exposure exposure = volumeProfile.Add<Exposure>();
-			exposure.mode.Override(ExposureMode.AutomaticHistogram);
-			exposure.meteringMode.Override(flag ? MeteringMode.ProceduralMask : MeteringMode.CenterWeighted);
-			exposure.fixedExposure.Override(flag ? 8.32f : 10f);
-			exposure.compensation.Override(flag ? 1.16f : 0f);
-			exposure.limitMin.Override(flag ? 5.065282f : 8.5f);
-			exposure.limitMax.Override(flag ? 9.348571f : 11f);
-			exposure.adaptationSpeedDarkToLight.Override(flag ? 3f : 0.5f);
-			exposure.adaptationSpeedLightToDark.Override(flag ? 3f : 0.5f);
-			Tonemapping tonemapping = volumeProfile.Add<Tonemapping>();
-			Texture3D texture3D = (flag ? null : LoadPackageTonemapLut(operation.Map));
+			GameObject val4 = new GameObject("MODDED_OPERATIONS_OUTDOOR_ENVIRONMENT");
+			SceneManager.MoveGameObjectToScene(val4, scene);
+			Volume obj4 = val4.AddComponent<Volume>();
+			obj4.isGlobal = true;
+			obj4.priority = 500000f;
+			obj4.weight = 1f;
+			VolumeProfile val5 = ScriptableObject.CreateInstance<VolumeProfile>();
+			((Object)val5).name = "MODDED_OPERATIONS_OUTDOOR_PROFILE";
+			obj4.sharedProfile = val5;
+			operation.RuntimeRenderProfiles.Add(val5);
+			VisualEnvironment obj5 = val5.Add<VisualEnvironment>(true);
+			((VolumeParameter<int>)(object)obj5.skyType).Override(4);
+			((VolumeParameter<SkyAmbientMode>)(object)obj5.skyAmbientMode).Override((SkyAmbientMode)1);
+			((VolumeParameter<RenderingSpace>)(object)obj5.renderingSpace).Override((RenderingSpace)0);
+			((VolumeParameter<float>)(object)obj5.windOrientation).Override(18f);
+			((VolumeParameter<float>)(object)obj5.windSpeed).Override(14f);
+			PhysicallyBasedSky obj6 = val5.Add<PhysicallyBasedSky>(true);
+			((VolumeParameter<PhysicallyBasedSkyModel>)(object)obj6.type).Override((PhysicallyBasedSkyModel)0);
+			((VolumeParameter<bool>)(object)obj6.atmosphericScattering).Override(true);
+			((VolumeParameter<float>)(object)obj6.aerosolDensity).Override(0.18f);
+			((VolumeParameter<Color>)(object)obj6.groundTint).Override(new Color(0.13f, 0.105f, 0.075f, 1f));
+			((VolumeParameter<Color>)(object)obj6.horizonTint).Override(new Color(0.96f, 0.98f, 1f, 1f));
+			((VolumeParameter<Color>)(object)obj6.zenithTint).Override(new Color(0.84f, 0.91f, 1f, 1f));
+			Exposure obj7 = val5.Add<Exposure>(false);
+			((VolumeParameter<ExposureMode>)(object)obj7.mode).Override((ExposureMode)4);
+			((VolumeParameter<MeteringMode>)(object)obj7.meteringMode).Override((MeteringMode)(flag ? 4 : 2));
+			((VolumeParameter<float>)(object)obj7.fixedExposure).Override(flag ? 8.32f : 10f);
+			((VolumeParameter<float>)(object)obj7.compensation).Override(flag ? 1.16f : 0f);
+			((VolumeParameter<float>)(object)obj7.limitMin).Override(flag ? 5.065282f : 8.5f);
+			((VolumeParameter<float>)(object)obj7.limitMax).Override(flag ? 9.348571f : 11f);
+			((VolumeParameter<float>)(object)obj7.adaptationSpeedDarkToLight).Override(flag ? 3f : 0.5f);
+			((VolumeParameter<float>)(object)obj7.adaptationSpeedLightToDark).Override(flag ? 3f : 0.5f);
+			Tonemapping val6 = val5.Add<Tonemapping>(false);
+			Texture3D val7 = (flag ? null : LoadPackageTonemapLut(operation.Map));
 			if (flag)
 			{
-				tonemapping.mode.Override(TonemappingMode.ACES);
-				tonemapping.useFullACES.Override(x: true);
+				((VolumeParameter<TonemappingMode>)(object)val6.mode).Override((TonemappingMode)2);
+				((VolumeParameter<bool>)(object)val6.useFullACES).Override(true);
 			}
-			else if (texture3D != null)
+			else if ((Object)(object)val7 != (Object)null)
 			{
-				tonemapping.mode.Override(TonemappingMode.External);
-				tonemapping.useFullACES.Override(x: false);
-				tonemapping.lutTexture.Override(texture3D);
+				((VolumeParameter<TonemappingMode>)(object)val6.mode).Override((TonemappingMode)4);
+				((VolumeParameter<bool>)(object)val6.useFullACES).Override(false);
+				((VolumeParameter<Texture>)(object)val6.lutTexture).Override((Texture)(object)val7);
 			}
 			else
 			{
-				tonemapping.mode.Override(TonemappingMode.ACES);
-				tonemapping.useFullACES.Override(x: true);
+				((VolumeParameter<TonemappingMode>)(object)val6.mode).Override((TonemappingMode)2);
+				((VolumeParameter<bool>)(object)val6.useFullACES).Override(true);
 			}
-			Bloom bloom = volumeProfile.Add<Bloom>();
-			bloom.quality.Override(flag ? 1 : 3);
-			bloom.intensity.Override(flag ? 0.3f : 0.03f);
-			bloom.threshold.Override(0.9f);
-			bloom.scatter.Override(flag ? 0.2f : 0.893f);
-			bloom.anamorphic.Override(x: false);
+			Bloom val8 = val5.Add<Bloom>(false);
+			((VolumeParameter<int>)(object)((VolumeComponentWithQuality)val8).quality).Override(flag ? 1 : 3);
+			((VolumeParameter<float>)(object)val8.intensity).Override(flag ? 0.3f : 0.03f);
+			((VolumeParameter<float>)(object)val8.threshold).Override(0.9f);
+			((VolumeParameter<float>)(object)val8.scatter).Override(flag ? 0.2f : 0.893f);
+			((VolumeParameter<bool>)(object)val8.anamorphic).Override(false);
 			if (flag)
 			{
-				bloom.m_Resolution.Override(BloomResolution.Half);
+				((VolumeParameter<BloomResolution>)(object)val8.m_Resolution).Override((BloomResolution)2);
 			}
-			ScreenSpaceLensFlare screenSpaceLensFlare = volumeProfile.Add<ScreenSpaceLensFlare>();
-			screenSpaceLensFlare.intensity.Override(flag ? 1f : 0.5f);
-			screenSpaceLensFlare.streaksIntensity.Override(flag ? 1f : 1.55f);
-			screenSpaceLensFlare.streaksLength.Override(flag ? 0.091f : 0.022f);
+			ScreenSpaceLensFlare val9 = val5.Add<ScreenSpaceLensFlare>(false);
+			((VolumeParameter<float>)(object)val9.intensity).Override(flag ? 1f : 0.5f);
+			((VolumeParameter<float>)(object)val9.streaksIntensity).Override(flag ? 1f : 1.55f);
+			((VolumeParameter<float>)(object)val9.streaksLength).Override(flag ? 0.091f : 0.022f);
 			if (!flag)
 			{
-				screenSpaceLensFlare.streaksOrientation.Override(0f);
-				screenSpaceLensFlare.chromaticAbberationIntensity.Override(0.6f);
+				((VolumeParameter<float>)(object)val9.streaksOrientation).Override(0f);
+				((VolumeParameter<float>)(object)val9.chromaticAbberationIntensity).Override(0.6f);
 			}
-			ColorAdjustments colorAdjustments = volumeProfile.Add<ColorAdjustments>();
-			colorAdjustments.postExposure.Override(flag ? 0f : (-0.3f));
-			colorAdjustments.contrast.Override(flag ? 17.3f : 30f);
-			colorAdjustments.saturation.Override(flag ? 22f : (-15f));
+			ColorAdjustments obj8 = val5.Add<ColorAdjustments>(false);
+			((VolumeParameter<float>)(object)obj8.postExposure).Override(flag ? 0f : (-0.3f));
+			((VolumeParameter<float>)(object)obj8.contrast).Override(flag ? 17.3f : 30f);
+			((VolumeParameter<float>)(object)obj8.saturation).Override(flag ? 22f : (-15f));
 			if (!flag)
 			{
-				WhiteBalance whiteBalance = volumeProfile.Add<WhiteBalance>();
-				whiteBalance.temperature.Override(-3.6f);
-				whiteBalance.tint.Override(-8.6f);
-				LiftGammaGain liftGammaGain = volumeProfile.Add<LiftGammaGain>();
-				liftGammaGain.lift.Override(new Vector4(1f, 1f, 1f, 0.00827304f));
-				liftGammaGain.gamma.Override(new Vector4(1f, 1f, 1f, -0.09100296f));
-				liftGammaGain.gain.Override(new Vector4(1f, 1f, 1f, 0.09100296f));
+				WhiteBalance obj9 = val5.Add<WhiteBalance>(false);
+				((VolumeParameter<float>)(object)obj9.temperature).Override(-3.6f);
+				((VolumeParameter<float>)(object)obj9.tint).Override(-8.6f);
+				LiftGammaGain obj10 = val5.Add<LiftGammaGain>(false);
+				((VolumeParameter<Vector4>)(object)obj10.lift).Override(new Vector4(1f, 1f, 1f, 0.00827304f));
+				((VolumeParameter<Vector4>)(object)obj10.gamma).Override(new Vector4(1f, 1f, 1f, -0.09100296f));
+				((VolumeParameter<Vector4>)(object)obj10.gain).Override(new Vector4(1f, 1f, 1f, 0.09100296f));
 			}
 			if (flag)
 			{
-				IndirectLightingController indirectLightingController = volumeProfile.Add<IndirectLightingController>();
-				indirectLightingController.indirectDiffuseLightingMultiplier.Override(1f);
-				indirectLightingController.reflectionLightingMultiplier.Override(1f);
-				indirectLightingController.reflectionProbeIntensityMultiplier.Override(1f);
+				IndirectLightingController obj11 = val5.Add<IndirectLightingController>(false);
+				((VolumeParameter<float>)(object)obj11.indirectDiffuseLightingMultiplier).Override(1f);
+				((VolumeParameter<float>)(object)obj11.reflectionLightingMultiplier).Override(1f);
+				((VolumeParameter<float>)(object)obj11.reflectionProbeIntensityMultiplier).Override(1f);
 			}
-			HDShadowSettings hDShadowSettings = volumeProfile.Add<HDShadowSettings>();
-			hDShadowSettings.maxShadowDistance.Override(flag ? 200f : 125f);
+			HDShadowSettings val10 = val5.Add<HDShadowSettings>(false);
+			((VolumeParameter<float>)(object)val10.maxShadowDistance).Override(flag ? 200f : 125f);
 			if (flag)
 			{
-				hDShadowSettings.cascadeShadowSplit0.Override(0.05f);
+				((VolumeParameter<float>)(object)val10.cascadeShadowSplit0).Override(0.05f);
 			}
-			log.LogInfo("Standalone render contract applied from package-owned scene plus its explicit native-outdoor-v1 profile marker: time=" + operation.TimeCode + ", sunLux=" + light.intensity + ", sunTemperature=" + light.colorTemperature + ", sunBounce=" + light.bounceIntensity + ", profileSource=" + (flag ? "PVP-map night" : "PVP Woods Warehouse day") + ", bloom=" + (flag ? 0.3f : 0.03f) + ", lensFlare=" + (flag ? 1f : 0.5f) + ", nightAmbient=" + flag + ", whitePhosphor=" + operation.WhitePhosphorApplied + ", externalLut=" + (texture3D != null) + ".");
+			log.LogInfo((object)("Standalone render contract applied from package-owned scene plus its explicit native-outdoor-v1 profile marker: time=" + operation.TimeCode + ", sunLux=" + val.intensity + ", sunTemperature=" + val.colorTemperature + ", sunBounce=" + val.bounceIntensity + ", profileSource=" + (flag ? "PVP-map night" : "PVP Woods Warehouse day") + ", bloom=" + (flag ? 0.3f : 0.03f) + ", lensFlare=" + (flag ? 1f : 0.5f) + ", nightAmbient=" + flag + ", whitePhosphor=" + operation.WhitePhosphorApplied + ", externalLut=" + ((Object)(object)val7 != (Object)null) + "."));
 		}
 		catch (Exception ex)
 		{
-			log.LogWarning("Standalone HDRP render contract fell back to the scene-authored light: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogWarning((object)("Standalone HDRP render contract fell back to the scene-authored light: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
 	private void ApplySceneAuthoredRenderContract(Scene scene, ActiveMapOperation operation)
 	{
+		//IL_001e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0023: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0024: Unknown result type (might be due to invalid IL or missing references)
+		//IL_002a: Expected O, but got Unknown
 		try
 		{
-			Texture3D texture3D = LoadPackageTonemapLut(operation.Map);
-			if (texture3D != null)
+			Texture3D val = LoadPackageTonemapLut(operation.Map);
+			if ((Object)(object)val != (Object)null)
 			{
-				GameObject gameObject = new GameObject("MODDED_OPERATIONS_PACKAGE_EXTERNAL_TONEMAP");
-				SceneManager.MoveGameObjectToScene(gameObject, scene);
-				Volume volume = gameObject.AddComponent<Volume>();
-				volume.isGlobal = true;
-				volume.priority = 500000f;
-				volume.weight = 1f;
-				VolumeProfile volumeProfile = ScriptableObject.CreateInstance<VolumeProfile>();
-				volumeProfile.name = "MODDED_OPERATIONS_PACKAGE_TONEMAP_PROFILE";
-				volume.sharedProfile = volumeProfile;
-				operation.RuntimeRenderProfiles.Add(volumeProfile);
-				Tonemapping tonemapping = volumeProfile.Add<Tonemapping>();
-				tonemapping.mode.Override(TonemappingMode.External);
-				tonemapping.useFullACES.Override(x: true);
-				tonemapping.lutTexture.Override(texture3D);
+				GameObject val2 = new GameObject("MODDED_OPERATIONS_PACKAGE_EXTERNAL_TONEMAP");
+				SceneManager.MoveGameObjectToScene(val2, scene);
+				Volume obj = val2.AddComponent<Volume>();
+				obj.isGlobal = true;
+				obj.priority = 500000f;
+				obj.weight = 1f;
+				VolumeProfile val3 = ScriptableObject.CreateInstance<VolumeProfile>();
+				((Object)val3).name = "MODDED_OPERATIONS_PACKAGE_TONEMAP_PROFILE";
+				obj.sharedProfile = val3;
+				operation.RuntimeRenderProfiles.Add(val3);
+				Tonemapping obj2 = val3.Add<Tonemapping>(false);
+				((VolumeParameter<TonemappingMode>)(object)obj2.mode).Override((TonemappingMode)4);
+				((VolumeParameter<bool>)(object)obj2.useFullACES).Override(true);
+				((VolumeParameter<Texture>)(object)obj2.lutTexture).Override((Texture)(object)val);
 			}
-			log.LogInfo("Standalone render contract retained package scene lighting: map=" + operation.Map.Id + ", time=" + operation.TimeCode + ", externalLut=" + (texture3D != null) + ", adapterPreset=false.");
+			log.LogInfo((object)("Standalone render contract retained package scene lighting: map=" + operation.Map.Id + ", time=" + operation.TimeCode + ", externalLut=" + ((Object)(object)val != (Object)null) + ", adapterPreset=false."));
 		}
 		catch (Exception ex)
 		{
-			log.LogWarning("Package scene lighting was retained, but its optional external tonemap LUT could not be applied: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogWarning((object)("Package scene lighting was retained, but its optional external tonemap LUT could not be applied: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
 	private Texture3D LoadPackageTonemapLut(ModdedMapDefinition map)
 	{
+		//IL_0081: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0086: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00aa: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00b2: Expected O, but got Unknown
 		if (map == null || map.ExternalTonemapLut == null)
 		{
 			return null;
 		}
-		if (packageTonemapLuts.TryGetValue(map.Id, out var value) && value != null)
+		if (packageTonemapLuts.TryGetValue(map.Id, out var value) && (Object)(object)value != (Object)null)
 		{
 			return value;
 		}
@@ -3687,25 +4006,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 				throw new InvalidDataException("verified LUT length changed after catalog freeze");
 			}
-			Texture3D texture3D = new Texture3D(externalTonemapLut.Dimension, externalTonemapLut.Dimension, externalTonemapLut.Dimension, TextureFormat.RGBAHalf, mipChain: false)
+			Texture3D val = new Texture3D(externalTonemapLut.Dimension, externalTonemapLut.Dimension, externalTonemapLut.Dimension, (TextureFormat)17, false)
 			{
 				name = "PACKAGE_EXTERNAL_TONEMAP_LUT_" + map.Id,
-				wrapMode = TextureWrapMode.Clamp,
-				filterMode = FilterMode.Bilinear,
+				wrapMode = (TextureWrapMode)1,
+				filterMode = (FilterMode)1,
 				anisoLevel = 0
 			};
-			Il2CppStructArray<byte> data = new Il2CppStructArray<byte>(array);
-			texture3D.SetPixelData(data, 0);
-			texture3D.Apply(updateMipmaps: false, makeNoLongerReadable: false);
-			packageTonemapLuts[map.Id] = texture3D;
-			return texture3D;
+			Il2CppStructArray<byte> val2 = new Il2CppStructArray<byte>(array);
+			val.SetPixelData<byte>((Il2CppArrayBase<byte>)(object)val2, 0, 0);
+			val.Apply(false, false);
+			packageTonemapLuts[map.Id] = val;
+			return val;
 		}
 		catch (Exception ex)
 		{
 			string item = map.Id + "|" + ex.GetType().FullName + "|" + ex.Message;
 			if (lutDiagnostics.Add(item))
 			{
-				log.LogWarning("Package tonemap LUT reconstruction failed for map=" + map.Id + ": " + ex.GetType().Name + ": " + ex.Message);
+				log.LogWarning((object)("Package tonemap LUT reconstruction failed for map=" + map.Id + ": " + ex.GetType().Name + ": " + ex.Message));
 			}
 		}
 		return null;
@@ -3714,11 +4033,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	private bool TryClaimStandaloneReadinessInitialization(GameMode gameMode)
 	{
 		ActiveMapOperation activeMapOperation = activeOperation;
-		if (activeMapOperation == null || gameMode == null)
+		if (activeMapOperation == null || (Object)(object)gameMode == (Object)null)
 		{
 			return false;
 		}
-		if (activeMapOperation.GameModeComponent != gameMode && !TryAdoptNetworkSpawnedGameMode(activeMapOperation, gameMode))
+		if ((Object)(object)activeMapOperation.GameModeComponent != (Object)(object)gameMode && !TryAdoptNetworkSpawnedGameMode(activeMapOperation, gameMode))
 		{
 			return false;
 		}
@@ -3736,12 +4055,12 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		//IL_0050: Invalid comparison between Unknown and I4
 		//IL_00fa: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00ff: Unknown result type (might be due to invalid IL or missing references)
-		if (operation == null || gameMode == null || operation.BootstrapAssetId == 0 || gameMode.gameObject == null)
+		if (operation == null || (Object)(object)gameMode == (Object)null || operation.BootstrapAssetId == 0 || (Object)(object)((Component)gameMode).gameObject == (Object)null)
 		{
 			return false;
 		}
-		NetworkIdentity component = gameMode.GetComponent<NetworkIdentity>();
-		if (component == null || component.assetId != operation.BootstrapAssetId)
+		NetworkIdentity component = ((Component)gameMode).GetComponent<NetworkIdentity>();
+		if ((Object)(object)component == (Object)null || component.assetId != operation.BootstrapAssetId)
 		{
 			return false;
 		}
@@ -3749,40 +4068,40 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return false;
 		}
-		operation.BootstrapRoot = gameMode.gameObject;
+		operation.BootstrapRoot = ((Component)gameMode).gameObject;
 		operation.BootstrapIdentity = component;
 		operation.GameModeComponent = gameMode;
 		GameMode.singleton = gameMode;
 		if (gameMode is StandalonePveGameMode standalonePveGameMode)
 		{
-			InfiltrationManager.instance = standalonePveGameMode;
+			InfiltrationManager.instance = (InfiltrationManager)(object)standalonePveGameMode;
 		}
 		if (gameMode is StandalonePvpGameMode standalonePvpGameMode)
 		{
-			PvpGameode.instance = standalonePvpGameMode;
+			PvpGameode.instance = (PvpGameode)(object)standalonePvpGameMode;
 		}
-		log.LogInfo("Standalone game-mode Mirror spawn adopted on this peer: assetId=0x" + operation.BootstrapAssetId.ToString("X8") + ", netId=" + component.netId + ", mode=" + ((object)operation.Operation.Mode/*cast due to constrained. prefix*/).ToString() + ".");
+		log.LogInfo((object)("Standalone game-mode Mirror spawn adopted on this peer: assetId=0x" + operation.BootstrapAssetId.ToString("X8") + ", netId=" + component.netId + ", mode=" + ((object)operation.Operation.Mode/*cast due to constrained. prefix*/).ToString() + "."));
 		return true;
 	}
 
 	private void MarkStandaloneReadinessInitialized(GameMode gameMode, string source)
 	{
 		ActiveMapOperation activeMapOperation = activeOperation;
-		if (activeMapOperation != null && !(activeMapOperation.GameModeComponent != gameMode))
+		if (activeMapOperation != null && !((Object)(object)activeMapOperation.GameModeComponent != (Object)(object)gameMode))
 		{
 			activeMapOperation.ReadinessInitialized = true;
-			log.LogInfo("Standalone game mode entered the shipped readiness coroutines through GameMode.Initialize(): source=" + source + ".");
+			log.LogInfo((object)("Standalone game mode entered the shipped readiness coroutines through GameMode.Initialize(): source=" + source + "."));
 		}
 	}
 
 	private void MarkStandaloneReadinessInitializationFailed(GameMode gameMode, string source, Exception exception)
 	{
 		ActiveMapOperation activeMapOperation = activeOperation;
-		if (activeMapOperation != null && !(activeMapOperation.GameModeComponent != gameMode))
+		if (activeMapOperation != null && !((Object)(object)activeMapOperation.GameModeComponent != (Object)(object)gameMode))
 		{
 			activeMapOperation.ReadinessInitializationClaimed = false;
 			activeMapOperation.ReadinessInitialized = false;
-			log.LogError("Standalone readiness initialization failed closed: source=" + source + ", " + exception.GetType().Name + ": " + exception.Message);
+			log.LogError((object)("Standalone readiness initialization failed closed: source=" + source + ", " + exception.GetType().Name + ": " + exception.Message));
 		}
 	}
 
@@ -3794,7 +4113,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			activeMapOperation.AllPlayersLoaded = true;
 			activeMapOperation.NativePvpLifecycleActive = nativePvpLifecycle;
 			activeMapOperation.AllPlayersLoadedFrame = Time.frameCount;
-			log.LogInfo("Standalone game mode received the shipped all-players-loaded barrier for operation=" + activeMapOperation.Operation.Id + ", nativePvpLifecycle=" + nativePvpLifecycle + ".");
+			log.LogInfo((object)("Standalone game mode received the shipped all-players-loaded barrier for operation=" + activeMapOperation.Operation.Id + ", nativePvpLifecycle=" + nativePvpLifecycle + "."));
 			if (!nativePvpLifecycle)
 			{
 				SpawnAndPositionStandalonePlayers(activeMapOperation, allowSpawnRequest: true);
@@ -3810,7 +4129,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			activeMapOperation.AllPlayersLoaded = true;
 			activeMapOperation.NativePvpLifecycleActive = false;
 			activeMapOperation.AllPlayersLoadedFrame = Time.frameCount;
-			log.LogError("Shipped PvpGameode.Server_AllPlayersLoaded failed; using the bounded position-only fallback for this session: " + exception.GetType().Name + ": " + exception.Message);
+			log.LogError((object)("Shipped PvpGameode.Server_AllPlayersLoaded failed; using the bounded position-only fallback for this session: " + exception.GetType().Name + ": " + exception.Message));
 			SpawnAndPositionStandalonePlayers(activeMapOperation, allowSpawnRequest: true);
 		}
 	}
@@ -3819,15 +4138,18 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	{
 		//IL_0221: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0227: Invalid comparison between Unknown and I4
+		//IL_0073: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0078: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007a: Unknown result type (might be due to invalid IL or missing references)
 		ActiveMapOperation activeMapOperation = activeOperation;
 		if (activeMapOperation == null || activeMapOperation.SceneHandle == 0)
 		{
 			return;
 		}
 		StandalonePveGameMode standalonePveGameMode = activeMapOperation.GameModeComponent as StandalonePveGameMode;
-		if (NetworkServer.active && activeMapOperation.AllPlayersLoaded && standalonePveGameMode != null)
+		if (NetworkServer.active && activeMapOperation.AllPlayersLoaded && (Object)(object)standalonePveGameMode != (Object)null)
 		{
-			standalonePveGameMode.NetworkRaidTimer += Time.deltaTime;
+			((InfiltrationManager)standalonePveGameMode).NetworkRaidTimer = ((InfiltrationManager)standalonePveGameMode).NetworkRaidTimer + Time.deltaTime;
 		}
 		if (!activeMapOperation.ScenePreparationComplete && !activeMapOperation.ScenePreparationStarted && Time.frameCount >= activeMapOperation.ScenePreparationEarliestFrame)
 		{
@@ -3835,7 +4157,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			Scene scene = FindLoadedSceneByHandle(activeMapOperation.SceneHandle);
 			PrepareStandaloneScene(scene, activeMapOperation);
 		}
-		if (!activeMapOperation.ScenePreparationComplete || !activeMapOperation.TerrainReady || activeMapOperation.BootstrapRoot == null || Time.frameCount < activeMapOperation.LastMaintenanceFrame + 15)
+		if (!activeMapOperation.ScenePreparationComplete || !activeMapOperation.TerrainReady || (Object)(object)activeMapOperation.BootstrapRoot == (Object)null || Time.frameCount < activeMapOperation.LastMaintenanceFrame + 15)
 		{
 			return;
 		}
@@ -3846,29 +4168,29 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		catch (Exception ex)
 		{
-			log.LogError("Standalone game-mode Mirror prefab registration failed closed: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogError((object)("Standalone game-mode Mirror prefab registration failed closed: " + ex.GetType().Name + ": " + ex.Message));
 			return;
 		}
-		if (NetworkServer.active && !activeMapOperation.NetworkSpawnRequested && activeMapOperation.BootstrapIdentity != null && activeMapOperation.BootstrapAssetId != 0)
+		if (NetworkServer.active && !activeMapOperation.NetworkSpawnRequested && (Object)(object)activeMapOperation.BootstrapIdentity != (Object)null && activeMapOperation.BootstrapAssetId != 0)
 		{
 			try
 			{
-				activeMapOperation.BootstrapRoot.SetActive(value: true);
-				NetworkServer.Spawn(activeMapOperation.BootstrapRoot, activeMapOperation.BootstrapAssetId);
+				activeMapOperation.BootstrapRoot.SetActive(true);
+				NetworkServer.Spawn(activeMapOperation.BootstrapRoot, activeMapOperation.BootstrapAssetId, (NetworkConnection)null);
 				activeMapOperation.NetworkSpawnRequested = true;
-				log.LogInfo("Standalone game mode network identity spawned by the host: assetId=0x" + activeMapOperation.BootstrapAssetId.ToString("X8") + ".");
+				log.LogInfo((object)("Standalone game mode network identity spawned by the host: assetId=0x" + activeMapOperation.BootstrapAssetId.ToString("X8") + "."));
 			}
 			catch (Exception ex2)
 			{
-				activeMapOperation.BootstrapRoot.SetActive(value: false);
-				log.LogWarning("Standalone game mode network spawn is waiting: " + ex2.GetType().Name + ": " + ex2.Message);
+				activeMapOperation.BootstrapRoot.SetActive(false);
+				log.LogWarning((object)("Standalone game mode network spawn is waiting: " + ex2.GetType().Name + ": " + ex2.Message));
 			}
 		}
 		if (!NetworkServer.active)
 		{
 			return;
 		}
-		if (!activeMapOperation.ReadinessInitialized && activeMapOperation.NetworkSpawnRequested && NetworkClient.active && activeMapOperation.GameModeComponent != null && Time.frameCount >= activeMapOperation.BootstrapFrame + 30)
+		if (!activeMapOperation.ReadinessInitialized && activeMapOperation.NetworkSpawnRequested && NetworkClient.active && (Object)(object)activeMapOperation.GameModeComponent != (Object)null && Time.frameCount >= activeMapOperation.BootstrapFrame + 30)
 		{
 			EnsureStandaloneReadiness(activeMapOperation.GameModeComponent, "bounded host fallback after network spawn");
 		}
@@ -3882,13 +4204,14 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			{
 				TrySpawnStandalonePveEnemies(activeMapOperation);
 			}
+			ProcessProfiledPveAiDiagnostics(activeMapOperation);
 		}
 	}
 
 	private static void EnsureStandaloneReadiness(GameMode gameMode, string source)
 	{
 		StandalonePveGameMode standalonePveGameMode = gameMode as StandalonePveGameMode;
-		if (standalonePveGameMode != null)
+		if ((Object)(object)standalonePveGameMode != (Object)null)
 		{
 			standalonePveGameMode.EnsureStandaloneReadiness(source);
 		}
@@ -3918,7 +4241,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			try
 			{
-				if (GameManager.instance != null)
+				if ((Object)(object)GameManager.instance != (Object)null)
 				{
 					GameManager.instance.SetNVGColor(operation.PreviousNvgColor);
 				}
@@ -3932,9 +4255,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		operation.WhitePhosphorApplied = false;
 		foreach (VolumeProfile runtimeRenderProfile in operation.RuntimeRenderProfiles)
 		{
-			if (runtimeRenderProfile != null)
+			if ((Object)(object)runtimeRenderProfile != (Object)null)
 			{
-				UnityEngine.Object.Destroy(runtimeRenderProfile);
+				Object.Destroy((Object)(object)runtimeRenderProfile);
 			}
 		}
 		operation.RuntimeRenderProfiles.Clear();
@@ -3947,21 +4270,21 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			return;
 		}
 		GameMode gameModeComponent = operation.GameModeComponent;
-		if (gameModeComponent != null && InfiltrationManager.instance == gameModeComponent)
+		if ((Object)(object)gameModeComponent != (Object)null && (Object)(object)InfiltrationManager.instance == (Object)(object)gameModeComponent)
 		{
 			InfiltrationManager.instance = null;
 		}
-		if (gameModeComponent != null && PvpGameode.instance == gameModeComponent)
+		if ((Object)(object)gameModeComponent != (Object)null && (Object)(object)PvpGameode.instance == (Object)(object)gameModeComponent)
 		{
 			PvpGameode.instance = null;
 		}
-		if (gameModeComponent != null && GameMode.singleton == gameModeComponent)
+		if ((Object)(object)gameModeComponent != (Object)null && (Object)(object)GameMode.singleton == (Object)(object)gameModeComponent)
 		{
 			GameMode.singleton = null;
 		}
 		uint bootstrapAssetId = operation.BootstrapAssetId;
 		GameObject bootstrapPrefabRoot = operation.BootstrapPrefabRoot;
-		if (bootstrapPrefabRoot != null)
+		if ((Object)(object)bootstrapPrefabRoot != (Object)null)
 		{
 			try
 			{
@@ -3986,117 +4309,418 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		operation.BootstrapAssetId = 0u;
 		operation.BootstrapPrefabIdentity = null;
 		operation.BootstrapPrefabRoot = null;
-		foreach (UnityEngine.Object runtimePvpAsset in operation.RuntimePvpAssets)
+		foreach (Object runtimePvpAsset in operation.RuntimePvpAssets)
 		{
-			if (runtimePvpAsset != null)
+			if (runtimePvpAsset != (Object)null)
 			{
-				UnityEngine.Object.Destroy(runtimePvpAsset);
+				Object.Destroy(runtimePvpAsset);
 			}
 		}
 		operation.RuntimePvpAssets.Clear();
-		if (operation.RaidUtilityRoot != null)
+		if ((Object)(object)operation.RaidUtilityRoot != (Object)null)
 		{
 			RaidManager component = operation.RaidUtilityRoot.GetComponent<RaidManager>();
-			if (component != null && RaidManager.singleton == component)
+			if ((Object)(object)component != (Object)null && (Object)(object)RaidManager.singleton == (Object)(object)component)
 			{
 				RaidManager.singleton = null;
 			}
-			UnityEngine.Object.Destroy(operation.RaidUtilityRoot);
+			Object.Destroy((Object)(object)operation.RaidUtilityRoot);
 			operation.RaidUtilityRoot = null;
 		}
 	}
 
 	private void TrySpawnStandalonePveEnemies(ActiveMapOperation operation)
 	{
+		//IL_0020: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0025: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0039: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0265: Unknown result type (might be due to invalid IL or missing references)
+		//IL_026c: Expected O, but got Unknown
+		//IL_026e: Unknown result type (might be due to invalid IL or missing references)
 		if (operation == null || operation.PveSpawnAttempted || !NetworkServer.active)
 		{
 			return;
 		}
 		operation.PveSpawnAttempted = true;
-		Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
-		if (!scene.IsValid() || !scene.isLoaded)
+		Scene val = FindLoadedSceneByHandle(operation.SceneHandle);
+		if (!((Scene)(ref val)).IsValid() || !((Scene)(ref val)).isLoaded)
 		{
 			return;
 		}
-		System.Collections.Generic.List<Transform> list = FindSceneMarkers(scene, "PVE_EnemySpawn_");
+		List<Transform> list = FindSceneMarkers(val, "PVE_EnemySpawn_");
 		if (list.Count == 0)
 		{
-			log.LogError("Standalone PVE package has no PVE_EnemySpawn_ markers.");
+			log.LogError((object)"Standalone PVE package has no PVE_EnemySpawn_ markers.");
 			return;
 		}
 		int minimumEnemies = operation.Operation.MinimumEnemies;
 		int maximumEnemies = operation.Operation.MaximumEnemies;
 		if (minimumEnemies < 1 || maximumEnemies < minimumEnemies)
 		{
-			log.LogError("Standalone PVE package has invalid enemy bounds: operation=" + operation.Operation.Id + ", requestedRange=" + minimumEnemies + "-" + maximumEnemies + ".");
+			log.LogError((object)("Standalone PVE package has invalid enemy bounds: operation=" + operation.Operation.Id + ", requestedRange=" + minimumEnemies + "-" + maximumEnemies + "."));
 			return;
 		}
 		if (list.Count < minimumEnemies)
 		{
-			log.LogError("Standalone PVE package does not author enough enemy markers for its declared minimum: operation=" + operation.Operation.Id + ", requestedRange=" + minimumEnemies + "-" + maximumEnemies + ", markers=" + list.Count + ".");
+			log.LogError((object)("Standalone PVE package does not author enough enemy markers for its declared minimum: operation=" + operation.Operation.Id + ", requestedRange=" + minimumEnemies + "-" + maximumEnemies + ", markers=" + list.Count + "."));
 			return;
 		}
-		GameManager gameManager = GameManager.instance;
-		Il2CppSystem.Collections.Generic.List<GameObject> list2 = ((gameManager == null) ? null : gameManager.AllAITypes);
-		System.Collections.Generic.List<GameObject> list3 = new System.Collections.Generic.List<GameObject>();
-		if (list2 != null)
+		GameManager val2 = GameManager.instance;
+		List<GameObject> val3 = (((Object)(object)val2 == (Object)null) ? null : val2.AllAITypes);
+		List<GameObject> list2 = new List<GameObject>();
+		if (val3 != null)
 		{
-			for (int i = 0; i < list2.Count; i++)
+			for (int i = 0; i < val3.Count; i++)
 			{
-				GameObject gameObject = list2[i];
-				BrainAI brainAI = ((gameObject == null) ? null : gameObject.GetComponent<BrainAI>());
-				NetworkIdentity networkIdentity = ((gameObject == null) ? null : gameObject.GetComponent<NetworkIdentity>());
-				WeaponsAI weaponsAI = ((brainAI == null) ? null : (brainAI.weapons ?? gameObject.GetComponentInChildren<WeaponsAI>(includeInactive: true)));
-				if (!(gameObject == null) && !(brainAI == null) && !(networkIdentity == null) && !(weaponsAI == null) && weaponsAI.SpawnWeapon && weaponsAI.weaponList != null && weaponsAI.weaponList.Count != 0)
+				GameObject val4 = val3[i];
+				BrainAI val5 = (((Object)(object)val4 == (Object)null) ? null : val4.GetComponent<BrainAI>());
+				NetworkIdentity val6 = (((Object)(object)val4 == (Object)null) ? null : val4.GetComponent<NetworkIdentity>());
+				WeaponsAI val7 = (((Object)(object)val5 == (Object)null) ? null : (val5.weapons ?? val4.GetComponentInChildren<WeaponsAI>(true)));
+				if (!((Object)(object)val4 == (Object)null) && !((Object)(object)val5 == (Object)null) && !((Object)(object)val6 == (Object)null) && !((Object)(object)val7 == (Object)null) && val7.SpawnWeapon && val7.weaponList != null && val7.weaponList.Count != 0)
 				{
-					list3.Add(gameObject);
+					list2.Add(val4);
 				}
 			}
 		}
-		if (list3.Count == 0)
+		if (list2.Count == 0)
 		{
-			log.LogError("Standalone PVE could not find a server-registered AI prefab in persistent GameManager.AllAITypes.");
+			log.LogError((object)"Standalone PVE could not find a server-registered AI prefab in persistent GameManager.AllAITypes.");
 			return;
 		}
 		try
 		{
-			GameObject gameObject2 = new GameObject("MODDED_OPERATIONS_PVE_DIRECTOR");
-			SceneManager.MoveGameObjectToScene(gameObject2, scene);
-			RaidManager raidManager = gameObject2.AddComponent<RaidManager>();
-			raidManager.enabled = false;
-			RaidManager.singleton = raidManager;
-			operation.RaidUtilityRoot = gameObject2;
-			int val = ChooseStandalonePveEnemyCount(operation);
-			int num = Math.Min(val, list.Count);
-			raidManager.infiltrationManager = operation.GameModeComponent as InfiltrationManager;
-			raidManager.spawnVehicleAI = false;
-			raidManager.hasIEDs = false;
-			raidManager.hasReinforcements = false;
-			raidManager.timedBackup = false;
-			raidManager.standardAI = new Il2CppReferenceArray<GameObject>(list3.Count);
-			for (int j = 0; j < list3.Count; j++)
+			GameObject val8 = new GameObject("MODDED_OPERATIONS_PVE_DIRECTOR");
+			SceneManager.MoveGameObjectToScene(val8, val);
+			RaidManager val9 = val8.AddComponent<RaidManager>();
+			((Behaviour)val9).enabled = false;
+			RaidManager.singleton = val9;
+			operation.RaidUtilityRoot = val8;
+			int val10 = ChooseStandalonePveEnemyCount(operation);
+			int num = Math.Min(val10, list.Count);
+			GameMode gameModeComponent = operation.GameModeComponent;
+			val9.infiltrationManager = (InfiltrationManager)(object)((gameModeComponent is InfiltrationManager) ? gameModeComponent : null);
+			val9.spawnVehicleAI = false;
+			val9.hasIEDs = false;
+			val9.hasReinforcements = false;
+			val9.timedBackup = false;
+			val9.standardAI = new Il2CppReferenceArray<GameObject>((long)list2.Count);
+			for (int j = 0; j < list2.Count; j++)
 			{
-				raidManager.standardAI[j] = list3[j];
+				((Il2CppArrayBase<GameObject>)(object)val9.standardAI)[j] = list2[j];
 			}
-			raidManager.prohibitedWeapons = new Il2CppReferenceArray<PuppetWeapon>(0L);
-			raidManager.mapSpecificWeapons = new Il2CppReferenceArray<PuppetWeapon>(0L);
-			raidManager.botSpawnPoints = new Il2CppSystem.Collections.Generic.List<GameObject>();
+			val9.prohibitedWeapons = new Il2CppReferenceArray<PuppetWeapon>(0L);
+			val9.mapSpecificWeapons = new Il2CppReferenceArray<PuppetWeapon>(0L);
+			val9.botSpawnPoints = new List<GameObject>();
 			ModdedPveAiProfileDefinition pveAiProfile = operation.Operation.PveAiProfile;
 			foreach (Transform item in list)
 			{
-				ConfigureStandaloneBotDetails(item.GetComponent<BotSpawnDetails>() ?? item.gameObject.AddComponent<BotSpawnDetails>(), pveAiProfile);
-				raidManager.botSpawnPoints.Add(item.gameObject);
+				ConfigureStandaloneBotDetails(((Component)item).GetComponent<BotSpawnDetails>() ?? ((Component)item).gameObject.AddComponent<BotSpawnDetails>(), pveAiProfile);
+				val9.botSpawnPoints.Add(((Component)item).gameObject);
 			}
-			gameManager.botAmount = num;
-			gameManager.botHVTAmount = 0;
-			raidManager.ServerSpawnAI(_custom: false);
+			val2.botAmount = num;
+			val2.botHVTAmount = 0;
+			CaptureProfiledPvePreexistingBrains(operation, val2);
+			val9.ServerSpawnAI(false);
 			operation.PveEnemyCount = num;
-			log.LogInfo("Standalone PVE released a server-owned AI population through shipped RaidManager.ServerSpawnAI: count=" + num + ", requestedRange=" + minimumEnemies + "-" + maximumEnemies + ", chosen=" + val + ", markers=" + list.Count + ", firearmCapablePrefabs=" + list3.Count + ", aiProfile=" + FormatPveAiProfile(pveAiProfile) + ".");
+			StartProfiledPveAiDiagnostics(operation, val2);
+			log.LogInfo((object)("Standalone PVE released a server-owned AI population through shipped RaidManager.ServerSpawnAI: count=" + num + ", requestedRange=" + minimumEnemies + "-" + maximumEnemies + ", chosen=" + val10 + ", markers=" + list.Count + ", firearmCapablePrefabs=" + list2.Count + ", aiProfile=" + FormatPveAiProfile(pveAiProfile) + "."));
 		}
 		catch (Exception ex)
 		{
-			log.LogError("Standalone PVE spawn failed closed after " + operation.PveEnemyCount + " confirmed AI: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogError((object)("Standalone PVE spawn failed closed after " + operation.PveEnemyCount + " confirmed AI: " + ex.GetType().Name + ": " + ex.Message));
 		}
+	}
+
+	private static bool IsProfiledPveDiagnosticOperation(ActiveMapOperation operation)
+	{
+		//IL_0014: Unknown result type (might be due to invalid IL or missing references)
+		//IL_001a: Invalid comparison between Unknown and I4
+		if (operation?.Operation != null && (int)operation.Operation.Mode == 2)
+		{
+			return operation.Operation.PveAiProfile != null;
+		}
+		return false;
+	}
+
+	private static void CaptureProfiledPvePreexistingBrains(ActiveMapOperation operation, GameManager gameManager)
+	{
+		if (!IsProfiledPveDiagnosticOperation(operation) || ((gameManager != null) ? gameManager.allAI : null) == null)
+		{
+			return;
+		}
+		operation.ProfiledPvePreexistingBrainIds.Clear();
+		for (int i = 0; i < gameManager.allAI.Count; i++)
+		{
+			BrainAI val = gameManager.allAI[i];
+			if ((Object)(object)val != (Object)null)
+			{
+				operation.ProfiledPvePreexistingBrainIds.Add(((Object)val).GetInstanceID());
+			}
+		}
+	}
+
+	private void StartProfiledPveAiDiagnostics(ActiveMapOperation operation, GameManager gameManager)
+	{
+		//IL_005d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0062: Unknown result type (might be due to invalid IL or missing references)
+		if (IsProfiledPveDiagnosticOperation(operation))
+		{
+			operation.ProfiledPveAiDiagnosticStartedAt = Time.realtimeSinceStartup;
+			operation.ProfiledPveAiDiagnosticNextProbeAt = operation.ProfiledPveAiDiagnosticStartedAt;
+			operation.ProfiledPveAiDiagnosticSnapshotIndex = 0;
+			operation.ProfiledPveAiDiagnosticComplete = false;
+			GameObject val = (((Object)(object)gameManager == (Object)null) ? null : GameManager.myPlayer);
+			operation.ProfiledPveInitialPlayerPositionCaptured = (Object)(object)val != (Object)null;
+			if ((Object)(object)val != (Object)null)
+			{
+				operation.ProfiledPveInitialPlayerPosition = val.transform.position;
+			}
+			RefreshProfiledPveDiagnosticBrains(operation, gameManager);
+			LogProfiledPveNativeAiContract(operation, "spawn");
+		}
+	}
+
+	private static void RefreshProfiledPveDiagnosticBrains(ActiveMapOperation operation, GameManager gameManager)
+	{
+		//IL_00b7: Unknown result type (might be due to invalid IL or missing references)
+		if (operation == null || ((gameManager != null) ? gameManager.allAI : null) == null)
+		{
+			return;
+		}
+		HashSet<int> hashSet = new HashSet<int>();
+		foreach (BrainAI profiledPveDiagnosticBrain in operation.ProfiledPveDiagnosticBrains)
+		{
+			if ((Object)(object)profiledPveDiagnosticBrain != (Object)null)
+			{
+				hashSet.Add(((Object)profiledPveDiagnosticBrain).GetInstanceID());
+			}
+		}
+		for (int i = 0; i < gameManager.allAI.Count; i++)
+		{
+			BrainAI val = gameManager.allAI[i];
+			if (!((Object)(object)val == (Object)null))
+			{
+				int instanceID = ((Object)val).GetInstanceID();
+				if (!operation.ProfiledPvePreexistingBrainIds.Contains(instanceID) && hashSet.Add(instanceID))
+				{
+					operation.ProfiledPveDiagnosticBrains.Add(val);
+					operation.ProfiledPveInitialBrainPositions[instanceID] = ((Component)val).transform.position;
+				}
+			}
+		}
+	}
+
+	private void LogProfiledPveNativeAiContract(ActiveMapOperation operation, string source)
+	{
+		if (operation == null)
+		{
+			return;
+		}
+		int num = 0;
+		float num2 = float.MaxValue;
+		float num3 = float.MinValue;
+		float num4 = float.MaxValue;
+		float num5 = float.MinValue;
+		int val = int.MaxValue;
+		int val2 = int.MinValue;
+		float num6 = float.MaxValue;
+		float num7 = float.MinValue;
+		int num8 = 0;
+		foreach (BrainAI profiledPveDiagnosticBrain in operation.ProfiledPveDiagnosticBrains)
+		{
+			if ((Object)(object)profiledPveDiagnosticBrain == (Object)null)
+			{
+				continue;
+			}
+			try
+			{
+				float num9 = (float)profiledPveDiagnosticBrain.WanderTimer * profiledPveDiagnosticBrain.Patience;
+				num2 = Mathf.Min(num2, num9);
+				num3 = Mathf.Max(num3, num9);
+				num4 = Mathf.Min(num4, profiledPveDiagnosticBrain.DetectionRange);
+				num5 = Mathf.Max(num5, profiledPveDiagnosticBrain.DetectionRange);
+				val = Math.Min(val, profiledPveDiagnosticBrain.WanderDistance);
+				val2 = Math.Max(val2, profiledPveDiagnosticBrain.WanderDistance);
+				num6 = Mathf.Min(num6, profiledPveDiagnosticBrain.EyesFOVAngle);
+				num7 = Mathf.Max(num7, profiledPveDiagnosticBrain.EyesFOVAngle);
+				if (profiledPveDiagnosticBrain.useComms)
+				{
+					num8++;
+				}
+				num++;
+			}
+			catch
+			{
+			}
+		}
+		if (num == 0)
+		{
+			log.LogWarning((object)("Profiled PVE AI diagnostic found no new BrainAI instances for operation=" + operation.Operation.Id + " at " + source + "; the bounded snapshots will retry."));
+			return;
+		}
+		string text = "Profiled PVE native AI contract: operation=" + operation.Operation.Id + ", profile=" + operation.Operation.PveAiProfile.Id + ", source=" + source + ", brains=" + num + ", nativeInitialWanderDelay=" + num2.ToString("F2", CultureInfo.InvariantCulture) + ".." + num3.ToString("F2", CultureInfo.InvariantCulture) + "s, detection=" + num4.ToString("F1", CultureInfo.InvariantCulture) + ".." + num5.ToString("F1", CultureInfo.InvariantCulture) + "m, fov=" + num6.ToString("F1", CultureInfo.InvariantCulture) + ".." + num7.ToString("F1", CultureInfo.InvariantCulture) + ", wander=" + val + ".." + val2 + "m, comms=" + num8 + "/" + num + ".";
+		if (num2 <= 0f)
+		{
+			log.LogWarning((object)(text + " At least one native prefab has no initial wander delay."));
+		}
+		else
+		{
+			log.LogInfo((object)text);
+		}
+	}
+
+	private void ProcessProfiledPveAiDiagnostics(ActiveMapOperation operation)
+	{
+		if (!IsProfiledPveDiagnosticOperation(operation) || operation.ProfiledPveAiDiagnosticComplete || operation.ProfiledPveAiDiagnosticStartedAt < 0f || operation.ProfiledPveAiDiagnosticSnapshotIndex >= ProfiledPveAiDiagnosticSnapshotSeconds.Length)
+		{
+			return;
+		}
+		float realtimeSinceStartup = Time.realtimeSinceStartup;
+		if (realtimeSinceStartup < operation.ProfiledPveAiDiagnosticNextProbeAt)
+		{
+			return;
+		}
+		float num = realtimeSinceStartup - operation.ProfiledPveAiDiagnosticStartedAt;
+		float num2 = ProfiledPveAiDiagnosticSnapshotSeconds[operation.ProfiledPveAiDiagnosticSnapshotIndex];
+		if (num + 0.05f < num2)
+		{
+			operation.ProfiledPveAiDiagnosticNextProbeAt = operation.ProfiledPveAiDiagnosticStartedAt + num2;
+			return;
+		}
+		GameManager gameManager = GameManager.instance;
+		RefreshProfiledPveDiagnosticBrains(operation, gameManager);
+		LogProfiledPveAiSnapshot(operation, gameManager, num2, num);
+		operation.ProfiledPveAiDiagnosticSnapshotIndex++;
+		if (operation.ProfiledPveAiDiagnosticSnapshotIndex >= ProfiledPveAiDiagnosticSnapshotSeconds.Length)
+		{
+			operation.ProfiledPveAiDiagnosticComplete = true;
+			log.LogInfo((object)("Profiled PVE AI diagnostic completed its bounded 120-second read-only acceptance window for operation=" + operation.Operation.Id + "."));
+		}
+		else
+		{
+			operation.ProfiledPveAiDiagnosticNextProbeAt = operation.ProfiledPveAiDiagnosticStartedAt + ProfiledPveAiDiagnosticSnapshotSeconds[operation.ProfiledPveAiDiagnosticSnapshotIndex];
+		}
+	}
+
+	private void LogProfiledPveAiSnapshot(ActiveMapOperation operation, GameManager gameManager, float scheduled, float elapsed)
+	{
+		//IL_006a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_004f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0054: Unknown result type (might be due to invalid IL or missing references)
+		//IL_005e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0063: Unknown result type (might be due to invalid IL or missing references)
+		//IL_006f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00d8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00dd: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00f0: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00f7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00bb: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c0: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ca: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0136: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0149: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0163: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0176: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01bd: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01c2: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0235: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0237: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0241: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0246: Unknown result type (might be due to invalid IL or missing references)
+		//IL_022e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_024b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0256: Unknown result type (might be due to invalid IL or missing references)
+		int num = 0;
+		int num2 = 0;
+		int num3 = 0;
+		int num4 = 0;
+		int num5 = 0;
+		int num6 = 0;
+		int num7 = 0;
+		float num8 = 0f;
+		float num9 = 0f;
+		Dictionary<string, int> dictionary = new Dictionary<string, int>(StringComparer.Ordinal);
+		GameObject val = (((Object)(object)gameManager == (Object)null) ? null : GameManager.myPlayer);
+		Vector3 val2 = (((Object)(object)val == (Object)null) ? Vector3.zero : (val.transform.position + Vector3.up * 1.35f));
+		Vector2 val3 = default(Vector2);
+		Vector2 val4 = default(Vector2);
+		Vector2 val5 = default(Vector2);
+		RaycastHit val6 = default(RaycastHit);
+		foreach (BrainAI profiledPveDiagnosticBrain in operation.ProfiledPveDiagnosticBrains)
+		{
+			if ((Object)(object)profiledPveDiagnosticBrain == (Object)null)
+			{
+				continue;
+			}
+			try
+			{
+				int instanceID = ((Object)profiledPveDiagnosticBrain).GetInstanceID();
+				if (!operation.ProfiledPveInitialBrainPositions.TryGetValue(instanceID, out var value))
+				{
+					value = ((Component)profiledPveDiagnosticBrain).transform.position;
+					operation.ProfiledPveInitialBrainPositions[instanceID] = value;
+				}
+				Vector3 position = ((Component)profiledPveDiagnosticBrain).transform.position;
+				((Vector2)(ref val3))._002Ector(position.x - value.x, position.z - value.z);
+				float magnitude = ((Vector2)(ref val3)).magnitude;
+				num8 += magnitude;
+				num9 = Mathf.Max(num9, magnitude);
+				if (magnitude >= 1f)
+				{
+					num2++;
+				}
+				if (operation.ProfiledPveInitialPlayerPositionCaptured)
+				{
+					((Vector2)(ref val4))._002Ector(value.x - operation.ProfiledPveInitialPlayerPosition.x, value.z - operation.ProfiledPveInitialPlayerPosition.z);
+					((Vector2)(ref val5))._002Ector(position.x - operation.ProfiledPveInitialPlayerPosition.x, position.z - operation.ProfiledPveInitialPlayerPosition.z);
+					if (((Vector2)(ref val4)).magnitude - ((Vector2)(ref val5)).magnitude >= 5f)
+					{
+						num3++;
+					}
+				}
+				if ((Object)(object)profiledPveDiagnosticBrain.CurrentSeenTarget != (Object)null)
+				{
+					num4++;
+				}
+				string key = ((object)profiledPveDiagnosticBrain.CurrentState/*cast due to constrained. prefix*/).ToString();
+				dictionary[key] = ((!dictionary.TryGetValue(key, out var value2)) ? 1 : (value2 + 1));
+				if ((Object)(object)val != (Object)null && (Object)(object)profiledPveDiagnosticBrain.eyesAI != (Object)null)
+				{
+					GameObject eyesTransform = profiledPveDiagnosticBrain.eyesAI.EyesTransform;
+					if (Physics.Linecast(((Object)(object)eyesTransform == (Object)null) ? (position + Vector3.up * 1.6f) : eyesTransform.transform.position, val2, ref val6, LayerMask.op_Implicit(profiledPveDiagnosticBrain.eyesAI.DetectionLayerMask), (QueryTriggerInteraction)2))
+					{
+						Transform val7 = (((Object)(object)((RaycastHit)(ref val6)).collider == (Object)null) ? null : ((Component)((RaycastHit)(ref val6)).collider).transform);
+						if ((Object)(object)val7 != (Object)null && (Object)(object)val7.root == (Object)(object)val.transform.root)
+						{
+							num7++;
+						}
+						else if ((Object)(object)((RaycastHit)(ref val6)).collider != (Object)null && ((Component)((RaycastHit)(ref val6)).collider).gameObject.layer == 18)
+						{
+							num5++;
+						}
+						else
+						{
+							num6++;
+						}
+					}
+					else
+					{
+						num7++;
+					}
+				}
+				num++;
+			}
+			catch
+			{
+			}
+		}
+		string text = ((dictionary.Count == 0) ? "none" : string.Join(",", from pair in dictionary
+			orderby pair.Key
+			select pair.Key + "=" + pair.Value));
+		float num10 = ((num == 0) ? 0f : (num8 / (float)num));
+		log.LogInfo((object)("Profiled PVE AI snapshot: operation=" + operation.Operation.Id + ", profile=" + operation.Operation.PveAiProfile.Id + ", scheduled=" + scheduled.ToString("F0", CultureInfo.InvariantCulture) + "s, elapsed=" + elapsed.ToString("F2", CultureInfo.InvariantCulture) + "s, live=" + num + ", moved>=1m=" + num2 + ", movedTowardInsertion>=5m=" + num3 + ", movementMean=" + num10.ToString("F2", CultureInfo.InvariantCulture) + "m, movementMax=" + num9.ToString("F2", CultureInfo.InvariantCulture) + "m, actualSeenTarget=" + num4 + ", sameMaskSightProbe(vegetation=" + num5 + ",other=" + num6 + ",clearOrPlayer=" + num7 + "), states=" + text + "."));
 	}
 
 	private static int ChooseStandalonePveEnemyCount(ActiveMapOperation operation)
@@ -4119,7 +4743,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void ConfigureStandaloneBotDetails(BotSpawnDetails details, ModdedPveAiProfileDefinition profile)
 	{
-		if (!(details == null))
+		//IL_00cd: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e2: Unknown result type (might be due to invalid IL or missing references)
+		if (!((Object)(object)details == (Object)null))
 		{
 			details.DetectionTimeMultiplier = ((profile == null) ? 1.15f : 1f);
 			details.HearingRange = ((profile == null) ? 52f : 20f);
@@ -4151,107 +4777,128 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		return profile.Id + "(range=" + profile.DetectionRangeMeters.ToString("F1", CultureInfo.InvariantCulture) + "m,fov=" + profile.FieldOfViewDegrees.ToString("F1", CultureInfo.InvariantCulture) + ",maxEffective=" + profile.MaximumEffectiveRangeMeters.ToString("F1", CultureInfo.InvariantCulture) + "m,wander=" + profile.WanderDistanceMeters + "m,comms=" + profile.UseComms + ",counterSuppression=" + profile.CounterSuppression + ")";
 	}
 
-	private static System.Collections.Generic.List<Transform> FindSceneMarkers(Scene scene, string prefix)
+	private static List<Transform> FindSceneMarkers(Scene scene, string prefix)
 	{
-		System.Collections.Generic.List<Transform> list = new System.Collections.Generic.List<Transform>();
-		foreach (GameObject rootGameObject in scene.GetRootGameObjects())
+		List<Transform> list = new List<Transform>();
+		foreach (GameObject item in (Il2CppArrayBase<GameObject>)(object)((Scene)(ref scene)).GetRootGameObjects())
 		{
-			foreach (Transform componentsInChild in rootGameObject.GetComponentsInChildren<Transform>(includeInactive: true))
+			foreach (Transform componentsInChild in item.GetComponentsInChildren<Transform>(true))
 			{
-				if ((componentsInChild.name ?? string.Empty).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+				if ((((Object)componentsInChild).name ?? string.Empty).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
 				{
 					list.Add(componentsInChild);
 				}
 			}
 		}
-		list.Sort((Transform left, Transform right) => string.CompareOrdinal(left.name, right.name));
+		list.Sort((Transform left, Transform right) => string.CompareOrdinal(((Object)left).name, ((Object)right).name));
 		return list;
 	}
 
 	private void SpawnAndPositionStandalonePlayers(ActiveMapOperation operation, bool allowSpawnRequest)
 	{
+		//IL_03d5: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03da: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03e4: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03e9: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03ee: Unknown result type (might be due to invalid IL or missing references)
+		//IL_03f2: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0012: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0017: Unknown result type (might be due to invalid IL or missing references)
+		//IL_002b: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_053f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0543: Unknown result type (might be due to invalid IL or missing references)
+		//IL_04c1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_04c5: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e5: Unknown result type (might be due to invalid IL or missing references)
 		if (operation == null || operation.SceneHandle == 0)
 		{
 			return;
 		}
 		Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
-		if (!scene.IsValid() || !scene.isLoaded)
+		if (!((Scene)(ref scene)).IsValid() || !((Scene)(ref scene)).isLoaded)
 		{
 			return;
 		}
-		System.Collections.Generic.List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
+		List<Transform> list = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
 		if (list.Count == 0)
 		{
-			log.LogError("Standalone package scene has no compatible player spawn markers for spawnSet=" + operation.Operation.SpawnSetId + ".");
+			log.LogError((object)("Standalone package scene has no compatible player spawn markers for spawnSet=" + operation.Operation.SpawnSetId + "."));
 			return;
 		}
 		PlayerMaster[] array;
 		try
 		{
-			array = Resources.FindObjectsOfTypeAll<PlayerMaster>();
+			array = Il2CppArrayBase<PlayerMaster>.op_Implicit(Resources.FindObjectsOfTypeAll<PlayerMaster>());
 		}
 		catch
 		{
 			return;
 		}
 		PlayerMaster[] array2 = array;
-		foreach (PlayerMaster playerMaster in array2)
+		foreach (PlayerMaster val in array2)
 		{
-			if (playerMaster == null || !playerMaster.gameObject.scene.IsValid())
+			if ((Object)(object)val == (Object)null)
 			{
 				continue;
 			}
-			int instanceID = playerMaster.GetInstanceID();
-			Transform transform = SelectPlayerMarker(operation, playerMaster, list);
-			if (transform == null)
+			Scene scene2 = ((Component)val).gameObject.scene;
+			if (!((Scene)(ref scene2)).IsValid())
+			{
+				continue;
+			}
+			int instanceID = ((Object)val).GetInstanceID();
+			Transform val2 = SelectPlayerMarker(operation, val, list);
+			if ((Object)(object)val2 == (Object)null)
 			{
 				continue;
 			}
 			try
 			{
-				playerMaster.LastSpawnPoint = transform;
-				playerMaster.spawnRotation = transform.eulerAngles;
+				val.LastSpawnPoint = val2;
+				val.spawnRotation = val2.eulerAngles;
 			}
 			catch
 			{
 			}
-			PlayerNetworking playerNetworking = null;
+			PlayerNetworking val3 = null;
 			try
 			{
-				playerNetworking = playerMaster.PlayerSpawnedObject;
+				val3 = val.PlayerSpawnedObject;
 			}
 			catch
 			{
 			}
-			if (playerNetworking != null)
+			if ((Object)(object)val3 != (Object)null)
 			{
 				operation.CompletedPlayerSpawnIds.Add(instanceID);
 			}
 			bool flag = false;
 			try
 			{
-				flag = playerMaster.currentlySpawnedAndAlive;
+				flag = val.currentlySpawnedAndAlive;
 			}
 			catch
 			{
 			}
-			if (playerNetworking == null && flag)
+			if ((Object)(object)val3 == (Object)null && flag)
 			{
 				operation.CompletedPlayerSpawnIds.Add(instanceID);
 			}
 			else
 			{
-				if (playerNetworking == null && operation.CompletedPlayerSpawnIds.Contains(instanceID))
+				if ((Object)(object)val3 == (Object)null && operation.CompletedPlayerSpawnIds.Contains(instanceID))
 				{
 					continue;
 				}
-				if (playerNetworking == null && allowSpawnRequest)
+				if ((Object)(object)val3 == (Object)null && allowSpawnRequest)
 				{
 					bool flag2 = false;
 					try
 					{
-						flag2 = playerMaster.isOwned;
+						flag2 = ((NetworkBehaviour)val).isOwned;
 					}
 					catch
 					{
@@ -4269,11 +4916,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
 						{
 							operation.PlayerSpawnRequestFrames[instanceID] = Time.frameCount;
 							operation.PlayerSpawnRequestCounts[instanceID] = num + 1;
-							string text = RequestStandalonePlayerSpawn(playerMaster, flag2, num);
+							string text = RequestStandalonePlayerSpawn(val, flag2, num);
 							bool flag3 = false;
 							try
 							{
-								flag3 = playerMaster.PlayerSpawnedObject != null;
+								flag3 = (Object)(object)val.PlayerSpawnedObject != (Object)null;
 							}
 							catch
 							{
@@ -4282,49 +4929,49 @@ public sealed class CerberusNativeTabFix : BasePlugin
 							{
 								operation.CompletedPlayerSpawnIds.Add(instanceID);
 							}
-							log.LogInfo("Standalone requested the shipped player spawn pipeline: playerMaster=" + instanceID + ", owned=" + flag2 + ", serverActive=" + NetworkServer.active + ", route=" + text + ", attempt=" + (num + 1) + "/" + num2 + ", producedPlayerObject=" + flag3 + ".");
+							log.LogInfo((object)("Standalone requested the shipped player spawn pipeline: playerMaster=" + instanceID + ", owned=" + flag2 + ", serverActive=" + NetworkServer.active + ", route=" + text + ", attempt=" + (num + 1) + "/" + num2 + ", producedPlayerObject=" + flag3 + "."));
 						}
 					}
 					catch (Exception ex)
 					{
 						Exception ex2 = ((ex is TargetInvocationException && ex.InnerException != null) ? ex.InnerException : ex);
-						log.LogWarning("Standalone player spawn request is waiting for " + instanceID + ": " + ex2.GetType().Name + ": " + ex2.Message);
+						log.LogWarning((object)("Standalone player spawn request is waiting for " + instanceID + ": " + ex2.GetType().Name + ": " + ex2.Message));
 					}
 					continue;
 				}
-				int num3 = ((!(playerNetworking == null)) ? playerNetworking.GetInstanceID() : 0);
-				if (playerNetworking == null || (operation.PositionedPlayerObjects.TryGetValue(instanceID, out var value3) && value3 == num3))
+				int num3 = ((!((Object)(object)val3 == (Object)null)) ? ((Object)val3).GetInstanceID() : 0);
+				if ((Object)(object)val3 == (Object)null || (operation.PositionedPlayerObjects.TryGetValue(instanceID, out var value3) && value3 == num3))
 				{
 					continue;
 				}
 				bool flag4 = false;
 				try
 				{
-					flag4 = playerNetworking.isOwned || playerNetworking.isLocalPlayer || playerMaster.isOwned;
+					flag4 = ((NetworkBehaviour)val3).isOwned || ((NetworkBehaviour)val3).isLocalPlayer || ((NetworkBehaviour)val).isOwned;
 				}
 				catch
 				{
 				}
-				Vector3 vector = transform.position + Vector3.up * 0.25f;
+				Vector3 val4 = val2.position + Vector3.up * 0.25f;
 				int value4;
-				if (IsPlayerAtPackageSpawn(playerNetworking, vector, flag4, out var state))
+				if (IsPlayerAtPackageSpawn(val3, val4, flag4, out var state))
 				{
 					operation.PositionedPlayerObjects[instanceID] = num3;
-					log.LogInfo("Standalone player reached package marker through the shipped movement contract: marker=" + transform.name + ", playerMaster=" + instanceID + ", owned=" + flag4 + ", state=" + state + ".");
+					log.LogInfo((object)("Standalone player reached package marker through the shipped movement contract: marker=" + ((Object)val2).name + ", playerMaster=" + instanceID + ", owned=" + flag4 + ", state=" + state + "."));
 				}
 				else if (!operation.PlayerMoveRequestFrames.TryGetValue(instanceID, out value4) || Time.frameCount >= value4 + 300)
 				{
-					if (flag4 && GameManager.instance != null)
+					if (flag4 && (Object)(object)GameManager.instance != (Object)null)
 					{
-						GameManager.instance.StartCoroutine(GameManager.instance.MovePlayerToSpawn(vector, transform.rotation));
+						((MonoBehaviour)GameManager.instance).StartCoroutine(GameManager.instance.MovePlayerToSpawn(val4, val2.rotation));
 						operation.PlayerMoveRequestFrames[instanceID] = Time.frameCount;
-						log.LogInfo("Standalone invoked shipped GameManager.MovePlayerToSpawn for owned player: marker=" + transform.name + ", playerMaster=" + instanceID + ", priorState=" + state + ".");
+						log.LogInfo((object)("Standalone invoked shipped GameManager.MovePlayerToSpawn for owned player: marker=" + ((Object)val2).name + ", playerMaster=" + instanceID + ", priorState=" + state + "."));
 					}
 					else
 					{
-						MoveRemotePlayerRoot(playerNetworking.gameObject, vector, transform.rotation);
+						MoveRemotePlayerRoot(((Component)val3).gameObject, val4, val2.rotation);
 						operation.PlayerMoveRequestFrames[instanceID] = Time.frameCount;
-						log.LogInfo("Standalone moved server-owned remote player root to package marker=" + transform.name + ", playerMaster=" + instanceID + ".");
+						log.LogInfo((object)("Standalone moved server-owned remote player root to package marker=" + ((Object)val2).name + ", playerMaster=" + instanceID + "."));
 					}
 				}
 			}
@@ -4333,7 +4980,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private string RequestStandalonePlayerSpawn(PlayerMaster player, bool owned, int priorRequestCount)
 	{
-		if (player == null)
+		if ((Object)(object)player == (Object)null)
 		{
 			throw new ArgumentNullException("player");
 		}
@@ -4366,8 +5013,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			throw new MissingMethodException(typeof(PlayerMaster).FullName, "UserCode_CMDSpawnPlayer__NetworkIdentity");
 		}
-		NetworkIdentity component = player.GetComponent<NetworkIdentity>();
-		if (component == null)
+		NetworkIdentity component = ((Component)player).GetComponent<NetworkIdentity>();
+		if ((Object)(object)component == (Object)null)
 		{
 			throw new InvalidOperationException("PlayerMaster has no NetworkIdentity for the shipped server spawn body");
 		}
@@ -4376,10 +5023,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static Scene FindLoadedSceneByHandle(int handle)
 	{
+		//IL_0005: Unknown result type (might be due to invalid IL or missing references)
+		//IL_000a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_000d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0013: Unknown result type (might be due to invalid IL or missing references)
+		//IL_002f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0035: Unknown result type (might be due to invalid IL or missing references)
+		//IL_001f: Unknown result type (might be due to invalid IL or missing references)
 		for (int i = 0; i < SceneManager.sceneCount; i++)
 		{
 			Scene sceneAt = SceneManager.GetSceneAt(i);
-			if (sceneAt.handle == handle)
+			if (((Scene)(ref sceneAt)).handle == SceneHandle.op_Implicit(handle))
 			{
 				return sceneAt;
 			}
@@ -4387,17 +5041,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		return default(Scene);
 	}
 
-	private static System.Collections.Generic.List<Transform> FindStandalonePlayerMarkers(Scene scene, ModdedOperationMode mode)
+	private static List<Transform> FindStandalonePlayerMarkers(Scene scene, ModdedOperationMode mode)
 	{
 		//IL_0142: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0144: Invalid comparison between Unknown and I4
-		System.Collections.Generic.List<Transform> list = new System.Collections.Generic.List<Transform>();
-		System.Collections.Generic.List<Transform> list2 = new System.Collections.Generic.List<Transform>();
-		foreach (GameObject rootGameObject in scene.GetRootGameObjects())
+		List<Transform> list = new List<Transform>();
+		List<Transform> list2 = new List<Transform>();
+		foreach (GameObject item in (Il2CppArrayBase<GameObject>)(object)((Scene)(ref scene)).GetRootGameObjects())
 		{
-			foreach (Transform componentsInChild in rootGameObject.GetComponentsInChildren<Transform>(includeInactive: true))
+			foreach (Transform componentsInChild in item.GetComponentsInChildren<Transform>(true))
 			{
-				string text = componentsInChild.name ?? string.Empty;
+				string text = ((Object)componentsInChild).name ?? string.Empty;
 				if (text.StartsWith("Team1_Spawn_", StringComparison.OrdinalIgnoreCase) || text.StartsWith("Team1_Backup_Spawn_", StringComparison.OrdinalIgnoreCase) || text.StartsWith("PVP_Team1Spawn_", StringComparison.OrdinalIgnoreCase) || text.StartsWith("PVE_PlayerSpawn_", StringComparison.OrdinalIgnoreCase))
 				{
 					list.Add(componentsInChild);
@@ -4408,8 +5062,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				}
 			}
 		}
-		list.Sort((Transform left, Transform right) => string.CompareOrdinal(left.name, right.name));
-		list2.Sort((Transform left, Transform right) => string.CompareOrdinal(left.name, right.name));
+		list.Sort((Transform left, Transform right) => string.CompareOrdinal(((Object)left).name, ((Object)right).name));
+		list2.Sort((Transform left, Transform right) => string.CompareOrdinal(((Object)left).name, ((Object)right).name));
 		if ((int)mode == 2)
 		{
 			return list;
@@ -4418,7 +5072,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		return list;
 	}
 
-	private static Transform SelectPlayerMarker(ActiveMapOperation operation, PlayerMaster player, System.Collections.Generic.List<Transform> markers)
+	private static Transform SelectPlayerMarker(ActiveMapOperation operation, PlayerMaster player, List<Transform> markers)
 	{
 		//IL_002a: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0030: Invalid comparison between Unknown and I4
@@ -4430,13 +5084,14 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return null;
 		}
-		int instanceID = player.GetInstanceID();
+		int instanceID = ((Object)player).GetInstanceID();
 		int pvpTeamId = 0;
 		if ((int)operation.Operation.Mode == 1)
 		{
 			try
 			{
-				pvpTeamId = player.MyTeamIdentifier?.TeamID ?? 0;
+				TeamIdentifier myTeamIdentifier = player.MyTeamIdentifier;
+				pvpTeamId = ((myTeamIdentifier != null) ? myTeamIdentifier.TeamID : 0);
 			}
 			catch
 			{
@@ -4448,32 +5103,32 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		if (operation.PlayerMarkerNames.TryGetValue(instanceID, out var assignedName))
 		{
-			Transform transform = markers.FirstOrDefault((Transform marker) => string.Equals(marker.name, assignedName, StringComparison.Ordinal));
-			if (transform != null && ((int)operation.Operation.Mode != 1 || PvpMarkerMatchesTeam(transform, pvpTeamId)))
+			Transform val = markers.FirstOrDefault((Transform marker) => string.Equals(((Object)marker).name, assignedName, StringComparison.Ordinal));
+			if ((Object)(object)val != (Object)null && ((int)operation.Operation.Mode != 1 || PvpMarkerMatchesTeam(val, pvpTeamId)))
 			{
-				return transform;
+				return val;
 			}
 			operation.PlayerMarkerNames.Remove(instanceID);
 		}
-		Transform transform2;
+		Transform val2;
 		if ((int)operation.Operation.Mode == 1)
 		{
-			System.Collections.Generic.List<Transform> list = markers.Where((Transform marker) => PvpMarkerMatchesTeam(marker, pvpTeamId)).ToList();
+			List<Transform> list = markers.Where((Transform marker) => PvpMarkerMatchesTeam(marker, pvpTeamId)).ToList();
 			if (list.Count > 0)
 			{
-				transform2 = list[operation.SpawnCursor++ % list.Count];
-				operation.PlayerMarkerNames[instanceID] = transform2.name;
-				return transform2;
+				val2 = list[operation.SpawnCursor++ % list.Count];
+				operation.PlayerMarkerNames[instanceID] = ((Object)val2).name;
+				return val2;
 			}
 		}
-		transform2 = markers[operation.SpawnCursor++ % markers.Count];
-		operation.PlayerMarkerNames[instanceID] = transform2.name;
-		return transform2;
+		val2 = markers[operation.SpawnCursor++ % markers.Count];
+		operation.PlayerMarkerNames[instanceID] = ((Object)val2).name;
+		return val2;
 	}
 
 	private static bool PvpMarkerMatchesTeam(Transform marker, int teamId)
 	{
-		string text = marker?.name ?? string.Empty;
+		string text = ((marker != null) ? ((Object)marker).name : null) ?? string.Empty;
 		switch (teamId)
 		{
 		case 1:
@@ -4495,41 +5150,49 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool IsPlayerAtPackageSpawn(PlayerNetworking player, Vector3 target, bool owned, out string state)
 	{
-		if (player == null)
+		//IL_0018: Unknown result type (might be due to invalid IL or missing references)
+		//IL_001d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0077: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00cf: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00d4: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009f: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)player == (Object)null)
 		{
 			state = "player=null";
 			return false;
 		}
-		float num = Vector3.Distance(player.transform.position, target);
+		float num = Vector3.Distance(((Component)player).transform.position, target);
 		if (!owned)
 		{
 			state = "network=" + num.ToString("F2");
 			return num <= 3f;
 		}
-		PlayerNetworking playerNetworking = null;
-		GameObject gameObject = null;
-		FirstPersonController firstPersonController = null;
+		PlayerNetworking val = null;
+		GameObject val2 = null;
+		FirstPersonController val3 = null;
 		try
 		{
-			playerNetworking = GameManager.myPlayerNetworking;
-			gameObject = GameManager.myPlayer;
-			firstPersonController = GameManager.myPlayerController;
+			val = GameManager.myPlayerNetworking;
+			val2 = GameManager.myPlayer;
+			val3 = GameManager.myPlayerController;
 		}
 		catch
 		{
 		}
-		float num2 = ((gameObject == null) ? float.MaxValue : Vector3.Distance(gameObject.transform.position, target));
-		float num3 = ((firstPersonController == null) ? float.MaxValue : Vector3.Distance(firstPersonController.transform.position, target));
-		GameObject gameObject2 = null;
+		float num2 = (((Object)(object)val2 == (Object)null) ? float.MaxValue : Vector3.Distance(val2.transform.position, target));
+		float num3 = (((Object)(object)val3 == (Object)null) ? float.MaxValue : Vector3.Distance(((Component)val3).transform.position, target));
+		GameObject val4 = null;
 		try
 		{
-			gameObject2 = player.Camera;
+			val4 = player.Camera;
 		}
 		catch
 		{
 		}
-		float num4 = ((gameObject2 == null) ? float.MaxValue : Vector3.Distance(gameObject2.transform.position, target));
-		bool flag = playerNetworking == null || playerNetworking == player;
+		float num4 = (((Object)(object)val4 == (Object)null) ? float.MaxValue : Vector3.Distance(val4.transform.position, target));
+		bool flag = (Object)(object)val == (Object)null || (Object)(object)val == (Object)(object)player;
 		bool flag2 = num2 <= 8f || num3 <= 8f;
 		bool flag3 = num4 <= 12f;
 		state = "network=" + num.ToString("F2") + ", managerPlayer=" + DescribeDistance(num2) + ", controller=" + DescribeDistance(num3) + ", camera=" + DescribeDistance(num4) + ", sameOwner=" + flag;
@@ -4547,64 +5210,80 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void MoveRemotePlayerRoot(GameObject player, Vector3 target, Quaternion rotation)
 	{
-		if (player == null)
+		//IL_003f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0040: Unknown result type (might be due to invalid IL or missing references)
+		//IL_005c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0066: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)player == (Object)null)
 		{
 			return;
 		}
-		CharacterController characterController = player.GetComponent<CharacterController>() ?? player.GetComponentInChildren<CharacterController>(includeInactive: true);
-		bool flag = characterController != null && characterController.enabled;
+		CharacterController val = player.GetComponent<CharacterController>() ?? player.GetComponentInChildren<CharacterController>(true);
+		bool flag = (Object)(object)val != (Object)null && ((Collider)val).enabled;
 		if (flag)
 		{
-			characterController.enabled = false;
+			((Collider)val).enabled = false;
 		}
 		player.transform.SetPositionAndRotation(target, rotation);
-		foreach (Rigidbody componentsInChild in player.GetComponentsInChildren<Rigidbody>(includeInactive: true))
+		foreach (Rigidbody componentsInChild in player.GetComponentsInChildren<Rigidbody>(true))
 		{
 			componentsInChild.linearVelocity = Vector3.zero;
 			componentsInChild.angularVelocity = Vector3.zero;
 		}
 		if (flag)
 		{
-			characterController.enabled = true;
+			((Collider)val).enabled = true;
 		}
 		Physics.SyncTransforms();
 	}
 
 	private static void ReplaceNativeMapPreview(Transform parent, Sprite previewSprite, string name)
 	{
-		if (!(parent == null) && !(previewSprite == null))
+		//IL_0020: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0025: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
+		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
+		if (!((Object)(object)parent == (Object)null) && !((Object)(object)previewSprite == (Object)null))
 		{
 			SetGameObjectsActive(CaptureDirectChildren(parent), active: false);
-			GameObject gameObject = new GameObject(name);
-			gameObject.transform.SetParent(parent, worldPositionStays: false);
-			SetFullStretch(gameObject.AddComponent<RectTransform>());
-			Image image = gameObject.AddComponent<Image>();
-			image.sprite = previewSprite;
-			image.color = Color.white;
-			image.preserveAspect = true;
-			image.raycastTarget = false;
+			GameObject val = new GameObject(name);
+			val.transform.SetParent(parent, false);
+			SetFullStretch(val.AddComponent<RectTransform>());
+			Image obj = val.AddComponent<Image>();
+			obj.sprite = previewSprite;
+			((Graphic)obj).color = Color.white;
+			obj.preserveAspect = true;
+			((Graphic)obj).raycastTarget = false;
 		}
 	}
 
 	private void RebindNativeFullscreenControls(OperationBoardUI board, GameObject preparationPanel)
 	{
-		if (board == null || preparationPanel == null)
+		//IL_0168: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0172: Expected O, but got Unknown
+		//IL_0174: Unknown result type (might be due to invalid IL or missing references)
+		//IL_017e: Expected O, but got Unknown
+		//IL_0093: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009d: Expected O, but got Unknown
+		//IL_0272: Unknown result type (might be due to invalid IL or missing references)
+		//IL_027c: Expected O, but got Unknown
+		if ((Object)(object)board == (Object)null || (Object)(object)preparationPanel == (Object)null)
 		{
 			return;
 		}
 		int num = 0;
 		int num2 = 0;
-		foreach (PanelButton componentsInChild in preparationPanel.GetComponentsInChildren<PanelButton>(includeInactive: true))
+		foreach (PanelButton componentsInChild in preparationPanel.GetComponentsInChildren<PanelButton>(true))
 		{
-			int fullscreenEventDirection = GetFullscreenEventDirection((componentsInChild == null) ? null : componentsInChild.onClick, (componentsInChild == null) ? null : componentsInChild.gameObject, board);
+			int fullscreenEventDirection = GetFullscreenEventDirection((UnityEventBase)(object)(((Object)(object)componentsInChild == (Object)null) ? null : componentsInChild.onClick), ((Object)(object)componentsInChild == (Object)null) ? null : ((Component)componentsInChild).gameObject, board);
 			if (fullscreenEventDirection != 0)
 			{
 				componentsInChild.onClick = new UnityEvent();
 				bool fullscreen = fullscreenEventDirection > 0;
-				componentsInChild.onClick.AddListener((Action)delegate
+				componentsInChild.onClick.AddListener(UnityAction.op_Implicit((Action)delegate
 				{
 					SetNativeMapFullscreen(board, fullscreen);
-				});
+				}));
 				componentsInChild.isInteractable = true;
 				if (fullscreen)
 				{
@@ -4616,9 +5295,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				}
 			}
 		}
-		foreach (ButtonManager componentsInChild2 in preparationPanel.GetComponentsInChildren<ButtonManager>(includeInactive: true))
+		foreach (ButtonManager componentsInChild2 in preparationPanel.GetComponentsInChildren<ButtonManager>(true))
 		{
-			int fullscreenEventDirection2 = GetFullscreenEventDirection((componentsInChild2 == null) ? null : componentsInChild2.onClick, (componentsInChild2 == null) ? null : componentsInChild2.gameObject, board);
+			int fullscreenEventDirection2 = GetFullscreenEventDirection((UnityEventBase)(object)(((Object)(object)componentsInChild2 == (Object)null) ? null : componentsInChild2.onClick), ((Object)(object)componentsInChild2 == (Object)null) ? null : ((Component)componentsInChild2).gameObject, board);
 			if (fullscreenEventDirection2 == 0)
 			{
 				continue;
@@ -4627,16 +5306,16 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			componentsInChild2.onDoubleClick = new UnityEvent();
 			componentsInChild2.checkForDoubleClick = false;
 			bool fullscreen2 = fullscreenEventDirection2 > 0;
-			componentsInChild2.onClick.AddListener((Action)delegate
+			componentsInChild2.onClick.AddListener(UnityAction.op_Implicit((Action)delegate
 			{
 				SetNativeMapFullscreen(board, fullscreen2);
-			});
+			}));
 			componentsInChild2.isInteractable = true;
 			try
 			{
-				if (componentsInChild2.targetButton != null)
+				if ((Object)(object)componentsInChild2.targetButton != (Object)null)
 				{
-					componentsInChild2.targetButton.interactable = true;
+					((Selectable)componentsInChild2.targetButton).interactable = true;
 				}
 			}
 			catch
@@ -4651,18 +5330,18 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				num2++;
 			}
 		}
-		foreach (Button componentsInChild3 in preparationPanel.GetComponentsInChildren<Button>(includeInactive: true))
+		foreach (Button componentsInChild3 in preparationPanel.GetComponentsInChildren<Button>(true))
 		{
-			int fullscreenEventDirection3 = GetFullscreenEventDirection((componentsInChild3 == null) ? null : componentsInChild3.onClick, (componentsInChild3 == null) ? null : componentsInChild3.gameObject, board);
+			int fullscreenEventDirection3 = GetFullscreenEventDirection((UnityEventBase)(object)(((Object)(object)componentsInChild3 == (Object)null) ? null : componentsInChild3.onClick), ((Object)(object)componentsInChild3 == (Object)null) ? null : ((Component)componentsInChild3).gameObject, board);
 			if (fullscreenEventDirection3 != 0)
 			{
-				componentsInChild3.onClick = new Button.ButtonClickedEvent();
+				componentsInChild3.onClick = new ButtonClickedEvent();
 				bool fullscreen3 = fullscreenEventDirection3 > 0;
-				componentsInChild3.onClick.AddListener((Action)delegate
+				((UnityEvent)componentsInChild3.onClick).AddListener(UnityAction.op_Implicit((Action)delegate
 				{
 					SetNativeMapFullscreen(board, fullscreen3);
-				});
-				componentsInChild3.interactable = true;
+				}));
+				((Selectable)componentsInChild3).interactable = true;
 				if (fullscreen3)
 				{
 					num++;
@@ -4673,7 +5352,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				}
 			}
 		}
-		log.LogInfo("Modded Operations clone-local fullscreen controls rebound: enter=" + num + ", exit=" + num2 + ".");
+		log.LogInfo((object)("Modded Operations clone-local fullscreen controls rebound: enter=" + num + ", exit=" + num2 + "."));
 	}
 
 	private static int GetFullscreenEventDirection(UnityEventBase clickEvent, GameObject control, OperationBoardUI board)
@@ -4686,16 +5365,16 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return -1;
 		}
-		if (control == null || board == null)
+		if ((Object)(object)control == (Object)null || (Object)(object)board == (Object)null)
 		{
 			return 0;
 		}
-		string text = control.name ?? string.Empty;
+		string text = ((Object)control).name ?? string.Empty;
 		if (text.IndexOf("FULLSCREEN", StringComparison.OrdinalIgnoreCase) < 0 && text.IndexOf("EXPAND", StringComparison.OrdinalIgnoreCase) < 0 && text.IndexOf("MAXIMIZE", StringComparison.OrdinalIgnoreCase) < 0 && text.IndexOf("REDUCE", StringComparison.OrdinalIgnoreCase) < 0 && text.IndexOf("MINIMIZE", StringComparison.OrdinalIgnoreCase) < 0)
 		{
 			return 0;
 		}
-		if (board.FullscreenMapObject != null && control.transform.IsChildOf(board.FullscreenMapObject.transform))
+		if ((Object)(object)board.FullscreenMapObject != (Object)null && control.transform.IsChildOf(board.FullscreenMapObject.transform))
 		{
 			return -1;
 		}
@@ -4727,7 +5406,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void SetNativeMapFullscreen(OperationBoardUI board, bool fullscreen)
 	{
-		if (!(board == null))
+		if (!((Object)(object)board == (Object)null))
 		{
 			try
 			{
@@ -4742,31 +5421,33 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void ConfigureNativeSelector(HorizontalSelector selector, string[] values, Action<int> onChanged, int initialIndex = 0)
 	{
-		if (selector == null || values == null || values.Length == 0)
+		//IL_0089: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0093: Expected O, but got Unknown
+		if ((Object)(object)selector == (Object)null || values == null || values.Length == 0)
 		{
 			return;
 		}
 		selector.useLocalization = false;
 		selector.saveSelected = false;
-		if (selector.localizedObject != null)
+		if ((Object)(object)selector.localizedObject != (Object)null)
 		{
-			selector.localizedObject.enabled = false;
+			((Behaviour)selector.localizedObject).enabled = false;
 		}
 		selector.items.Clear();
-		foreach (string title in values)
+		foreach (string text in values)
 		{
-			selector.CreateNewItem(title);
+			selector.CreateNewItem(text);
 		}
 		initialIndex = Mathf.Clamp(initialIndex, 0, values.Length - 1);
 		selector.defaultIndex = initialIndex;
 		selector.index = initialIndex;
-		selector.onValueChanged = new HorizontalSelector.HorizontalSelectorEvent();
+		selector.onValueChanged = new HorizontalSelectorEvent();
 		if (onChanged != null)
 		{
-			selector.onValueChanged.AddListener((Action<int>)delegate(int index)
+			((UnityEvent<int>)(object)selector.onValueChanged).AddListener(UnityAction<int>.op_Implicit((Action<int>)delegate(int index)
 			{
 				onChanged(index);
-			});
+			}));
 		}
 		try
 		{
@@ -4784,22 +5465,30 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 	}
 
-	private static bool ReplaceNativeButtonAction(UnityEngine.Object controlObject, Action action)
+	private static bool ReplaceNativeButtonAction(Object controlObject, Action action)
 	{
-		if (controlObject == null || action == null)
+		//IL_0117: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0121: Expected O, but got Unknown
+		//IL_0123: Unknown result type (might be due to invalid IL or missing references)
+		//IL_012d: Expected O, but got Unknown
+		//IL_0092: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009c: Expected O, but got Unknown
+		//IL_01d1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01db: Expected O, but got Unknown
+		if (controlObject == (Object)null || action == null)
 		{
 			return false;
 		}
-		GameObject gameObject = controlObject as GameObject;
-		if (gameObject == null)
+		GameObject val = (GameObject)(object)((controlObject is GameObject) ? controlObject : null);
+		if ((Object)(object)val == (Object)null)
 		{
-			Component component = controlObject as Component;
-			if (component != null)
+			Component val2 = (Component)(object)((controlObject is Component) ? controlObject : null);
+			if ((Object)(object)val2 != (Object)null)
 			{
-				gameObject = component.gameObject;
+				val = val2.gameObject;
 			}
 		}
-		if (gameObject == null)
+		if ((Object)(object)val == (Object)null)
 		{
 			return false;
 		}
@@ -4814,38 +5503,38 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 		};
 		bool result = false;
-		foreach (PanelButton componentsInChild in gameObject.GetComponentsInChildren<PanelButton>(includeInactive: true))
+		foreach (PanelButton componentsInChild in val.GetComponentsInChildren<PanelButton>(true))
 		{
-			if (!(componentsInChild == null))
+			if (!((Object)(object)componentsInChild == (Object)null))
 			{
 				componentsInChild.onClick = new UnityEvent();
-				componentsInChild.onClick.AddListener((Action)delegate
+				componentsInChild.onClick.AddListener(UnityAction.op_Implicit((Action)delegate
 				{
 					invokeOnce();
-				});
+				}));
 				componentsInChild.isInteractable = true;
 				result = true;
 			}
 		}
-		foreach (ButtonManager componentsInChild2 in gameObject.GetComponentsInChildren<ButtonManager>(includeInactive: true))
+		foreach (ButtonManager componentsInChild2 in val.GetComponentsInChildren<ButtonManager>(true))
 		{
-			if (componentsInChild2 == null)
+			if ((Object)(object)componentsInChild2 == (Object)null)
 			{
 				continue;
 			}
 			componentsInChild2.onClick = new UnityEvent();
 			componentsInChild2.onDoubleClick = new UnityEvent();
 			componentsInChild2.checkForDoubleClick = false;
-			componentsInChild2.onClick.AddListener((Action)delegate
+			componentsInChild2.onClick.AddListener(UnityAction.op_Implicit((Action)delegate
 			{
 				invokeOnce();
-			});
+			}));
 			componentsInChild2.isInteractable = true;
 			try
 			{
-				if (componentsInChild2.targetButton != null)
+				if ((Object)(object)componentsInChild2.targetButton != (Object)null)
 				{
-					componentsInChild2.targetButton.interactable = true;
+					((Selectable)componentsInChild2.targetButton).interactable = true;
 				}
 			}
 			catch
@@ -4853,16 +5542,16 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			result = true;
 		}
-		foreach (Button componentsInChild3 in gameObject.GetComponentsInChildren<Button>(includeInactive: true))
+		foreach (Button componentsInChild3 in val.GetComponentsInChildren<Button>(true))
 		{
-			if (!(componentsInChild3 == null))
+			if (!((Object)(object)componentsInChild3 == (Object)null))
 			{
-				componentsInChild3.onClick = new Button.ButtonClickedEvent();
-				componentsInChild3.onClick.AddListener((Action)delegate
+				componentsInChild3.onClick = new ButtonClickedEvent();
+				((UnityEvent)componentsInChild3.onClick).AddListener(UnityAction.op_Implicit((Action)delegate
 				{
 					invokeOnce();
-				});
-				componentsInChild3.interactable = true;
+				}));
+				((Selectable)componentsInChild3).interactable = true;
 				result = true;
 			}
 		}
@@ -4871,81 +5560,81 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private bool BindNativePreparationBack(MissionLaptop laptop, GameObject privateBoard, Button authoredBack, bool warnIfMissing)
 	{
-		if (laptop == null || privateBoard == null)
+		if ((Object)(object)laptop == (Object)null || (Object)(object)privateBoard == (Object)null)
 		{
 			return false;
 		}
-		int instanceID = privateBoard.GetInstanceID();
+		int instanceID = ((Object)privateBoard).GetInstanceID();
 		if (nativeBackBoundBoards.Contains(instanceID))
 		{
 			return true;
 		}
-		System.Collections.Generic.List<Transform> list = new System.Collections.Generic.List<Transform>(1) { privateBoard.transform };
-		PanelButton panelButton = null;
+		List<Transform> list = new List<Transform>(1) { privateBoard.transform };
+		PanelButton val = null;
 		foreach (Transform item in list)
 		{
-			foreach (PanelButton componentsInChild in item.GetComponentsInChildren<PanelButton>(includeInactive: true))
+			foreach (PanelButton componentsInChild in ((Component)item).GetComponentsInChildren<PanelButton>(true))
 			{
-				if (IsNativeBackCandidate((componentsInChild == null) ? null : componentsInChild.gameObject, authoredBack))
+				if (IsNativeBackCandidate(((Object)(object)componentsInChild == (Object)null) ? null : ((Component)componentsInChild).gameObject, authoredBack))
 				{
-					panelButton = componentsInChild;
+					val = componentsInChild;
 					break;
 				}
 			}
-			if (panelButton != null)
+			if ((Object)(object)val != (Object)null)
 			{
 				break;
 			}
 		}
-		ButtonManager buttonManager = null;
-		if (panelButton == null)
+		ButtonManager val2 = null;
+		if ((Object)(object)val == (Object)null)
 		{
 			foreach (Transform item2 in list)
 			{
-				foreach (ButtonManager componentsInChild2 in item2.GetComponentsInChildren<ButtonManager>(includeInactive: true))
+				foreach (ButtonManager componentsInChild2 in ((Component)item2).GetComponentsInChildren<ButtonManager>(true))
 				{
-					if (IsNativeBackCandidate((componentsInChild2 == null) ? null : componentsInChild2.gameObject, authoredBack))
+					if (IsNativeBackCandidate(((Object)(object)componentsInChild2 == (Object)null) ? null : ((Component)componentsInChild2).gameObject, authoredBack))
 					{
-						buttonManager = componentsInChild2;
+						val2 = componentsInChild2;
 						break;
 					}
 				}
-				if (buttonManager != null)
+				if ((Object)(object)val2 != (Object)null)
 				{
 					break;
 				}
 			}
 		}
-		Button button = null;
-		if (panelButton == null && buttonManager == null)
+		Button val3 = null;
+		if ((Object)(object)val == (Object)null && (Object)(object)val2 == (Object)null)
 		{
 			foreach (Transform item3 in list)
 			{
-				foreach (Button componentsInChild3 in item3.GetComponentsInChildren<Button>(includeInactive: true))
+				foreach (Button componentsInChild3 in ((Component)item3).GetComponentsInChildren<Button>(true))
 				{
-					if (IsNativeBackCandidate((componentsInChild3 == null) ? null : componentsInChild3.gameObject, authoredBack))
+					if (IsNativeBackCandidate(((Object)(object)componentsInChild3 == (Object)null) ? null : ((Component)componentsInChild3).gameObject, authoredBack))
 					{
-						button = componentsInChild3;
+						val3 = componentsInChild3;
 						break;
 					}
 				}
-				if (button != null)
+				if ((Object)(object)val3 != (Object)null)
 				{
 					break;
 				}
 			}
 		}
-		if (panelButton == null && buttonManager == null && button == null)
+		if ((Object)(object)val == (Object)null && (Object)(object)val2 == (Object)null && (Object)(object)val3 == (Object)null)
 		{
 			if (warnIfMissing)
 			{
-				log.LogWarning("Cerberus could not find the shipped Operation Preparation BACK control after the panel opened; the native board and Modded Operations tab remain available.");
+				log.LogWarning((object)"Cerberus could not find the shipped Operation Preparation BACK control after the panel opened; the native board and Modded Operations tab remain available.");
 			}
 			return false;
 		}
-		if (!ReplaceNativeButtonAction((panelButton != null) ? panelButton.gameObject : ((buttonManager != null) ? buttonManager.gameObject : button.gameObject), delegate
+		if (!ReplaceNativeButtonAction((Object)(object)(((Object)(object)val != (Object)null) ? ((Component)val).gameObject : (((Object)(object)val2 != (Object)null) ? ((Component)val2).gameObject : ((Component)val3).gameObject)), delegate
 		{
-			if (!(privateBoard == null) && privateBoard.activeSelf)
+			if (!((Object)(object)privateBoard == (Object)null) && privateBoard.activeSelf)
 			{
 				ReturnNativeOperationToModdedHome(laptop, privateBoard, authoredBack);
 			}
@@ -4953,22 +5642,22 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			if (warnIfMissing)
 			{
-				log.LogWarning("Cerberus could not replace every click surface beneath the private Operation Preparation BACK control.");
+				log.LogWarning((object)"Cerberus could not replace every click surface beneath the private Operation Preparation BACK control.");
 			}
 			return false;
 		}
 		nativeBackBoundBoards.Add(instanceID);
-		log.LogInfo("Modded Operations board bound to shipped Operation Preparation BACK control via " + ((panelButton != null) ? "DreamOS PanelButton" : ((buttonManager != null) ? "ButtonManager" : "Unity Button")) + "; all clone-local click surfaces replaced.");
+		log.LogInfo((object)("Modded Operations board bound to shipped Operation Preparation BACK control via " + (((Object)(object)val != (Object)null) ? "DreamOS PanelButton" : (((Object)(object)val2 != (Object)null) ? "ButtonManager" : "Unity Button")) + "; all clone-local click surfaces replaced."));
 		return true;
 	}
 
 	private static bool IsNativeBackCandidate(GameObject control, Button authoredBack)
 	{
-		if (control == null || (authoredBack != null && control == authoredBack.gameObject))
+		if ((Object)(object)control == (Object)null || ((Object)(object)authoredBack != (Object)null && (Object)(object)control == (Object)(object)((Component)authoredBack).gameObject))
 		{
 			return false;
 		}
-		if ((control.name ?? string.Empty).StartsWith("MODDED_", StringComparison.OrdinalIgnoreCase))
+		if ((((Object)control).name ?? string.Empty).StartsWith("MODDED_", StringComparison.OrdinalIgnoreCase))
 		{
 			return false;
 		}
@@ -4977,17 +5666,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool ControlHasText(GameObject control, string text)
 	{
-		if (control == null)
+		if ((Object)(object)control == (Object)null)
 		{
 			return false;
 		}
-		if (control.name.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+		if (((Object)control).name.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
 		{
 			return true;
 		}
-		foreach (TMP_Text componentsInChild in control.GetComponentsInChildren<TMP_Text>(includeInactive: true))
+		foreach (TMP_Text componentsInChild in control.GetComponentsInChildren<TMP_Text>(true))
 		{
-			if (componentsInChild != null && TitleEquals(componentsInChild.text, text))
+			if ((Object)(object)componentsInChild != (Object)null && TitleEquals(componentsInChild.text, text))
 			{
 				return true;
 			}
@@ -4997,50 +5686,50 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private void OpenNativeOperationPreparation(MissionLaptop laptop, GameObject privateBoard, Button authoredBack)
 	{
-		if (!(laptop == null) && !(privateBoard == null))
+		if (!((Object)(object)laptop == (Object)null) && !((Object)(object)privateBoard == (Object)null))
 		{
-			Transform transform = ((laptop.ActiveOperationsTab == null) ? null : laptop.ActiveOperationsTab.transform.parent);
-			if (!(transform == null))
+			Transform val = (((Object)(object)laptop.ActiveOperationsTab == (Object)null) ? null : laptop.ActiveOperationsTab.transform.parent);
+			if (!((Object)(object)val == (Object)null))
 			{
-				OperationBoardUI componentInChildren = privateBoard.GetComponentInChildren<OperationBoardUI>(includeInactive: true);
+				OperationBoardUI componentInChildren = privateBoard.GetComponentInChildren<OperationBoardUI>(true);
 				CloseNativeMapConfirmation(componentInChildren, logClose: false);
 				SetNativeMapFullscreen(componentInChildren, fullscreen: false);
 				ShowIsolatedNativePreparationPanel(laptop, privateBoard);
-				transform.gameObject.SetActive(value: false);
+				((Component)val).gameObject.SetActive(false);
 				BindNativePreparationBack(laptop, privateBoard, authoredBack, warnIfMissing: true);
-				log.LogInfo("Modded Operations board opened through its isolated complete Operation Preparation clone; vanillaContentUntouched=true.");
+				log.LogInfo((object)"Modded Operations board opened through its isolated complete Operation Preparation clone; vanillaContentUntouched=true.");
 			}
 		}
 	}
 
 	private void ShowIsolatedNativePreparationPanel(MissionLaptop laptop, GameObject panel)
 	{
-		if (laptop == null || panel == null)
+		if ((Object)(object)laptop == (Object)null || (Object)(object)panel == (Object)null)
 		{
 			return;
 		}
-		panel.SetActive(value: true);
+		panel.SetActive(true);
 		Animator component = panel.GetComponent<Animator>();
 		WindowPanelManager cerberusWindowPanelManager = laptop.cerberusWindowPanelManager;
-		string text = ((cerberusWindowPanelManager == null) ? null : cerberusWindowPanelManager.panelFadeIn);
-		string text2 = ((cerberusWindowPanelManager == null) ? null : cerberusWindowPanelManager.animSpeedKey);
-		float value = ((cerberusWindowPanelManager == null) ? 1f : cerberusWindowPanelManager.panelAnimationSpeed);
+		string text = (((Object)(object)cerberusWindowPanelManager == (Object)null) ? null : cerberusWindowPanelManager.panelFadeIn);
+		string text2 = (((Object)(object)cerberusWindowPanelManager == (Object)null) ? null : cerberusWindowPanelManager.animSpeedKey);
+		float num = (((Object)(object)cerberusWindowPanelManager == (Object)null) ? 1f : cerberusWindowPanelManager.panelAnimationSpeed);
 		bool flag = false;
-		if (component != null)
+		if ((Object)(object)component != (Object)null)
 		{
-			component.enabled = true;
+			((Behaviour)component).enabled = true;
 			try
 			{
 				if (!string.IsNullOrEmpty(text2))
 				{
-					component.SetFloat(text2, value);
+					component.SetFloat(text2, num);
 				}
 				if (!string.IsNullOrEmpty(text))
 				{
-					int num = Animator.StringToHash(text);
-					if (component.HasState(0, num))
+					int num2 = Animator.StringToHash(text);
+					if (component.HasState(0, num2))
 					{
-						component.Play(num, 0, 0f);
+						component.Play(num2, 0, 0f);
 						component.Update(0f);
 						flag = true;
 					}
@@ -5048,43 +5737,43 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			catch (Exception ex)
 			{
-				log.LogWarning("Cerberus private preparation fade-in failed: " + ex.GetType().Name + ": " + ex.Message);
+				log.LogWarning((object)("Cerberus private preparation fade-in failed: " + ex.GetType().Name + ": " + ex.Message));
 			}
 		}
 		CanvasGroup component2 = panel.GetComponent<CanvasGroup>();
-		if (component2 != null)
+		if ((Object)(object)component2 != (Object)null)
 		{
 			component2.alpha = 1f;
 			component2.interactable = true;
 			component2.blocksRaycasts = true;
 		}
-		log.LogInfo("Cerberus private preparation presentation activated: animator=" + (component != null) + ", animatorEnabled=" + (component != null && component.enabled) + ", fadeInState='" + (text ?? "null") + "', fadeInPlayed=" + flag + ", rootCanvasGroup=" + (component2 != null) + ".");
+		log.LogInfo((object)("Cerberus private preparation presentation activated: animator=" + ((Object)(object)component != (Object)null) + ", animatorEnabled=" + ((Object)(object)component != (Object)null && ((Behaviour)component).enabled) + ", fadeInState='" + (text ?? "null") + "', fadeInPlayed=" + flag + ", rootCanvasGroup=" + ((Object)(object)component2 != (Object)null) + "."));
 	}
 
 	private void ReturnNativeOperationToModdedHome(MissionLaptop laptop, GameObject privateBoard, Button authoredBack)
 	{
-		OperationBoardUI componentInChildren = privateBoard.GetComponentInChildren<OperationBoardUI>(includeInactive: true);
+		OperationBoardUI componentInChildren = privateBoard.GetComponentInChildren<OperationBoardUI>(true);
 		CloseNativeMapConfirmation(componentInChildren, logClose: false);
 		SetNativeMapFullscreen(componentInChildren, fullscreen: false);
-		privateBoard.SetActive(value: false);
-		Transform transform = ((laptop.ActiveOperationsTab == null) ? null : laptop.ActiveOperationsTab.transform.parent);
-		if (transform != null)
+		privateBoard.SetActive(false);
+		Transform val = (((Object)(object)laptop.ActiveOperationsTab == (Object)null) ? null : laptop.ActiveOperationsTab.transform.parent);
+		if ((Object)(object)val != (Object)null)
 		{
-			transform.gameObject.SetActive(value: true);
+			((Component)val).gameObject.SetActive(true);
 		}
-		GameObject page = FindChild(transform, "MODDED_OPERATIONS_PAGE");
+		GameObject page = FindChild(val, "MODDED_OPERATIONS_PAGE");
 		OpenModdedPage(laptop, page);
-		GameObject button = FindDeep(transform, "MODDED_OPS_NATIVE_TAB");
-		SetTabSelectedState(FindNativeActiveOperationsButton(transform), selected: false);
-		SetTabSelectedState(FindNativeSimulationOperationsButton(transform), selected: false);
+		GameObject button = FindDeep(val, "MODDED_OPS_NATIVE_TAB");
+		SetTabSelectedState(FindNativeActiveOperationsButton(val), selected: false);
+		SetTabSelectedState(FindNativeSimulationOperationsButton(val), selected: false);
 		SetTabSelectedState(button, selected: true);
-		MarkNativeModdedPageOpened(laptop.GetInstanceID(), Time.frameCount);
-		log.LogInfo("Modded Operations clone-local BACK closed transient UI and returned home without invoking the vanilla panel manager.");
+		MarkNativeModdedPageOpened(((Object)laptop).GetInstanceID(), Time.frameCount);
+		log.LogInfo((object)"Modded Operations clone-local BACK closed transient UI and returned home without invoking the vanilla panel manager.");
 	}
 
 	private void CloseNativeMapConfirmation(OperationBoardUI board, bool logClose)
 	{
-		if (board == null || board.ConfirmationWindow == null)
+		if ((Object)(object)board == (Object)null || (Object)(object)board.ConfirmationWindow == (Object)null)
 		{
 			return;
 		}
@@ -5097,132 +5786,146 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			if (logClose)
 			{
-				log.LogInfo("Modded Operations confirmation window closed through its clone-local modal route.");
+				log.LogInfo((object)"Modded Operations confirmation window closed through its clone-local modal route.");
 			}
 		}
 		catch (Exception ex)
 		{
-			confirmationWindow.gameObject.SetActive(value: false);
-			log.LogWarning("Modded Operations clone-local confirmation close fell back to disabling its private modal: " + ex.GetType().Name + ": " + ex.Message);
+			((Component)confirmationWindow).gameObject.SetActive(false);
+			log.LogWarning((object)("Modded Operations clone-local confirmation close fell back to disabling its private modal: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
 	private static void SetNativeConfirmationLoadingState(CatalogPresentation presentation, bool loading)
 	{
-		ModalWindowManager modalWindowManager = ((presentation?.Board == null) ? null : presentation.Board.ConfirmationWindow);
-		if (modalWindowManager == null)
+		ModalWindowManager val = (((Object)(object)presentation?.Board == (Object)null) ? null : presentation.Board.ConfirmationWindow);
+		if ((Object)(object)val == (Object)null)
 		{
 			return;
 		}
 		if (loading)
 		{
-			modalWindowManager.descriptionText = "Loading verified map content. The operation will start when it is ready.";
+			val.descriptionText = "Loading verified map content. The operation will start when it is ready.";
 		}
 		else if (presentation.SelectedOperation != null)
 		{
-			modalWindowManager.descriptionText = "Start " + presentation.SelectedOperation.DisplayName + " at " + presentation.SelectedTimeCode + "?";
+			val.descriptionText = "Start " + presentation.SelectedOperation.DisplayName + " at " + presentation.SelectedTimeCode + "?";
 		}
-		if (modalWindowManager.windowDescription != null)
+		if ((Object)(object)val.windowDescription != (Object)null)
 		{
-			modalWindowManager.windowDescription.text = modalWindowManager.descriptionText;
+			((TMP_Text)val.windowDescription).text = val.descriptionText;
 		}
-		UnityEngine.Object confirmButton = modalWindowManager.confirmButton;
-		GameObject gameObject = null;
-		if (confirmButton is GameObject gameObject2)
+		Object confirmButton = (Object)(object)val.confirmButton;
+		GameObject val2 = null;
+		GameObject val3 = (GameObject)(object)((confirmButton is GameObject) ? confirmButton : null);
+		if (val3 != null)
 		{
-			gameObject = gameObject2;
+			val2 = val3;
 		}
-		else if (confirmButton is Component component)
+		else
 		{
-			gameObject = component.gameObject;
+			Component val4 = (Component)(object)((confirmButton is Component) ? confirmButton : null);
+			if (val4 != null)
+			{
+				val2 = val4.gameObject;
+			}
 		}
-		if (gameObject == null)
+		if ((Object)(object)val2 == (Object)null)
 		{
 			return;
 		}
-		foreach (PanelButton componentsInChild in gameObject.GetComponentsInChildren<PanelButton>(includeInactive: true))
+		foreach (PanelButton componentsInChild in val2.GetComponentsInChildren<PanelButton>(true))
 		{
-			if (componentsInChild != null)
+			if ((Object)(object)componentsInChild != (Object)null)
 			{
 				componentsInChild.isInteractable = !loading;
 			}
 		}
-		foreach (ButtonManager componentsInChild2 in gameObject.GetComponentsInChildren<ButtonManager>(includeInactive: true))
+		foreach (ButtonManager componentsInChild2 in val2.GetComponentsInChildren<ButtonManager>(true))
 		{
-			if (!(componentsInChild2 == null))
+			if (!((Object)(object)componentsInChild2 == (Object)null))
 			{
 				componentsInChild2.isInteractable = !loading;
-				if (componentsInChild2.targetButton != null)
+				if ((Object)(object)componentsInChild2.targetButton != (Object)null)
 				{
-					componentsInChild2.targetButton.interactable = !loading;
+					((Selectable)componentsInChild2.targetButton).interactable = !loading;
 				}
 			}
 		}
-		foreach (Button componentsInChild3 in gameObject.GetComponentsInChildren<Button>(includeInactive: true))
+		foreach (Button componentsInChild3 in val2.GetComponentsInChildren<Button>(true))
 		{
-			if (componentsInChild3 != null)
+			if ((Object)(object)componentsInChild3 != (Object)null)
 			{
-				componentsInChild3.interactable = !loading;
+				((Selectable)componentsInChild3).interactable = !loading;
 			}
 		}
 	}
 
 	private GameObject CreateNativeBoardActionButton(Transform parent, GameObject template, string name, string text, Vector2 anchorMin, Vector2 anchorMax, Action action)
 	{
-		if (parent == null || template == null || action == null)
+		//IL_0055: Unknown result type (might be due to invalid IL or missing references)
+		//IL_005d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0065: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0070: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_014d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0157: Expected O, but got Unknown
+		//IL_0158: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0162: Expected O, but got Unknown
+		if ((Object)(object)parent == (Object)null || (Object)(object)template == (Object)null || action == null)
 		{
 			return null;
 		}
-		GameObject gameObject = UnityEngine.Object.Instantiate(template, parent);
-		if (gameObject == null)
+		GameObject val = Object.Instantiate<GameObject>(template, parent);
+		if ((Object)(object)val == (Object)null)
 		{
 			return null;
 		}
-		gameObject.name = name;
-		RectTransform component = gameObject.GetComponent<RectTransform>();
-		if (component != null)
+		((Object)val).name = name;
+		RectTransform component = val.GetComponent<RectTransform>();
+		if ((Object)(object)component != (Object)null)
 		{
 			component.anchorMin = anchorMin;
 			component.anchorMax = anchorMax;
 			component.offsetMin = Vector2.zero;
 			component.offsetMax = Vector2.zero;
-			component.localScale = Vector3.one;
+			((Transform)component).localScale = Vector3.one;
 		}
-		gameObject.SetActive(value: true);
-		ButtonManager buttonManager = gameObject.GetComponent<ButtonManager>() ?? gameObject.GetComponentInChildren<ButtonManager>(includeInactive: true);
-		if (buttonManager == null)
+		val.SetActive(true);
+		ButtonManager val2 = val.GetComponent<ButtonManager>() ?? val.GetComponentInChildren<ButtonManager>(true);
+		if ((Object)(object)val2 == (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject);
+			Object.Destroy((Object)(object)val);
 			return null;
 		}
-		buttonManager.useLocalization = false;
-		buttonManager.buttonText = text;
-		if (buttonManager.localizedObject != null)
+		val2.useLocalization = false;
+		val2.buttonText = text;
+		if ((Object)(object)val2.localizedObject != (Object)null)
 		{
-			buttonManager.localizedObject.enabled = false;
+			((Behaviour)val2.localizedObject).enabled = false;
 		}
-		SetTmpText(buttonManager.normalTextObj, text);
-		SetTmpText(buttonManager.highlightTextObj, text);
-		SetTmpText(buttonManager.pressedTextObj, text);
-		SetTmpText(buttonManager.disabledTextObj, text);
-		foreach (TMP_Text componentsInChild in gameObject.GetComponentsInChildren<TMP_Text>(includeInactive: true))
+		SetTmpText((TMP_Text)(object)val2.normalTextObj, text);
+		SetTmpText((TMP_Text)(object)val2.highlightTextObj, text);
+		SetTmpText((TMP_Text)(object)val2.pressedTextObj, text);
+		SetTmpText((TMP_Text)(object)val2.disabledTextObj, text);
+		foreach (TMP_Text componentsInChild in val.GetComponentsInChildren<TMP_Text>(true))
 		{
-			DisableLocalizationComponent(componentsInChild.gameObject);
+			DisableLocalizationComponent(((Component)componentsInChild).gameObject);
 			SetTmpText(componentsInChild, text);
 		}
-		buttonManager.onClick = new UnityEvent();
-		buttonManager.onDoubleClick = new UnityEvent();
-		buttonManager.checkForDoubleClick = false;
-		buttonManager.onClick.AddListener((Action)delegate
+		val2.onClick = new UnityEvent();
+		val2.onDoubleClick = new UnityEvent();
+		val2.checkForDoubleClick = false;
+		val2.onClick.AddListener(UnityAction.op_Implicit((Action)delegate
 		{
 			action();
-		});
-		buttonManager.isInteractable = true;
+		}));
+		val2.isInteractable = true;
 		try
 		{
-			if (buttonManager.targetButton != null)
+			if ((Object)(object)val2.targetButton != (Object)null)
 			{
-				buttonManager.targetButton.interactable = true;
+				((Selectable)val2.targetButton).interactable = true;
 			}
 		}
 		catch
@@ -5230,40 +5933,40 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		try
 		{
-			buttonManager.UpdateUI();
+			val2.UpdateUI();
 		}
 		catch
 		{
 		}
 		try
 		{
-			buttonManager.UpdateState();
+			val2.UpdateState();
 		}
 		catch
 		{
 		}
-		return gameObject;
+		return val;
 	}
 
 	private static void RestoreAuthoredPresentationChildren(Transform parent, string nativeShellName)
 	{
-		if (parent == null)
+		if ((Object)(object)parent == (Object)null)
 		{
 			return;
 		}
 		for (int i = 0; i < parent.childCount; i++)
 		{
 			Transform child = parent.GetChild(i);
-			if (child != null && child.name != nativeShellName)
+			if ((Object)(object)child != (Object)null && ((Object)child).name != nativeShellName)
 			{
-				child.gameObject.SetActive(value: true);
+				((Component)child).gameObject.SetActive(true);
 			}
 		}
 	}
 
 	private static void SetTmpText(TMP_Text label, string text)
 	{
-		if (!(label == null))
+		if (!((Object)(object)label == (Object)null))
 		{
 			label.text = text;
 			label.enableWordWrapping = false;
@@ -5275,43 +5978,43 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static GameObject FindNativeOperationRowTemplate(Transform list)
 	{
-		if (list == null)
+		if ((Object)(object)list == (Object)null)
 		{
 			return null;
 		}
-		GameObject gameObject = null;
+		GameObject val = null;
 		for (int i = 0; i < list.childCount; i++)
 		{
 			Transform child = list.GetChild(i);
-			if (!(child == null))
+			if (!((Object)(object)child == (Object)null))
 			{
-				if (gameObject == null && child.GetComponentInChildren<TMP_Text>(includeInactive: true) != null)
+				if ((Object)(object)val == (Object)null && (Object)(object)((Component)child).GetComponentInChildren<TMP_Text>(true) != (Object)null)
 				{
-					gameObject = child.gameObject;
+					val = ((Component)child).gameObject;
 				}
-				if (child.GetComponentInChildren<OperationSelectionUI>(includeInactive: true) != null)
+				if ((Object)(object)((Component)child).GetComponentInChildren<OperationSelectionUI>(true) != (Object)null)
 				{
-					return child.gameObject;
+					return ((Component)child).gameObject;
 				}
 			}
 		}
-		return gameObject;
+		return val;
 	}
 
 	private static int[] BuildRelativeChildIndexPath(Transform root, Transform descendant)
 	{
-		if (root == null || descendant == null)
+		if ((Object)(object)root == (Object)null || (Object)(object)descendant == (Object)null)
 		{
 			return null;
 		}
-		System.Collections.Generic.List<int> list = new System.Collections.Generic.List<int>();
-		Transform transform = descendant;
-		while (transform != null && transform != root)
+		List<int> list = new List<int>();
+		Transform val = descendant;
+		while ((Object)(object)val != (Object)null && (Object)(object)val != (Object)(object)root)
 		{
-			list.Add(transform.GetSiblingIndex());
-			transform = transform.parent;
+			list.Add(val.GetSiblingIndex());
+			val = val.parent;
 		}
-		if (transform != root)
+		if ((Object)(object)val != (Object)(object)root)
 		{
 			return null;
 		}
@@ -5321,51 +6024,51 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static Transform FollowRelativeChildIndexPath(Transform root, int[] indexes)
 	{
-		if (root == null || indexes == null)
+		if ((Object)(object)root == (Object)null || indexes == null)
 		{
 			return null;
 		}
-		Transform transform = root;
+		Transform val = root;
 		foreach (int num in indexes)
 		{
-			if (num < 0 || num >= transform.childCount)
+			if (num < 0 || num >= val.childCount)
 			{
 				return null;
 			}
-			transform = transform.GetChild(num);
+			val = val.GetChild(num);
 		}
-		return transform;
+		return val;
 	}
 
 	private static void SetChildrenActive(Transform parent, bool active)
 	{
-		if (parent == null)
+		if ((Object)(object)parent == (Object)null)
 		{
 			return;
 		}
 		for (int i = 0; i < parent.childCount; i++)
 		{
 			Transform child = parent.GetChild(i);
-			if (child != null)
+			if ((Object)(object)child != (Object)null)
 			{
-				child.gameObject.SetActive(active);
+				((Component)child).gameObject.SetActive(active);
 			}
 		}
 	}
 
-	private static System.Collections.Generic.List<GameObject> CaptureDirectChildren(Transform parent)
+	private static List<GameObject> CaptureDirectChildren(Transform parent)
 	{
-		System.Collections.Generic.List<GameObject> list = new System.Collections.Generic.List<GameObject>();
-		if (parent == null)
+		List<GameObject> list = new List<GameObject>();
+		if ((Object)(object)parent == (Object)null)
 		{
 			return list;
 		}
 		for (int i = 0; i < parent.childCount; i++)
 		{
 			Transform child = parent.GetChild(i);
-			if (child != null)
+			if ((Object)(object)child != (Object)null)
 			{
-				list.Add(child.gameObject);
+				list.Add(((Component)child).gameObject);
 			}
 		}
 		return list;
@@ -5375,17 +6078,17 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	{
 		foreach (object item in ReadListItems(collection))
 		{
-			GameObject gameObject = ExtractGameObject(item);
-			if (gameObject != null)
+			GameObject val = ExtractGameObject(item);
+			if ((Object)(object)val != (Object)null)
 			{
-				gameObject.SetActive(active);
+				val.SetActive(active);
 			}
 		}
 	}
 
 	private static void SetActiveSafe(GameObject gameObject, bool active)
 	{
-		if (gameObject != null)
+		if ((Object)(object)gameObject != (Object)null)
 		{
 			gameObject.SetActive(active);
 		}
@@ -5393,7 +6096,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void SetComponentActiveSafe(Component component, bool active)
 	{
-		if (component != null)
+		if ((Object)(object)component != (Object)null)
 		{
 			component.gameObject.SetActive(active);
 		}
@@ -5401,59 +6104,68 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void SetFullStretch(RectTransform rect)
 	{
-		if (!(rect == null))
+		//IL_000b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0016: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0021: Unknown result type (might be due to invalid IL or missing references)
+		//IL_002c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0037: Unknown result type (might be due to invalid IL or missing references)
+		if (!((Object)(object)rect == (Object)null))
 		{
 			rect.anchorMin = Vector2.zero;
 			rect.anchorMax = Vector2.one;
 			rect.offsetMin = Vector2.zero;
 			rect.offsetMax = Vector2.zero;
-			rect.localScale = Vector3.one;
+			((Transform)rect).localScale = Vector3.one;
 		}
 	}
 
 	private static TMP_Text FindNamedText(Transform root, string name)
 	{
-		GameObject gameObject = FindDeep(root, name);
-		if (gameObject == null)
+		GameObject val = FindDeep(root, name);
+		if ((Object)(object)val == (Object)null)
 		{
 			return null;
 		}
-		return gameObject.GetComponent<TMP_Text>() ?? gameObject.GetComponentInChildren<TMP_Text>(includeInactive: true);
+		return val.GetComponent<TMP_Text>() ?? val.GetComponentInChildren<TMP_Text>(true);
 	}
 
 	private static TMP_Text FindNativeBriefingText(GameObject shell, params GameObject[] excludedRoots)
 	{
-		if (shell == null)
+		//IL_00e5: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ea: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00f5: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00fa: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)shell == (Object)null)
 		{
 			return null;
 		}
-		TMP_Text tMP_Text = FindNamedText(shell.transform, "Operation Selection Briefing");
-		if (tMP_Text != null && !IsInsideAny(tMP_Text.transform, excludedRoots))
+		TMP_Text val = FindNamedText(shell.transform, "Operation Selection Briefing");
+		if ((Object)(object)val != (Object)null && !IsInsideAny(val.transform, excludedRoots))
 		{
-			return tMP_Text;
+			return val;
 		}
 		TMP_Text result = null;
 		float num = float.MinValue;
-		foreach (LocalizationTMPEvent componentsInChild in shell.GetComponentsInChildren<LocalizationTMPEvent>(includeInactive: true))
+		foreach (LocalizationTMPEvent componentsInChild in shell.GetComponentsInChildren<LocalizationTMPEvent>(true))
 		{
-			TMP_Text tMP_Text2 = null;
+			TMP_Text val2 = null;
 			try
 			{
-				tMP_Text2 = ((componentsInChild == null) ? null : componentsInChild.TMP);
+				val2 = (TMP_Text)(object)(((Object)(object)componentsInChild == (Object)null) ? null : componentsInChild.TMP);
 			}
 			catch
 			{
 			}
-			if (tMP_Text2 == null)
+			if ((Object)(object)val2 == (Object)null)
 			{
 				continue;
 			}
 			bool flag = false;
 			if (excludedRoots != null)
 			{
-				foreach (GameObject gameObject in excludedRoots)
+				foreach (GameObject val3 in excludedRoots)
 				{
-					if (gameObject != null && tMP_Text2.transform.IsChildOf(gameObject.transform))
+					if ((Object)(object)val3 != (Object)null && val2.transform.IsChildOf(val3.transform))
 					{
 						flag = true;
 						break;
@@ -5462,22 +6174,34 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			if (!flag)
 			{
-				RectTransform rectTransform = tMP_Text2.rectTransform;
-				float num2 = ((rectTransform == null) ? 0f : Mathf.Abs(rectTransform.rect.width * rectTransform.rect.height));
-				string text = tMP_Text2.gameObject.name ?? string.Empty;
-				string obj2 = tMP_Text2.text ?? string.Empty;
+				RectTransform rectTransform = val2.rectTransform;
+				float num2;
+				if (!((Object)(object)rectTransform == (Object)null))
+				{
+					Rect rect = rectTransform.rect;
+					float width = ((Rect)(ref rect)).width;
+					rect = rectTransform.rect;
+					num2 = Mathf.Abs(width * ((Rect)(ref rect)).height);
+				}
+				else
+				{
+					num2 = 0f;
+				}
+				float num3 = num2;
+				string text = ((Object)((Component)val2).gameObject).name ?? string.Empty;
+				string obj2 = val2.text ?? string.Empty;
 				if (text.IndexOf("brief", StringComparison.OrdinalIgnoreCase) >= 0)
 				{
-					num2 += 1000000f;
+					num3 += 1000000f;
 				}
 				if (obj2.Length >= 80)
 				{
-					num2 += 500000f;
+					num3 += 500000f;
 				}
-				if (num2 > num)
+				if (num3 > num)
 				{
-					result = tMP_Text2;
-					num = num2;
+					result = val2;
+					num = num3;
 				}
 			}
 		}
@@ -5486,13 +6210,13 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static bool IsInsideAny(Transform candidate, GameObject[] roots)
 	{
-		if (candidate == null || roots == null)
+		if ((Object)(object)candidate == (Object)null || roots == null)
 		{
 			return false;
 		}
-		foreach (GameObject gameObject in roots)
+		foreach (GameObject val in roots)
 		{
-			if (gameObject != null && candidate.IsChildOf(gameObject.transform))
+			if ((Object)(object)val != (Object)null && candidate.IsChildOf(val.transform))
 			{
 				return true;
 			}
@@ -5502,18 +6226,18 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void RewriteClonedPageHeading(GameObject shell)
 	{
-		if (shell == null)
+		if ((Object)(object)shell == (Object)null)
 		{
 			return;
 		}
-		foreach (TMP_Text componentsInChild in shell.GetComponentsInChildren<TMP_Text>(includeInactive: true))
+		foreach (TMP_Text componentsInChild in shell.GetComponentsInChildren<TMP_Text>(true))
 		{
-			if (!(componentsInChild == null) && (TitleEquals(componentsInChild.text, "ACTIVE OPERATIONS") || TitleEquals(componentsInChild.text, "ACTIVE OPS")))
+			if (!((Object)(object)componentsInChild == (Object)null) && (TitleEquals(componentsInChild.text, "ACTIVE OPERATIONS") || TitleEquals(componentsInChild.text, "ACTIVE OPS")))
 			{
-				DisableLocalizationComponent(componentsInChild.gameObject);
-				if (componentsInChild.transform.parent != null)
+				DisableLocalizationComponent(((Component)componentsInChild).gameObject);
+				if ((Object)(object)componentsInChild.transform.parent != (Object)null)
 				{
-					DisableLocalizationComponent(componentsInChild.transform.parent.gameObject);
+					DisableLocalizationComponent(((Component)componentsInChild.transform.parent).gameObject);
 				}
 				componentsInChild.text = "MODDED OPERATIONS";
 				componentsInChild.enableWordWrapping = false;
@@ -5526,14 +6250,28 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void RewriteNativeOperationRow(GameObject row, string operationName, string duration, string threat, string mode, string areaOfOperation = null)
 	{
-		if (row == null)
+		//IL_0184: Unknown result type (might be due to invalid IL or missing references)
+		//IL_019a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01ec: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01f1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0215: Unknown result type (might be due to invalid IL or missing references)
+		//IL_021a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_021e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0223: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0228: Unknown result type (might be due to invalid IL or missing references)
+		//IL_022d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0238: Unknown result type (might be due to invalid IL or missing references)
+		//IL_023d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0248: Unknown result type (might be due to invalid IL or missing references)
+		//IL_024d: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)row == (Object)null)
 		{
 			return;
 		}
 		HashSet<int> hashSet = new HashSet<int>();
-		OperationSelectionUI componentInChildren = row.GetComponentInChildren<OperationSelectionUI>(includeInactive: true);
-		System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<TMP_Text, string>> list = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<TMP_Text, string>>();
-		if (componentInChildren != null)
+		OperationSelectionUI componentInChildren = row.GetComponentInChildren<OperationSelectionUI>(true);
+		List<KeyValuePair<TMP_Text, string>> list = new List<KeyValuePair<TMP_Text, string>>();
+		if ((Object)(object)componentInChildren != (Object)null)
 		{
 			AddColumnReference(list, FindMemberText(componentInChildren, "NameTextBox"), operationName);
 			AddColumnReference(list, FindMemberText(componentInChildren, "SecondTextBox"), duration);
@@ -5544,31 +6282,31 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			SetMemberText(componentInChildren, "SecondTextBox", duration, hashSet);
 			SetMemberText(componentInChildren, "ThirdTextBox", threat, hashSet);
 			SetMemberText(componentInChildren, "SimulationTypeText", mode, hashSet);
-			GameObject gameObject = ExtractGameObject(ReadMember(componentInChildren, "ClassfiedCover"));
-			GameObject gameObject2 = ExtractGameObject(ReadMember(componentInChildren, "RegionCover"));
-			if (gameObject != null)
+			GameObject val = ExtractGameObject(ReadMember(componentInChildren, "ClassfiedCover"));
+			GameObject val2 = ExtractGameObject(ReadMember(componentInChildren, "RegionCover"));
+			if ((Object)(object)val != (Object)null)
 			{
-				gameObject.SetActive(value: false);
+				val.SetActive(false);
 			}
-			if (gameObject2 != null)
+			if ((Object)(object)val2 != (Object)null)
 			{
-				gameObject2.SetActive(value: false);
+				val2.SetActive(false);
 			}
 		}
 		RectTransform component = row.GetComponent<RectTransform>();
-		foreach (TMP_Text componentsInChild in row.GetComponentsInChildren<TMP_Text>(includeInactive: true))
+		foreach (TMP_Text componentsInChild in row.GetComponentsInChildren<TMP_Text>(true))
 		{
-			if (componentsInChild == null || hashSet.Contains(componentsInChild.GetInstanceID()))
+			if ((Object)(object)componentsInChild == (Object)null || hashSet.Contains(((Object)componentsInChild).GetInstanceID()))
 			{
 				continue;
 			}
 			string text = null;
 			float num = float.MaxValue;
-			foreach (System.Collections.Generic.KeyValuePair<TMP_Text, string> item in list)
+			foreach (KeyValuePair<TMP_Text, string> item in list)
 			{
-				if (!(item.Key == null))
+				if (!((Object)(object)item.Key == (Object)null))
 				{
-					float num2 = Mathf.Abs(componentsInChild.rectTransform.position.x - item.Key.rectTransform.position.x);
+					float num2 = Mathf.Abs(((Transform)componentsInChild.rectTransform).position.x - ((Transform)item.Key.rectTransform).position.x);
 					if (num2 < num)
 					{
 						text = item.Value;
@@ -5576,14 +6314,24 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					}
 				}
 			}
-			if (text == null && component != null && Mathf.Abs(component.rect.width) > 0.01f)
+			if (text == null && (Object)(object)component != (Object)null)
 			{
-				float num3 = (component.InverseTransformPoint(componentsInChild.rectTransform.TransformPoint(componentsInChild.rectTransform.rect.center)).x - component.rect.xMin) / component.rect.width;
-				text = ((num3 < 0.44f) ? operationName : ((num3 < 0.72f) ? duration : threat));
+				Rect rect = component.rect;
+				if (Mathf.Abs(((Rect)(ref rect)).width) > 0.01f)
+				{
+					RectTransform rectTransform = componentsInChild.rectTransform;
+					rect = componentsInChild.rectTransform.rect;
+					float x = ((Transform)component).InverseTransformPoint(((Transform)rectTransform).TransformPoint(Vector2.op_Implicit(((Rect)(ref rect)).center))).x;
+					rect = component.rect;
+					float num3 = x - ((Rect)(ref rect)).xMin;
+					rect = component.rect;
+					float num4 = num3 / ((Rect)(ref rect)).width;
+					text = ((num4 < 0.44f) ? operationName : ((num4 < 0.72f) ? duration : threat));
+				}
 			}
 			if (text != null)
 			{
-				DisableLocalizationComponent(componentsInChild.gameObject);
+				DisableLocalizationComponent(((Component)componentsInChild).gameObject);
 				componentsInChild.text = text;
 				componentsInChild.enableWordWrapping = false;
 				componentsInChild.enableAutoSizing = true;
@@ -5595,60 +6343,60 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static TMP_Text FindMemberText(object owner, string memberName)
 	{
-		GameObject gameObject = ExtractGameObject(ReadMember(owner, memberName));
-		if (gameObject == null)
+		GameObject val = ExtractGameObject(ReadMember(owner, memberName));
+		if ((Object)(object)val == (Object)null)
 		{
 			return null;
 		}
-		return gameObject.GetComponent<TMP_Text>() ?? gameObject.GetComponentInChildren<TMP_Text>(includeInactive: true);
+		return val.GetComponent<TMP_Text>() ?? val.GetComponentInChildren<TMP_Text>(true);
 	}
 
-	private static void AddColumnReference(System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<TMP_Text, string>> references, TMP_Text label, string value)
+	private static void AddColumnReference(List<KeyValuePair<TMP_Text, string>> references, TMP_Text label, string value)
 	{
-		if (references != null && label != null && !string.IsNullOrEmpty(value))
+		if (references != null && (Object)(object)label != (Object)null && !string.IsNullOrEmpty(value))
 		{
-			references.Add(new System.Collections.Generic.KeyValuePair<TMP_Text, string>(label, value));
+			references.Add(new KeyValuePair<TMP_Text, string>(label, value));
 		}
 	}
 
 	private static bool SetMemberText(object owner, string memberName, string value, HashSet<int> assigned)
 	{
-		GameObject gameObject = ExtractGameObject(ReadMember(owner, memberName));
-		if (gameObject == null)
+		GameObject val = ExtractGameObject(ReadMember(owner, memberName));
+		if ((Object)(object)val == (Object)null)
 		{
 			return false;
 		}
-		TMP_Text tMP_Text = gameObject.GetComponent<TMP_Text>() ?? gameObject.GetComponentInChildren<TMP_Text>(includeInactive: true);
-		if (tMP_Text == null)
+		TMP_Text val2 = val.GetComponent<TMP_Text>() ?? val.GetComponentInChildren<TMP_Text>(true);
+		if ((Object)(object)val2 == (Object)null)
 		{
 			return false;
 		}
-		DisableLocalizationComponent(gameObject);
-		if (tMP_Text.gameObject != gameObject)
+		DisableLocalizationComponent(val);
+		if ((Object)(object)((Component)val2).gameObject != (Object)(object)val)
 		{
-			DisableLocalizationComponent(tMP_Text.gameObject);
+			DisableLocalizationComponent(((Component)val2).gameObject);
 		}
-		tMP_Text.text = value;
-		tMP_Text.enableWordWrapping = false;
-		tMP_Text.enableAutoSizing = true;
-		tMP_Text.fontSizeMin = Mathf.Max(8f, tMP_Text.fontSize * 0.55f);
-		tMP_Text.fontSizeMax = Mathf.Max(tMP_Text.fontSizeMin, tMP_Text.fontSize);
-		assigned?.Add(tMP_Text.GetInstanceID());
+		val2.text = value;
+		val2.enableWordWrapping = false;
+		val2.enableAutoSizing = true;
+		val2.fontSizeMin = Mathf.Max(8f, val2.fontSize * 0.55f);
+		val2.fontSizeMax = Mathf.Max(val2.fontSizeMin, val2.fontSize);
+		assigned?.Add(((Object)val2).GetInstanceID());
 		return true;
 	}
 
 	private static void DisableLocalizationComponent(GameObject gameObject)
 	{
-		if (gameObject == null)
+		if ((Object)(object)gameObject == (Object)null)
 		{
 			return;
 		}
 		try
 		{
 			LocalizationTMPEvent component = gameObject.GetComponent<LocalizationTMPEvent>();
-			if (component != null)
+			if ((Object)(object)component != (Object)null)
 			{
-				component.enabled = false;
+				((Behaviour)component).enabled = false;
 			}
 		}
 		catch
@@ -5656,10 +6404,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		try
 		{
-			Michsky.DreamOS.LocalizedObject component2 = gameObject.GetComponent<Michsky.DreamOS.LocalizedObject>();
-			if (component2 != null)
+			LocalizedObject component2 = gameObject.GetComponent<LocalizedObject>();
+			if ((Object)(object)component2 != (Object)null)
 			{
-				component2.enabled = false;
+				((Behaviour)component2).enabled = false;
 			}
 		}
 		catch
@@ -5667,115 +6415,142 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		foreach (Component component3 in gameObject.GetComponents<Component>())
 		{
-			if (component3 == null)
+			if ((Object)(object)component3 == (Object)null)
 			{
 				continue;
 			}
-			string name = component3.GetType().Name;
+			string name = ((object)component3).GetType().Name;
 			if (name.IndexOf("LocalizationTMPEvent", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("LocalizedObject", StringComparison.OrdinalIgnoreCase) >= 0)
 			{
-				if (component3 is Behaviour behaviour)
+				Behaviour val = (Behaviour)(object)((component3 is Behaviour) ? component3 : null);
+				if (val != null)
 				{
-					behaviour.enabled = false;
+					val.enabled = false;
 				}
-				UnityEngine.Object.Destroy(component3);
+				Object.Destroy((Object)(object)component3);
 			}
 		}
 	}
 
 	private static void StackNativeRows(GameObject first, GameObject second)
 	{
-		RectTransform rectTransform = ((first == null) ? null : first.GetComponent<RectTransform>());
-		RectTransform rectTransform2 = ((second == null) ? null : second.GetComponent<RectTransform>());
-		if (!(rectTransform == null) && !(rectTransform2 == null))
+		//IL_003a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_003f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0046: Unknown result type (might be due to invalid IL or missing references)
+		//IL_004b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_005b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0061: Unknown result type (might be due to invalid IL or missing references)
+		//IL_006f: Unknown result type (might be due to invalid IL or missing references)
+		RectTransform val = (((Object)(object)first == (Object)null) ? null : first.GetComponent<RectTransform>());
+		RectTransform val2 = (((Object)(object)second == (Object)null) ? null : second.GetComponent<RectTransform>());
+		if (!((Object)(object)val == (Object)null) && !((Object)(object)val2 == (Object)null))
 		{
-			Vector2 anchoredPosition = rectTransform.anchoredPosition;
-			float num = Mathf.Max(1f, rectTransform.rect.height);
-			rectTransform2.anchoredPosition = new Vector2(anchoredPosition.x, anchoredPosition.y - num - 6f);
+			Vector2 anchoredPosition = val.anchoredPosition;
+			Rect rect = val.rect;
+			float num = Mathf.Max(1f, ((Rect)(ref rect)).height);
+			val2.anchoredPosition = new Vector2(anchoredPosition.x, anchoredPosition.y - num - 6f);
 		}
 	}
 
-	private static void StackNativeRows(System.Collections.Generic.IReadOnlyList<GameObject> rows)
+	private static void StackNativeRows(IReadOnlyList<GameObject> rows)
 	{
+		//IL_0037: Unknown result type (might be due to invalid IL or missing references)
+		//IL_003c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0043: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0048: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0089: Unknown result type (might be due to invalid IL or missing references)
+		//IL_008f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a1: Unknown result type (might be due to invalid IL or missing references)
 		if (rows == null || rows.Count < 2)
 		{
 			return;
 		}
-		RectTransform rectTransform = ((rows[0] == null) ? null : rows[0].GetComponent<RectTransform>());
-		if (rectTransform == null)
+		RectTransform val = (((Object)(object)rows[0] == (Object)null) ? null : rows[0].GetComponent<RectTransform>());
+		if ((Object)(object)val == (Object)null)
 		{
 			return;
 		}
-		Vector2 anchoredPosition = rectTransform.anchoredPosition;
-		float num = Mathf.Max(1f, rectTransform.rect.height);
+		Vector2 anchoredPosition = val.anchoredPosition;
+		Rect rect = val.rect;
+		float num = Mathf.Max(1f, ((Rect)(ref rect)).height);
 		for (int i = 1; i < rows.Count; i++)
 		{
-			RectTransform rectTransform2 = ((rows[i] == null) ? null : rows[i].GetComponent<RectTransform>());
-			if (rectTransform2 != null)
+			RectTransform val2 = (((Object)(object)rows[i] == (Object)null) ? null : rows[i].GetComponent<RectTransform>());
+			if ((Object)(object)val2 != (Object)null)
 			{
-				rectTransform2.anchoredPosition = new Vector2(anchoredPosition.x, anchoredPosition.y - (float)i * (num + 6f));
+				val2.anchoredPosition = new Vector2(anchoredPosition.x, anchoredPosition.y - (float)i * (num + 6f));
 			}
 		}
 	}
 
 	private void RebindNativeRow(GameObject row, Action singleClick, Action doubleClick = null)
 	{
-		if (row == null || singleClick == null)
+		//IL_01a1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01ab: Expected O, but got Unknown
+		//IL_023a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0244: Expected O, but got Unknown
+		//IL_0245: Unknown result type (might be due to invalid IL or missing references)
+		//IL_024f: Expected O, but got Unknown
+		if ((Object)(object)row == (Object)null || singleClick == null)
 		{
 			return;
 		}
-		GameObject gameObject = FindDeep(row.transform, "MODDED_NATIVE_ROW_HIT_TARGET");
-		if (gameObject != null)
+		GameObject val = FindDeep(row.transform, "MODDED_NATIVE_ROW_HIT_TARGET");
+		if ((Object)(object)val != (Object)null)
 		{
-			UnityEngine.Object.Destroy(gameObject);
+			Object.Destroy((Object)(object)val);
 		}
-		ButtonManager buttonManager = null;
-		foreach (ButtonManager componentsInChild in row.GetComponentsInChildren<ButtonManager>(includeInactive: true))
+		ButtonManager val2 = null;
+		foreach (ButtonManager componentsInChild in row.GetComponentsInChildren<ButtonManager>(true))
 		{
-			if (!(componentsInChild == null))
+			if (!((Object)(object)componentsInChild == (Object)null))
 			{
-				if (buttonManager == null || componentsInChild.targetButton != null)
+				if ((Object)(object)val2 == (Object)null || (Object)(object)componentsInChild.targetButton != (Object)null)
 				{
-					buttonManager = componentsInChild;
+					val2 = componentsInChild;
 				}
-				if (componentsInChild.targetButton != null)
+				if ((Object)(object)componentsInChild.targetButton != (Object)null)
 				{
 					break;
 				}
 			}
 		}
-		if (buttonManager == null)
+		if ((Object)(object)val2 == (Object)null)
 		{
-			OperationSelectionUI componentInChildren = row.GetComponentInChildren<OperationSelectionUI>(includeInactive: true);
-			Button button = ((componentInChildren == null) ? null : componentInChildren.GetComponent<Button>());
-			if (button == null)
+			OperationSelectionUI componentInChildren = row.GetComponentInChildren<OperationSelectionUI>(true);
+			Button val3 = (((Object)(object)componentInChildren == (Object)null) ? null : ((Component)componentInChildren).GetComponent<Button>());
+			if ((Object)(object)val3 == (Object)null)
 			{
-				button = row.GetComponent<Button>();
+				val3 = row.GetComponent<Button>();
 			}
-			if (button == null)
+			if ((Object)(object)val3 == (Object)null)
 			{
-				button = row.GetComponentInChildren<Button>(includeInactive: true);
+				val3 = row.GetComponentInChildren<Button>(true);
 			}
-			if (button == null)
+			if ((Object)(object)val3 == (Object)null)
 			{
-				log?.LogWarning("Cerberus native row binding skipped because the shipped row had neither ButtonManager nor Button: " + row.name + ".");
+				ManualLogSource obj = log;
+				if (obj != null)
+				{
+					obj.LogWarning((object)("Cerberus native row binding skipped because the shipped row had neither ButtonManager nor Button: " + ((Object)row).name + "."));
+				}
 				return;
 			}
 			float doubleClickPeriod = 0.3f;
 			try
 			{
-				CerebusUiBase cerebusUiBase = ((componentInChildren == null) ? null : componentInChildren.CerebusUiBase);
-				if (cerebusUiBase != null && cerebusUiBase.clickcountTime >= 0.05f && cerebusUiBase.clickcountTime <= 1f)
+				CerebusUiBase val4 = (((Object)(object)componentInChildren == (Object)null) ? null : componentInChildren.CerebusUiBase);
+				if ((Object)(object)val4 != (Object)null && val4.clickcountTime >= 0.05f && val4.clickcountTime <= 1f)
 				{
-					doubleClickPeriod = cerebusUiBase.clickcountTime;
+					doubleClickPeriod = val4.clickcountTime;
 				}
 			}
 			catch
 			{
 			}
 			float previousClickTime = -100f;
-			button.onClick = new Button.ButtonClickedEvent();
-			button.onClick.AddListener((Action)delegate
+			val3.onClick = new ButtonClickedEvent();
+			((UnityEvent)val3.onClick).AddListener(UnityAction.op_Implicit((Action)delegate
 			{
 				float unscaledTime = Time.unscaledTime;
 				if (doubleClick != null && unscaledTime - previousClickTime <= doubleClickPeriod)
@@ -5788,31 +6563,35 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					previousClickTime = unscaledTime;
 					singleClick();
 				}
-			});
-			button.interactable = true;
-			log?.LogInfo("Cerberus native row bound through shipped Unity Button: row=" + row.name + ", button=" + button.gameObject.name + ", doubleClickPeriod=" + doubleClickPeriod.ToString("0.###") + "s.");
+			}));
+			((Selectable)val3).interactable = true;
+			ManualLogSource obj3 = log;
+			if (obj3 != null)
+			{
+				obj3.LogInfo((object)("Cerberus native row bound through shipped Unity Button: row=" + ((Object)row).name + ", button=" + ((Object)((Component)val3).gameObject).name + ", doubleClickPeriod=" + doubleClickPeriod.ToString("0.###") + "s."));
+			}
 			return;
 		}
-		buttonManager.onClick = new UnityEvent();
-		buttonManager.onDoubleClick = new UnityEvent();
-		buttonManager.checkForDoubleClick = doubleClick != null;
-		buttonManager.onClick.AddListener((Action)delegate
+		val2.onClick = new UnityEvent();
+		val2.onDoubleClick = new UnityEvent();
+		val2.checkForDoubleClick = doubleClick != null;
+		val2.onClick.AddListener(UnityAction.op_Implicit((Action)delegate
 		{
 			singleClick();
-		});
+		}));
 		if (doubleClick != null)
 		{
-			buttonManager.onDoubleClick.AddListener((Action)delegate
+			val2.onDoubleClick.AddListener(UnityAction.op_Implicit((Action)delegate
 			{
 				doubleClick();
-			});
+			}));
 		}
-		buttonManager.isInteractable = true;
+		val2.isInteractable = true;
 		try
 		{
-			if (buttonManager.targetButton != null)
+			if ((Object)(object)val2.targetButton != (Object)null)
 			{
-				buttonManager.targetButton.interactable = true;
+				((Selectable)val2.targetButton).interactable = true;
 			}
 		}
 		catch
@@ -5820,7 +6599,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 		try
 		{
-			buttonManager.UpdateState();
+			val2.UpdateState();
 		}
 		catch
 		{
@@ -5829,52 +6608,71 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void SetNativeRowSelected(GameObject row, bool selected)
 	{
-		if (row == null)
+		//IL_00bf: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ca: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00d5: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e4: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0092: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00b7: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)row == (Object)null)
 		{
 			return;
 		}
 		bool flag = false;
-		foreach (Transform componentsInChild in row.GetComponentsInChildren<Transform>(includeInactive: true))
+		foreach (Transform componentsInChild in row.GetComponentsInChildren<Transform>(true))
 		{
-			if (!(componentsInChild == null) && !(componentsInChild == row.transform) && componentsInChild.name.IndexOf("Selected", StringComparison.OrdinalIgnoreCase) >= 0)
+			if (!((Object)(object)componentsInChild == (Object)null) && !((Object)(object)componentsInChild == (Object)(object)row.transform) && ((Object)componentsInChild).name.IndexOf("Selected", StringComparison.OrdinalIgnoreCase) >= 0)
 			{
-				componentsInChild.gameObject.SetActive(selected);
+				((Component)componentsInChild).gameObject.SetActive(selected);
 				flag = true;
 			}
 		}
 		if (!flag)
 		{
-			Image image = row.GetComponent<Image>() ?? row.GetComponentInChildren<Image>(includeInactive: true);
-			if (image != null)
+			Image val = row.GetComponent<Image>() ?? row.GetComponentInChildren<Image>(true);
+			if ((Object)(object)val != (Object)null)
 			{
-				image.color = (selected ? new Color(image.color.r, image.color.g, image.color.b, 1f) : new Color(image.color.r, image.color.g, image.color.b, 0.72f));
+				((Graphic)val).color = (selected ? new Color(((Graphic)val).color.r, ((Graphic)val).color.g, ((Graphic)val).color.b, 1f) : new Color(((Graphic)val).color.r, ((Graphic)val).color.g, ((Graphic)val).color.b, 0.72f));
 			}
 		}
 	}
 
 	private static GameObject CreateNativeActionButton(Transform parent, GameObject template, string name, string text, Vector2 anchorMin, Vector2 anchorMax, Action action)
 	{
-		if (parent == null || template == null || action == null)
+		//IL_0055: Unknown result type (might be due to invalid IL or missing references)
+		//IL_005d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0065: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0070: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00bd: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c7: Expected O, but got Unknown
+		//IL_011f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0124: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0136: Unknown result type (might be due to invalid IL or missing references)
+		//IL_015e: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)parent == (Object)null || (Object)(object)template == (Object)null || action == null)
 		{
 			return null;
 		}
-		GameObject gameObject = UnityEngine.Object.Instantiate(template, parent);
-		if (gameObject == null)
+		GameObject val = Object.Instantiate<GameObject>(template, parent);
+		if ((Object)(object)val == (Object)null)
 		{
 			return null;
 		}
-		gameObject.name = name;
-		RectTransform component = gameObject.GetComponent<RectTransform>();
-		if (component != null)
+		((Object)val).name = name;
+		RectTransform component = val.GetComponent<RectTransform>();
+		if ((Object)(object)component != (Object)null)
 		{
 			component.anchorMin = anchorMin;
 			component.anchorMax = anchorMax;
 			component.offsetMin = Vector2.zero;
 			component.offsetMax = Vector2.zero;
-			component.localScale = Vector3.one;
+			((Transform)component).localScale = Vector3.one;
 		}
-		SetButtonText(gameObject, text);
-		FitTabTitleText(gameObject, text);
+		SetButtonText(val, text);
+		FitTabTitleText(val, text);
 		int lastLogicalFrame = -1;
 		Action invokeOnce = delegate
 		{
@@ -5885,41 +6683,41 @@ public sealed class CerberusNativeTabFix : BasePlugin
 				action();
 			}
 		};
-		PanelButton component2 = gameObject.GetComponent<PanelButton>();
-		if (component2 != null)
+		PanelButton component2 = val.GetComponent<PanelButton>();
+		if ((Object)(object)component2 != (Object)null)
 		{
 			component2.onClick = new UnityEvent();
-			component2.onClick.AddListener((Action)delegate
+			component2.onClick.AddListener(UnityAction.op_Implicit((Action)delegate
 			{
 				invokeOnce();
-			});
+			}));
 			component2.isInteractable = true;
 			component2.isSelected = false;
 		}
-		Button button = gameObject.GetComponent<Button>();
-		if (button == null)
+		Button val2 = val.GetComponent<Button>();
+		if ((Object)(object)val2 == (Object)null)
 		{
-			button = gameObject.AddComponent<Button>();
+			val2 = val.AddComponent<Button>();
 		}
-		if (button.targetGraphic == null)
+		if ((Object)(object)((Selectable)val2).targetGraphic == (Object)null)
 		{
-			GameObject gameObject2 = new GameObject("MODDED_NATIVE_ACTION_HIT_TARGET");
-			gameObject2.transform.SetParent(gameObject.transform, worldPositionStays: false);
-			SetFullStretch(gameObject2.AddComponent<RectTransform>());
-			Image image = gameObject2.AddComponent<Image>();
-			image.color = new Color(0f, 0f, 0f, 0f);
-			image.raycastTarget = true;
-			button.targetGraphic = image;
+			GameObject val3 = new GameObject("MODDED_NATIVE_ACTION_HIT_TARGET");
+			val3.transform.SetParent(val.transform, false);
+			SetFullStretch(val3.AddComponent<RectTransform>());
+			Image val4 = val3.AddComponent<Image>();
+			((Graphic)val4).color = new Color(0f, 0f, 0f, 0f);
+			((Graphic)val4).raycastTarget = true;
+			((Selectable)val2).targetGraphic = (Graphic)(object)val4;
 		}
-		button.transition = Selectable.Transition.None;
-		button.onClick.RemoveAllListeners();
-		button.onClick.AddListener((Action)delegate
+		((Selectable)val2).transition = (Transition)0;
+		((UnityEventBase)val2.onClick).RemoveAllListeners();
+		((UnityEvent)val2.onClick).AddListener(UnityAction.op_Implicit((Action)delegate
 		{
 			invokeOnce();
-		});
-		button.interactable = true;
-		gameObject.SetActive(value: true);
-		return gameObject;
+		}));
+		((Selectable)val2).interactable = true;
+		val.SetActive(true);
+		return val;
 	}
 
 	private void QueueTransitionSnapshot(MissionLaptop laptop, GameObject page, string source, int requestedFrame)
@@ -5946,9 +6744,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			if (pendingTransitionSnapshot != null && frameCount > pendingTransitionSnapshot.RequestedFrame)
 			{
 				pendingTransitionSnapshots.RemoveAt(num);
-				if (!(pendingTransitionSnapshot.Laptop == null))
+				if (!((Object)(object)pendingTransitionSnapshot.Laptop == (Object)null))
 				{
-					log.LogInfo(CaptureLaptopTransitionState(pendingTransitionSnapshot.Laptop, pendingTransitionSnapshot.Page, "next-frame state", pendingTransitionSnapshot.Source, frameCount));
+					log.LogInfo((object)CaptureLaptopTransitionState(pendingTransitionSnapshot.Laptop, pendingTransitionSnapshot.Page, "next-frame state", pendingTransitionSnapshot.Source, frameCount));
 				}
 			}
 		}
@@ -5956,23 +6754,23 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static string CaptureLaptopTransitionState(MissionLaptop laptop, GameObject page, string phase, string eventSource, int frame)
 	{
-		if (laptop == null)
+		if ((Object)(object)laptop == (Object)null)
 		{
 			return "Cerberus transition snapshot: laptop=null, phase=" + phase + ".";
 		}
 		WindowPanelManager cerberusWindowPanelManager = laptop.cerberusWindowPanelManager;
-		string text = ((cerberusWindowPanelManager == null) ? "null" : ("currentPanelIndex=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentPanelIndex")) + ", currentButtonIndex=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentButtonIndex")) + ", newPanelIndex=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "newPanelIndex")) + ", currentPanel=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentPanel")) + ", currentButton=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentButton")) + ", panels=" + DescribePanelItems(ReadMember(cerberusWindowPanelManager, "panels"))));
+		string text = (((Object)(object)cerberusWindowPanelManager == (Object)null) ? "null" : ("currentPanelIndex=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentPanelIndex")) + ", currentButtonIndex=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentButtonIndex")) + ", newPanelIndex=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "newPanelIndex")) + ", currentPanel=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentPanel")) + ", currentButton=" + DescribeValue(ReadMember(cerberusWindowPanelManager, "currentButton")) + ", panels=" + DescribePanelItems(ReadMember(cerberusWindowPanelManager, "panels"))));
 		Type type = ResolveLoadedTypeByExactName("MissionLaptopNetworkState", "Il2Cpp.MissionLaptopNetworkState");
 		object owner = ((type == null) ? null : ReadMember(type, null, "singleton"));
-		GameObject gameObject = ((page == null) ? null : FindDeep(page.transform, "MODDED_HOME"));
-		GameObject gameObject2 = ((page == null) ? null : FindDeep(page.transform, "MODDED_BRIEFING"));
-		return "Cerberus transition snapshot: phase=" + phase + ", source=" + eventSource + ", frame=" + frame + ", laptopId=" + laptop.GetInstanceID() + ", laptopPath=" + HierarchyPath(laptop.transform) + ", manager={" + text + "}, ActiveOperationsTab={" + DescribeActivity(laptop.ActiveOperationsTab) + "}, SimulationOperationsTab={" + DescribeActivity(laptop.SimulationOperationsTab) + "}, ActiveOperationsList={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "ActiveOperationsList"))) + "}, SimulationOperationList={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "SimulationOperationList"))) + "}, TargetPackageParent={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "TargetPackageParent"))) + "}, opBoardParent={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "opBoardParent"))) + "}, network={CurrentLaptopPage=" + DescribeValue(ReadMember(owner, "CurrentLaptopPage")) + ", OnSimulationPage=" + DescribeValue(ReadMember(owner, "OnSimulationPage")) + "}, displayers=" + DescribeMissionLaptopDisplayers() + ", modPage={" + DescribeActivity(page) + "}, modHome={" + DescribeActivity(gameObject) + "}, modBriefing={" + DescribeActivity(gameObject2) + "}.";
+		GameObject gameObject = (((Object)(object)page == (Object)null) ? null : FindDeep(page.transform, "MODDED_HOME"));
+		GameObject gameObject2 = (((Object)(object)page == (Object)null) ? null : FindDeep(page.transform, "MODDED_BRIEFING"));
+		return "Cerberus transition snapshot: phase=" + phase + ", source=" + eventSource + ", frame=" + frame + ", laptopId=" + ((Object)laptop).GetInstanceID() + ", laptopPath=" + HierarchyPath(((Component)laptop).transform) + ", manager={" + text + "}, ActiveOperationsTab={" + DescribeActivity(laptop.ActiveOperationsTab) + "}, SimulationOperationsTab={" + DescribeActivity(laptop.SimulationOperationsTab) + "}, ActiveOperationsList={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "ActiveOperationsList"))) + "}, SimulationOperationList={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "SimulationOperationList"))) + "}, TargetPackageParent={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "TargetPackageParent"))) + "}, opBoardParent={" + DescribeActivity(ExtractGameObject(ReadMember(laptop, "opBoardParent"))) + "}, network={CurrentLaptopPage=" + DescribeValue(ReadMember(owner, "CurrentLaptopPage")) + ", OnSimulationPage=" + DescribeValue(ReadMember(owner, "OnSimulationPage")) + "}, displayers=" + DescribeMissionLaptopDisplayers() + ", modPage={" + DescribeActivity(page) + "}, modHome={" + DescribeActivity(gameObject) + "}, modBriefing={" + DescribeActivity(gameObject2) + "}.";
 	}
 
 	private static string DescribePanelItems(object panelList)
 	{
-		System.Collections.Generic.List<object> list = ReadListItems(panelList);
-		System.Collections.Generic.List<string> list2 = new System.Collections.Generic.List<string>(list.Count);
+		List<object> list = ReadListItems(panelList);
+		List<string> list2 = new List<string>(list.Count);
 		for (int i = 0; i < list.Count; i++)
 		{
 			object owner = list[i];
@@ -5990,13 +6788,13 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return "type-unresolved";
 		}
-		System.Collections.Generic.List<Component> list = FindMissionLaptopComponents(type);
-		System.Collections.Generic.List<string> list2 = new System.Collections.Generic.List<string>(list.Count);
+		List<Component> list = FindMissionLaptopComponents(type);
+		List<string> list2 = new List<string>(list.Count);
 		foreach (Component item in list)
 		{
-			if (!(item == null) && !(item.gameObject == null))
+			if (!((Object)(object)item == (Object)null) && !((Object)(object)item.gameObject == (Object)null))
 			{
-				list2.Add("id=" + item.GetInstanceID() + ", path=" + HierarchyPath(item.transform) + ", selectedOperation=" + DescribeValue(ReadFirstMember(item, "selectedOperation", "SelectedOperation", "currentOperation")) + ", selectedTargetPackage=" + DescribeValue(ReadFirstMember(item, "selectedTargetPackage", "SelectedTargetPackage", "currentTargetPackage")) + ", opboard=" + DescribeValue(ReadFirstMember(item, "opBoard", "opboard", "operationBoard", "currentOpBoard")));
+				list2.Add("id=" + ((Object)item).GetInstanceID() + ", path=" + HierarchyPath(item.transform) + ", selectedOperation=" + DescribeValue(ReadFirstMember(item, "selectedOperation", "SelectedOperation", "currentOperation")) + ", selectedTargetPackage=" + DescribeValue(ReadFirstMember(item, "selectedTargetPackage", "SelectedTargetPackage", "currentTargetPackage")) + ", opboard=" + DescribeValue(ReadFirstMember(item, "opBoard", "opboard", "operationBoard", "currentOpBoard")));
 			}
 		}
 		return "[" + string.Join(" | ", list2) + "]";
@@ -6050,9 +6848,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		}
 	}
 
-	private static System.Collections.Generic.List<object> ReadListItems(object list)
+	private static List<object> ReadListItems(object list)
 	{
-		System.Collections.Generic.List<object> list2 = new System.Collections.Generic.List<object>();
+		List<object> list2 = new List<object>();
 		if (list == null)
 		{
 			return list2;
@@ -6137,10 +6935,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 			return "null";
 		}
-		GameObject gameObject = ExtractGameObject(value);
-		if (gameObject != null)
+		GameObject val = ExtractGameObject(value);
+		if ((Object)(object)val != (Object)null)
 		{
-			return gameObject.name + "@" + HierarchyPath(gameObject.transform);
+			return ((Object)val).name + "@" + HierarchyPath(val.transform);
 		}
 		try
 		{
@@ -6154,60 +6952,60 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static GameObject FindNativeActiveOperationsButton(Transform root)
 	{
-		if (root == null)
+		if ((Object)(object)root == (Object)null)
 		{
 			return null;
 		}
 		PanelButton[] array;
 		try
 		{
-			array = root.GetComponentsInChildren<PanelButton>(includeInactive: true);
+			array = Il2CppArrayBase<PanelButton>.op_Implicit(((Component)root).GetComponentsInChildren<PanelButton>(true));
 		}
 		catch
 		{
 			return null;
 		}
-		GameObject gameObject = null;
+		GameObject val = null;
 		PanelButton[] array2 = array;
-		foreach (PanelButton panelButton in array2)
+		foreach (PanelButton val2 in array2)
 		{
-			if (!(panelButton == null))
+			if (!((Object)(object)val2 == (Object)null))
 			{
-				string text = panelButton.gameObject.name ?? string.Empty;
+				string text = ((Object)((Component)val2).gameObject).name ?? string.Empty;
 				if (text.IndexOf("ACTIVE OPERATIONS BUTTON", StringComparison.OrdinalIgnoreCase) >= 0)
 				{
-					return panelButton.gameObject;
+					return ((Component)val2).gameObject;
 				}
-				if (gameObject == null && text.IndexOf("ACTIVE", StringComparison.OrdinalIgnoreCase) >= 0)
+				if ((Object)(object)val == (Object)null && text.IndexOf("ACTIVE", StringComparison.OrdinalIgnoreCase) >= 0)
 				{
-					gameObject = panelButton.gameObject;
+					val = ((Component)val2).gameObject;
 				}
 			}
 		}
-		return gameObject;
+		return val;
 	}
 
 	private static GameObject FindNativeSimulationOperationsButton(Transform root)
 	{
-		if (root == null)
+		if ((Object)(object)root == (Object)null)
 		{
 			return null;
 		}
 		PanelButton[] array;
 		try
 		{
-			array = root.GetComponentsInChildren<PanelButton>(includeInactive: true);
+			array = Il2CppArrayBase<PanelButton>.op_Implicit(((Component)root).GetComponentsInChildren<PanelButton>(true));
 		}
 		catch
 		{
 			return null;
 		}
 		PanelButton[] array2 = array;
-		foreach (PanelButton panelButton in array2)
+		foreach (PanelButton val in array2)
 		{
-			if (!(panelButton == null) && (panelButton.gameObject.name ?? string.Empty).IndexOf("OPERATION SIMULATION BUTTON", StringComparison.OrdinalIgnoreCase) >= 0)
+			if (!((Object)(object)val == (Object)null) && (((Object)((Component)val).gameObject).name ?? string.Empty).IndexOf("OPERATION SIMULATION BUTTON", StringComparison.OrdinalIgnoreCase) >= 0)
 			{
-				return panelButton.gameObject;
+				return ((Component)val).gameObject;
 			}
 		}
 		return null;
@@ -6215,137 +7013,242 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void PositionAsThirdTab(Transform parent, GameObject activeButton, GameObject simulationButton, GameObject moddedButton)
 	{
-		if (parent == null || moddedButton == null)
+		//IL_00c2: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00dd: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e9: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00f6: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0105: Unknown result type (might be due to invalid IL or missing references)
+		//IL_010c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0111: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00d4: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0116: Unknown result type (might be due to invalid IL or missing references)
+		//IL_011a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_013f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_014b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0131: Unknown result type (might be due to invalid IL or missing references)
+		//IL_015a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0275: Unknown result type (might be due to invalid IL or missing references)
+		//IL_027a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0293: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0298: Unknown result type (might be due to invalid IL or missing references)
+		//IL_030f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0314: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02db: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02e7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_032b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0330: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0210: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0215: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0219: Unknown result type (might be due to invalid IL or missing references)
+		//IL_044d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0452: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0456: Unknown result type (might be due to invalid IL or missing references)
+		//IL_045b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0229: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0239: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)parent == (Object)null || (Object)(object)moddedButton == (Object)null)
 		{
 			return;
 		}
-		RectTransform component = parent.GetComponent<RectTransform>();
+		RectTransform component = ((Component)parent).GetComponent<RectTransform>();
 		RectTransform component2 = moddedButton.GetComponent<RectTransform>();
-		RectTransform rectTransform = ((simulationButton == null) ? null : simulationButton.GetComponent<RectTransform>());
-		RectTransform rectTransform2 = ((activeButton == null) ? null : activeButton.GetComponent<RectTransform>());
-		if (parent.GetComponent<HorizontalLayoutGroup>() != null)
+		RectTransform val = (((Object)(object)simulationButton == (Object)null) ? null : simulationButton.GetComponent<RectTransform>());
+		RectTransform val2 = (((Object)(object)activeButton == (Object)null) ? null : activeButton.GetComponent<RectTransform>());
+		if ((Object)(object)((Component)parent).GetComponent<HorizontalLayoutGroup>() != (Object)null)
 		{
-			int num = ((simulationButton == null) ? activeButton.transform.GetSiblingIndex() : simulationButton.transform.GetSiblingIndex());
+			int num = (((Object)(object)simulationButton == (Object)null) ? activeButton.transform.GetSiblingIndex() : simulationButton.transform.GetSiblingIndex());
 			moddedButton.transform.SetSiblingIndex(Mathf.Min(num + 1, parent.childCount - 1));
 			Canvas.ForceUpdateCanvases();
 			logStatic("native tab row uses HorizontalLayoutGroup; inserted after simulation");
 		}
 		else
 		{
-			if (component2 == null || rectTransform2 == null || component == null)
+			if ((Object)(object)component2 == (Object)null || (Object)(object)val2 == (Object)null || (Object)(object)component == (Object)null)
 			{
 				return;
 			}
-			Bounds bounds = BoundsInParent(component, rectTransform2);
-			Bounds bounds2 = ((rectTransform == null) ? new Bounds(new Vector3(bounds.max.x + bounds.size.x, bounds.center.y, 0f), bounds.size) : BoundsInParent(component, rectTransform));
-			float x = bounds.min.x;
-			float a = ((rectTransform == null) ? (bounds.max.x + bounds.size.x) : bounds2.max.x);
-			float y = bounds.center.y;
+			Bounds val3 = BoundsInParent(component, val2);
+			Bounds val4 = (Bounds)(((Object)(object)val == (Object)null) ? new Bounds(new Vector3(((Bounds)(ref val3)).max.x + ((Bounds)(ref val3)).size.x, ((Bounds)(ref val3)).center.y, 0f), ((Bounds)(ref val3)).size) : BoundsInParent(component, val));
+			float x = ((Bounds)(ref val3)).min.x;
+			float num2 = (((Object)(object)val == (Object)null) ? (((Bounds)(ref val3)).max.x + ((Bounds)(ref val3)).size.x) : ((Bounds)(ref val4)).max.x);
+			float y = ((Bounds)(ref val3)).center.y;
 			logStatic("native source rect=" + RectSummary(activeButton) + ", simulation rect=" + RectSummary(simulationButton));
-			float num2 = float.PositiveInfinity;
+			float num3 = float.PositiveInfinity;
 			for (int i = 0; i < parent.childCount; i++)
 			{
 				Transform child = parent.GetChild(i);
-				if (child == null || child == activeButton.transform || (simulationButton != null && child == simulationButton.transform) || child == moddedButton.transform || child.name.IndexOf("BRIEFING", StringComparison.OrdinalIgnoreCase) < 0)
+				if ((Object)(object)child == (Object)null || (Object)(object)child == (Object)(object)activeButton.transform || ((Object)(object)simulationButton != (Object)null && (Object)(object)child == (Object)(object)simulationButton.transform) || (Object)(object)child == (Object)(object)moddedButton.transform || ((Object)child).name.IndexOf("BRIEFING", StringComparison.OrdinalIgnoreCase) < 0)
 				{
 					continue;
 				}
-				RectTransform component3 = child.GetComponent<RectTransform>();
-				if (!(component3 == null))
+				RectTransform component3 = ((Component)child).GetComponent<RectTransform>();
+				if (!((Object)(object)component3 == (Object)null))
 				{
-					Bounds bounds3 = BoundsInParent(component, component3);
-					if (bounds3.min.x > x && bounds3.min.x < num2)
+					Bounds val5 = BoundsInParent(component, component3);
+					if (((Bounds)(ref val5)).min.x > x && ((Bounds)(ref val5)).min.x < num3)
 					{
-						num2 = bounds3.min.x;
+						num3 = ((Bounds)(ref val5)).min.x;
 					}
 				}
 			}
-			if (!float.IsPositiveInfinity(num2))
+			if (!float.IsPositiveInfinity(num3))
 			{
-				a = Mathf.Min(a, num2 - 12f);
+				num2 = Mathf.Min(num2, num3 - 12f);
 			}
-			a = Mathf.Min(a, component.rect.xMax - 8f);
-			x = Mathf.Max(x, component.rect.xMin + 8f);
-			float num3 = 8f;
-			float num4 = (a - x - num3 * 2f) / 3f;
-			if (num4 < 96f)
+			float num4 = num2;
+			Rect rect = component.rect;
+			num2 = Mathf.Min(num4, ((Rect)(ref rect)).xMax - 8f);
+			float num5 = x;
+			rect = component.rect;
+			x = Mathf.Max(num5, ((Rect)(ref rect)).xMin + 8f);
+			float num6 = 8f;
+			float num7 = (num2 - x - num6 * 2f) / 3f;
+			if (num7 < 96f)
 			{
-				num4 = Mathf.Max(96f, Mathf.Min(bounds.size.x, bounds2.size.x));
+				num7 = Mathf.Max(96f, Mathf.Min(((Bounds)(ref val3)).size.x, ((Bounds)(ref val4)).size.x));
 			}
-			if (num4 * 3f + num3 * 2f > component.rect.width - 16f)
+			float num8 = num7 * 3f + num6 * 2f;
+			rect = component.rect;
+			if (num8 > ((Rect)(ref rect)).width - 16f)
 			{
-				num4 = Mathf.Max(96f, (component.rect.width - 16f - num3 * 2f) / 3f);
+				rect = component.rect;
+				num7 = Mathf.Max(96f, (((Rect)(ref rect)).width - 16f - num6 * 2f) / 3f);
 			}
-			SetTabRect(rectTransform2, component, x + num4 * 0.5f, y, num4);
-			if (rectTransform != null)
+			SetTabRect(val2, component, x + num7 * 0.5f, y, num7);
+			if ((Object)(object)val != (Object)null)
 			{
-				SetTabRect(rectTransform, component, x + num4 + num3 + num4 * 0.5f, y, num4);
+				SetTabRect(val, component, x + num7 + num6 + num7 * 0.5f, y, num7);
 			}
-			SetTabRect(component2, component, x + (num4 + num3) * 2f + num4 * 0.5f, y, num4);
-			int num5 = ((simulationButton == null) ? activeButton.transform.GetSiblingIndex() : simulationButton.transform.GetSiblingIndex());
-			moddedButton.transform.SetSiblingIndex(Mathf.Min(num5 + 1, parent.childCount - 1));
+			SetTabRect(component2, component, x + (num7 + num6) * 2f + num7 * 0.5f, y, num7);
+			int num9 = (((Object)(object)simulationButton == (Object)null) ? activeButton.transform.GetSiblingIndex() : simulationButton.transform.GetSiblingIndex());
+			moddedButton.transform.SetSiblingIndex(Mathf.Min(num9 + 1, parent.childCount - 1));
 			Canvas.ForceUpdateCanvases();
-			logStatic("native tab row normalized in parent-local coordinates: rowLeft=" + x.ToString("F1") + ", rowRight=" + a.ToString("F1") + ", tabWidth=" + num4.ToString("F1") + ", parent=" + component.rect.size.ToString() + ");");
+			string[] obj = new string[9]
+			{
+				"native tab row normalized in parent-local coordinates: rowLeft=",
+				x.ToString("F1"),
+				", rowRight=",
+				num2.ToString("F1"),
+				", tabWidth=",
+				num7.ToString("F1"),
+				", parent=",
+				null,
+				null
+			};
+			rect = component.rect;
+			obj[7] = ((object)((Rect)(ref rect)).size/*cast due to constrained. prefix*/).ToString();
+			obj[8] = ");";
+			logStatic(string.Concat(obj));
 		}
 	}
 
 	private static void GetRectBoundsInParent(RectTransform rect, RectTransform parent, out float left, out float right, out float bottom, out float top)
 	{
-		Vector3[] array = new Vector3[4];
-		rect.GetWorldCorners(array);
+		//IL_0038: Unknown result type (might be due to invalid IL or missing references)
+		//IL_003d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0042: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0046: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0055: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0066: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0077: Unknown result type (might be due to invalid IL or missing references)
+		Vector3[] array = (Vector3[])(object)new Vector3[4];
+		rect.GetWorldCorners(Il2CppStructArray<Vector3>.op_Implicit(array));
 		left = float.PositiveInfinity;
 		right = float.NegativeInfinity;
 		bottom = float.PositiveInfinity;
 		top = float.NegativeInfinity;
 		for (int i = 0; i < array.Length; i++)
 		{
-			Vector3 vector = parent.InverseTransformPoint(array[i]);
-			left = Mathf.Min(left, vector.x);
-			right = Mathf.Max(right, vector.x);
-			bottom = Mathf.Min(bottom, vector.y);
-			top = Mathf.Max(top, vector.y);
+			Vector3 val = ((Transform)parent).InverseTransformPoint(array[i]);
+			left = Mathf.Min(left, val.x);
+			right = Mathf.Max(right, val.x);
+			bottom = Mathf.Min(bottom, val.y);
+			top = Mathf.Max(top, val.y);
 		}
 	}
 
 	private static Bounds BoundsInParent(RectTransform parent, RectTransform child)
 	{
-		if (parent == null || child == null)
+		//IL_0012: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0017: Unknown result type (might be due to invalid IL or missing references)
+		//IL_001c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0023: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0028: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0033: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0038: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0043: Unknown result type (might be due to invalid IL or missing references)
+		//IL_004f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_005d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_006e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0089: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0098: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a9: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00d1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00fe: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0100: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)parent == (Object)null || (Object)(object)child == (Object)null)
 		{
 			return new Bounds(Vector3.zero, Vector3.zero);
 		}
-		float width = child.rect.width;
-		float height = child.rect.height;
-		float num = child.localPosition.x - width * child.pivot.x;
-		float num2 = child.localPosition.x + width * (1f - child.pivot.x);
-		float num3 = child.localPosition.y - height * child.pivot.y;
-		float num4 = child.localPosition.y + height * (1f - child.pivot.y);
-		Vector3 center = new Vector3((num + num2) * 0.5f, (num3 + num4) * 0.5f, 0f);
-		Vector3 size = new Vector3(Mathf.Max(0f, num2 - num), Mathf.Max(0f, num4 - num3), 0f);
-		return new Bounds(center, size);
+		Rect rect = child.rect;
+		float width = ((Rect)(ref rect)).width;
+		rect = child.rect;
+		float height = ((Rect)(ref rect)).height;
+		float num = ((Transform)child).localPosition.x - width * child.pivot.x;
+		float num2 = ((Transform)child).localPosition.x + width * (1f - child.pivot.x);
+		float num3 = ((Transform)child).localPosition.y - height * child.pivot.y;
+		float num4 = ((Transform)child).localPosition.y + height * (1f - child.pivot.y);
+		Vector3 val = new Vector3((num + num2) * 0.5f, (num3 + num4) * 0.5f, 0f);
+		Vector3 val2 = default(Vector3);
+		((Vector3)(ref val2))._002Ector(Mathf.Max(0f, num2 - num), Mathf.Max(0f, num4 - num3), 0f);
+		return new Bounds(val, val2);
 	}
 
 	private static void SetTabRect(RectTransform rect, RectTransform parent, float centerX, float centerY, float width)
 	{
-		if (!(rect == null) && !(parent == null))
+		//IL_0019: Unknown result type (might be due to invalid IL or missing references)
+		//IL_001e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0037: Unknown result type (might be due to invalid IL or missing references)
+		//IL_004c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0061: Unknown result type (might be due to invalid IL or missing references)
+		//IL_006f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0091: Unknown result type (might be due to invalid IL or missing references)
+		if (!((Object)(object)rect == (Object)null) && !((Object)(object)parent == (Object)null))
 		{
-			float y = Mathf.Max(1f, rect.rect.height);
+			Rect rect2 = rect.rect;
+			float num = Mathf.Max(1f, ((Rect)(ref rect2)).height);
 			rect.anchorMin = new Vector2(0.5f, 0.5f);
 			rect.anchorMax = new Vector2(0.5f, 0.5f);
 			rect.pivot = new Vector2(0.5f, 0.5f);
-			rect.sizeDelta = new Vector2(width, y);
-			Vector3 localPosition = rect.localPosition;
+			rect.sizeDelta = new Vector2(width, num);
+			Vector3 localPosition = ((Transform)rect).localPosition;
 			localPosition.x = centerX;
 			localPosition.y = centerY;
-			rect.localPosition = localPosition;
+			((Transform)rect).localPosition = localPosition;
 		}
 	}
 
 	private static void CopyContentRect(GameObject source, RectTransform destination)
 	{
-		if (!(destination == null))
+		//IL_0055: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0061: Unknown result type (might be due to invalid IL or missing references)
+		//IL_006d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0079: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0085: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0091: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0027: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
+		//IL_003d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0048: Unknown result type (might be due to invalid IL or missing references)
+		if (!((Object)(object)destination == (Object)null))
 		{
-			RectTransform rectTransform = ((source == null) ? null : source.GetComponent<RectTransform>());
-			if (rectTransform == null)
+			RectTransform val = (((Object)(object)source == (Object)null) ? null : source.GetComponent<RectTransform>());
+			if ((Object)(object)val == (Object)null)
 			{
 				destination.anchorMin = Vector2.zero;
 				destination.anchorMax = Vector2.one;
@@ -6354,25 +7257,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			}
 			else
 			{
-				destination.anchorMin = rectTransform.anchorMin;
-				destination.anchorMax = rectTransform.anchorMax;
-				destination.pivot = rectTransform.pivot;
-				destination.anchoredPosition = rectTransform.anchoredPosition;
-				destination.sizeDelta = rectTransform.sizeDelta;
-				destination.localScale = rectTransform.localScale;
-				destination.localRotation = rectTransform.localRotation;
+				destination.anchorMin = val.anchorMin;
+				destination.anchorMax = val.anchorMax;
+				destination.pivot = val.pivot;
+				destination.anchoredPosition = val.anchoredPosition;
+				destination.sizeDelta = val.sizeDelta;
+				((Transform)destination).localScale = ((Transform)val).localScale;
+				((Transform)destination).localRotation = ((Transform)val).localRotation;
 			}
 		}
 	}
 
 	private static void SetTabSelectedState(GameObject button, bool selected)
 	{
-		if (button == null)
+		if ((Object)(object)button == (Object)null)
 		{
 			return;
 		}
 		PanelButton component = button.GetComponent<PanelButton>();
-		if (component != null)
+		if ((Object)(object)component != (Object)null)
 		{
 			component.isSelected = selected;
 			component.SetSelected(selected);
@@ -6380,7 +7283,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 			return;
 		}
 		ButtonManager component2 = button.GetComponent<ButtonManager>();
-		if (component2 != null)
+		if ((Object)(object)component2 != (Object)null)
 		{
 			component2.UpdateState();
 		}
@@ -6388,14 +7291,43 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static string RectSummary(GameObject go)
 	{
-		if (go == null)
+		//IL_0034: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0039: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0053: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0058: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0072: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0077: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0099: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009e: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)go == (Object)null)
 		{
 			return "null";
 		}
 		RectTransform component = go.GetComponent<RectTransform>();
-		if (!(component == null))
+		if (!((Object)(object)component == (Object)null))
 		{
-			return "anchored=" + component.anchoredPosition.ToString() + ", local=" + component.localPosition.ToString() + ", size=" + component.rect.size.ToString() + ", pivot=" + component.pivot.ToString() + ", parent=" + ((go.transform.parent == null) ? "null" : go.transform.parent.name);
+			string[] obj = new string[10]
+			{
+				"anchored=",
+				((object)component.anchoredPosition/*cast due to constrained. prefix*/).ToString(),
+				", local=",
+				((object)((Transform)component).localPosition/*cast due to constrained. prefix*/).ToString(),
+				", size=",
+				null,
+				null,
+				null,
+				null,
+				null
+			};
+			Rect rect = component.rect;
+			obj[5] = ((object)((Rect)(ref rect)).size/*cast due to constrained. prefix*/).ToString();
+			obj[6] = ", pivot=";
+			obj[7] = ((object)component.pivot/*cast due to constrained. prefix*/).ToString();
+			obj[8] = ", parent=";
+			obj[9] = (((Object)(object)go.transform.parent == (Object)null) ? "null" : ((Object)go.transform.parent).name);
+			return string.Concat(obj);
 		}
 		return "no-rect";
 	}
@@ -6404,26 +7336,42 @@ public sealed class CerberusNativeTabFix : BasePlugin
 	{
 		if (instance != null && instance.log != null)
 		{
-			instance.log.LogInfo("Cerberus " + message + ".");
+			instance.log.LogInfo((object)("Cerberus " + message + "."));
 		}
 	}
 
 	private static void FitTabTitleText(GameObject button, string renderedTitle)
 	{
-		if (button == null || string.IsNullOrWhiteSpace(renderedTitle))
+		//IL_0072: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0077: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0080: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0084: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0089: Unknown result type (might be due to invalid IL or missing references)
+		//IL_008d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0092: Unknown result type (might be due to invalid IL or missing references)
+		//IL_009b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00a2: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00b3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ba: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00cb: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00d2: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ea: Unknown result type (might be due to invalid IL or missing references)
+		if ((Object)(object)button == (Object)null || string.IsNullOrWhiteSpace(renderedTitle))
 		{
 			return;
 		}
 		int num = 0;
 		try
 		{
-			foreach (TMP_Text componentsInChild in button.GetComponentsInChildren<TMP_Text>(includeInactive: true))
+			foreach (TMP_Text componentsInChild in button.GetComponentsInChildren<TMP_Text>(true))
 			{
-				if (!(componentsInChild == null) && TitleEquals(componentsInChild.text, renderedTitle))
+				if (!((Object)(object)componentsInChild == (Object)null) && TitleEquals(componentsInChild.text, renderedTitle))
 				{
 					float num2 = Mathf.Max(1f, componentsInChild.fontSize);
 					RectTransform rectTransform = componentsInChild.rectTransform;
-					if (rectTransform != null)
+					if ((Object)(object)rectTransform != (Object)null)
 					{
 						Vector2 anchorMin = rectTransform.anchorMin;
 						Vector2 anchorMax = rectTransform.anchorMax;
@@ -6438,7 +7386,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 					componentsInChild.enableAutoSizing = true;
 					componentsInChild.fontSizeMax = num2;
 					componentsInChild.fontSizeMin = Mathf.Max(10f, num2 * 0.55f);
-					componentsInChild.ForceMeshUpdate(ignoreActiveState: true, forceTextReparsing: true);
+					componentsInChild.ForceMeshUpdate(true, true);
 					num++;
 				}
 			}
@@ -6447,7 +7395,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		{
 		}
 		Canvas.ForceUpdateCanvases();
-		logStatic("title fit applied: button=" + button.name + ", renderedTitle='" + renderedTitle + "', copies=" + num);
+		logStatic("title fit applied: button=" + ((Object)button).name + ", renderedTitle='" + renderedTitle + "', copies=" + num);
 	}
 
 	private static bool TitleEquals(string value, string expected)
@@ -6466,16 +7414,16 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static string HierarchyPath(Transform transform)
 	{
-		if (transform == null)
+		if ((Object)(object)transform == (Object)null)
 		{
 			return "<null>";
 		}
-		System.Collections.Generic.List<string> list = new System.Collections.Generic.List<string>();
-		Transform transform2 = transform;
-		while (transform2 != null)
+		List<string> list = new List<string>();
+		Transform val = transform;
+		while ((Object)(object)val != (Object)null)
 		{
-			list.Add(transform2.name ?? "<unnamed>");
-			transform2 = transform2.parent;
+			list.Add(((Object)val).name ?? "<unnamed>");
+			val = val.parent;
 		}
 		list.Reverse();
 		return string.Join("/", list);
@@ -6483,7 +7431,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static string DescribeActivity(GameObject gameObject)
 	{
-		if (!(gameObject == null))
+		if (!((Object)(object)gameObject == (Object)null))
 		{
 			return "activeSelf=" + gameObject.activeSelf + ", activeInHierarchy=" + gameObject.activeInHierarchy + ", path=" + HierarchyPath(gameObject.transform);
 		}
@@ -6492,20 +7440,20 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static GameObject FindDeep(Transform root, string name)
 	{
-		if (root == null)
+		if ((Object)(object)root == (Object)null)
 		{
 			return null;
 		}
-		if (root.name == name)
+		if (((Object)root).name == name)
 		{
-			return root.gameObject;
+			return ((Component)root).gameObject;
 		}
 		for (int i = 0; i < root.childCount; i++)
 		{
-			GameObject gameObject = FindDeep(root.GetChild(i), name);
-			if (gameObject != null)
+			GameObject val = FindDeep(root.GetChild(i), name);
+			if ((Object)(object)val != (Object)null)
 			{
-				return gameObject;
+				return val;
 			}
 		}
 		return null;
@@ -6513,29 +7461,29 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void OpenModdedPage(MissionLaptop laptop, GameObject page)
 	{
-		if (laptop != null)
+		if ((Object)(object)laptop != (Object)null)
 		{
-			if (laptop.ActiveOperationsTab != null)
+			if ((Object)(object)laptop.ActiveOperationsTab != (Object)null)
 			{
-				laptop.ActiveOperationsTab.SetActive(value: false);
+				laptop.ActiveOperationsTab.SetActive(false);
 			}
-			if (laptop.SimulationOperationsTab != null)
+			if ((Object)(object)laptop.SimulationOperationsTab != (Object)null)
 			{
-				laptop.SimulationOperationsTab.SetActive(value: false);
+				laptop.SimulationOperationsTab.SetActive(false);
 			}
 		}
-		if (page != null)
+		if ((Object)(object)page != (Object)null)
 		{
-			page.SetActive(value: true);
-			GameObject gameObject = FindDeep(page.transform, "MODDED_HOME");
-			GameObject gameObject2 = FindDeep(page.transform, "MODDED_BRIEFING");
-			if (gameObject != null)
+			page.SetActive(true);
+			GameObject val = FindDeep(page.transform, "MODDED_HOME");
+			GameObject val2 = FindDeep(page.transform, "MODDED_BRIEFING");
+			if ((Object)(object)val != (Object)null)
 			{
-				gameObject.SetActive(value: true);
+				val.SetActive(true);
 			}
-			if (gameObject2 != null)
+			if ((Object)(object)val2 != (Object)null)
 			{
-				gameObject2.SetActive(value: false);
+				val2.SetActive(false);
 			}
 		}
 	}
@@ -6545,34 +7493,34 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		try
 		{
 			GameObject activeOperationsTab = laptop.ActiveOperationsTab;
-			if (activeOperationsTab == null)
+			if ((Object)(object)activeOperationsTab == (Object)null)
 			{
-				log.LogWarning("Cerberus hierarchy probe: ActiveOperationsTab is null.");
+				log.LogWarning((object)"Cerberus hierarchy probe: ActiveOperationsTab is null.");
 				return;
 			}
-			log.LogInfo("Cerberus hierarchy probe: ActiveOperationsTab=" + Describe(activeOperationsTab) + ".");
-			DumpHierarchy((activeOperationsTab.transform.parent == null) ? activeOperationsTab.transform : activeOperationsTab.transform.parent, 0, 3);
+			log.LogInfo((object)("Cerberus hierarchy probe: ActiveOperationsTab=" + Describe(activeOperationsTab) + "."));
+			DumpHierarchy(((Object)(object)activeOperationsTab.transform.parent == (Object)null) ? activeOperationsTab.transform : activeOperationsTab.transform.parent, 0, 3);
 		}
 		catch (Exception ex)
 		{
-			log.LogWarning("Cerberus hierarchy probe failed: " + ex.GetType().Name + ": " + ex.Message);
+			log.LogWarning((object)("Cerberus hierarchy probe failed: " + ex.GetType().Name + ": " + ex.Message));
 		}
 	}
 
 	private void DumpHierarchy(Transform node, int depth, int maxDepth)
 	{
-		if (node == null || depth > maxDepth)
+		if ((Object)(object)node == (Object)null || depth > maxDepth)
 		{
 			return;
 		}
-		System.Collections.Generic.List<string> list = new System.Collections.Generic.List<string>();
+		List<string> list = new List<string>();
 		try
 		{
-			foreach (Component component in node.gameObject.GetComponents<Component>())
+			foreach (Component component in ((Component)node).gameObject.GetComponents<Component>())
 			{
-				if (component != null)
+				if ((Object)(object)component != (Object)null)
 				{
-					list.Add(component.GetType().FullName);
+					list.Add(((object)component).GetType().FullName);
 				}
 			}
 		}
@@ -6585,33 +7533,33 @@ public sealed class CerberusNativeTabFix : BasePlugin
 		bool flag4 = false;
 		try
 		{
-			flag = node.GetComponent<PanelButton>() != null;
+			flag = (Object)(object)((Component)node).GetComponent<PanelButton>() != (Object)null;
 		}
 		catch
 		{
 		}
 		try
 		{
-			flag2 = node.GetComponent<ButtonManager>() != null;
+			flag2 = (Object)(object)((Component)node).GetComponent<ButtonManager>() != (Object)null;
 		}
 		catch
 		{
 		}
 		try
 		{
-			flag3 = node.GetComponent<Button>() != null;
+			flag3 = (Object)(object)((Component)node).GetComponent<Button>() != (Object)null;
 		}
 		catch
 		{
 		}
 		try
 		{
-			flag4 = node.GetComponent<TMP_Text>() != null;
+			flag4 = (Object)(object)((Component)node).GetComponent<TMP_Text>() != (Object)null;
 		}
 		catch
 		{
 		}
-		log.LogInfo("Cerberus hierarchy " + new string(' ', depth * 2) + node.name + " components=[" + string.Join(",", list) + "] typed panelButton=" + flag + " buttonManager=" + flag2 + " unityButton=" + flag3 + " tmp=" + flag4);
+		log.LogInfo((object)("Cerberus hierarchy " + new string(' ', depth * 2) + ((Object)node).name + " components=[" + string.Join(",", list) + "] typed panelButton=" + flag + " buttonManager=" + flag2 + " unityButton=" + flag3 + " tmp=" + flag4));
 		for (int i = 0; i < node.childCount; i++)
 		{
 			DumpHierarchy(node.GetChild(i), depth + 1, maxDepth);
@@ -6620,25 +7568,25 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static string Describe(GameObject gameObject)
 	{
-		if (!(gameObject == null))
+		if (!((Object)(object)gameObject == (Object)null))
 		{
-			return gameObject.name + " parent=" + ((gameObject.transform.parent == null) ? "null" : gameObject.transform.parent.name);
+			return ((Object)gameObject).name + " parent=" + (((Object)(object)gameObject.transform.parent == (Object)null) ? "null" : ((Object)gameObject.transform.parent).name);
 		}
 		return "null";
 	}
 
 	private static GameObject FindChild(Transform parent, string name)
 	{
-		if (parent == null)
+		if ((Object)(object)parent == (Object)null)
 		{
 			return null;
 		}
 		for (int i = 0; i < parent.childCount; i++)
 		{
 			Transform child = parent.GetChild(i);
-			if (child != null && child.name == name)
+			if ((Object)(object)child != (Object)null && ((Object)child).name == name)
 			{
-				return child.gameObject;
+				return ((Component)child).gameObject;
 			}
 		}
 		return null;
@@ -6646,29 +7594,29 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
 	private static void SetButtonText(GameObject button, string text)
 	{
-		if (button == null)
+		if ((Object)(object)button == (Object)null)
 		{
 			return;
 		}
 		DisableLocalizationComponent(button);
 		PanelButton component = button.GetComponent<PanelButton>();
-		if (component != null)
+		if ((Object)(object)component != (Object)null)
 		{
 			component.buttonText = text;
 			component.useLocalization = false;
 			component.useCustomText = true;
 		}
 		ButtonManager component2 = button.GetComponent<ButtonManager>();
-		if (component2 != null)
+		if ((Object)(object)component2 != (Object)null)
 		{
 			component2.buttonText = text;
 			component2.useLocalization = false;
 		}
-		foreach (TMP_Text componentsInChild in button.GetComponentsInChildren<TMP_Text>(includeInactive: true))
+		foreach (TMP_Text componentsInChild in button.GetComponentsInChildren<TMP_Text>(true))
 		{
-			if (!(componentsInChild == null))
+			if (!((Object)(object)componentsInChild == (Object)null))
 			{
-				DisableLocalizationComponent(componentsInChild.gameObject);
+				DisableLocalizationComponent(((Component)componentsInChild).gameObject);
 				componentsInChild.text = text;
 			}
 		}

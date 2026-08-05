@@ -25,7 +25,10 @@ continues to use the framework legacy values.
 | Schema | `schemas/operator-map-package-v2.schema.json` |
 | PVE population owner | `CerberusNativeTabFix.TrySpawnStandalonePveEnemies` |
 | Marker settings | `CerberusNativeTabFix.ConfigureStandaloneBotDetails` |
-| Diagnostic text | `CerberusNativeTabFix.FormatPveAiProfile` |
+| Profile diagnostic text | `CerberusNativeTabFix.FormatPveAiProfile` |
+| Spawned-bot contract capture | `CerberusNativeTabFix.StartProfiledPveAiDiagnostics` |
+| Bounded runtime sampler | `CerberusNativeTabFix.ProcessProfiledPveAiDiagnostics` |
+| Movement and sight report | `CerberusNativeTabFix.LogProfiledPveAiSnapshot` |
 | Native population call | `RaidManager.ServerSpawnAI(false)` |
 | Native settings call | `RaidManager.ApplyBotSpawnSettings(GameObject, BotSpawnDetails)` |
 | Native idle movement | `BrainAI.Wander(float)` |
@@ -222,6 +225,50 @@ The framework log must contain one line in this form:
 
 ```text
 Standalone PVE released a server-owned AI population through shipped RaidManager.ServerSpawnAI: count=<N>, requestedRange=10-15, chosen=<N>, markers=<M>, firearmCapablePrefabs=<P>, aiProfile=<ID>(range=45.0m,fov=90.0,maxEffective=-1.0m,wander=38m,comms=True,counterSuppression=False).
+```
+
+When a PVE operation has `pveAiProfile`, the framework also starts one
+read-only 120-second diagnostic. The gate is the presence of a profile. The
+generic source does not contain a map ID. Schema-v1 PVE, PVP, and vanilla
+operations do not enter this path.
+
+Before `RaidManager.ServerSpawnAI(false)`, the framework records the instance
+IDs already in `GameManager.allAI`. After the native call returns, it tracks
+only new `BrainAI` IDs. This prevents an old scene actor from entering the
+report. It does not write a `BrainAI`, `EyesAI`, navigation agent, weapon, or
+target field.
+
+The first line reports the values on the live spawned bots, not only the JSON
+inputs:
+
+```text
+Profiled PVE native AI contract: operation=<operationId>, profile=<profileId>, source=spawn, brains=<N>, nativeInitialWanderDelay=<min>..<max>s, detection=<min>..<max>m, fov=<min>..<max>, wander=<min>..<max>m, comms=<enabled>/<N>.
+```
+
+`nativeInitialWanderDelay` is the live product
+`BrainAI.WanderTimer * BrainAI.Patience`. A zero minimum is a warning. Do not
+claim delayed search from the native method body alone. Require a positive
+live value and physical movement evidence.
+
+The framework takes snapshots at 0, 10, 30, 60, 90, and 120 seconds. Each
+snapshot reports:
+
+- live tracked bots;
+- bots at least 1 m from their captured spawn position;
+- bots at least 5 m closer to the captured insertion position;
+- mean and maximum horizontal displacement;
+- bots with a non-null `CurrentSeenTarget`;
+- the `BrainAI.CurrentState` counts;
+- one read-only linecast from each bot eye to the player with that bot's
+  actual `EyesAI.DetectionLayerMask`.
+
+The sight probe groups first hits as layer-18 vegetation, other geometry, or
+clear/player. It is geometry evidence. It is not a replacement for the
+native `CurrentSeenTarget` field or the physical reciprocal-firearm test.
+The exact line is:
+
+```text
+Profiled PVE AI snapshot: operation=<operationId>, profile=<profileId>, scheduled=<S>s, elapsed=<T>s, live=<N>, moved>=1m=<N>, movedTowardInsertion>=5m=<N>, movementMean=<M>m, movementMax=<M>m, actualSeenTarget=<N>, sameMaskSightProbe(vegetation=<N>,other=<N>,clearOrPlayer=<N>), states=<stateCounts>.
 ```
 
 The map companion must log the blocker count. A dense map must reject its

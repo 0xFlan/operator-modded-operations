@@ -18,6 +18,9 @@ The source and package validators prove these bounded facts:
   `RaidManager.ServerSpawnAI(false)` call;
 - schema-v1 and schema-v2 operations without a profile keep the 72 m, 105
   degree, 90 m, 18 m, communications-on, counter-suppression-on legacy values.
+- profiled PVE operations start one read-only six-snapshot diagnostic; its
+  source compiles and its gate is `PveAiProfile != null`, but no current live
+  log has completed the 120-second window yet.
 
 The new profile path and the Forest 274-blocker activation are
 `PROVEN-STATIC`. The first-launch and repeat-launch physical Forest behavior
@@ -28,12 +31,12 @@ The exact candidate artifacts are:
 
 ```text
 OperatorModdedOperations.dll
-bytes=152576
-sha256=E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A
+bytes=159232
+sha256=257F5449463BF2D2E2BD71CBC3AEA513A1788E882578CA98B631FB70E2EB1F25
 
 OperatorModdedOperationsFramework_v0.3.19.zip
-bytes=931101
-sha256=12ED4EB22B7EAAB820D9416272B9C879C5AC2355CCD90F185EBDC66830A00CD3
+bytes=940720
+sha256=05FB3FE1841266B17672E5ABDFDBF07F1C91E309A9E069ABA8893E26F1A71B0E
 ```
 
 The ZIP passed a complete 7-Zip integrity test. Closed-game deployment copied
