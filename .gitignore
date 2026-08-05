@@ -1,0 +1,16 @@
+# Local game and build inputs
+artifacts/
+bin/
+obj/
+release/
+*.dll
+*.pdb
+*.zip
+*.log
+
+# IDE and operating-system state
+.vs/
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

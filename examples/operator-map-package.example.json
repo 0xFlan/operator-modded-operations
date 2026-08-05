@@ -1,0 +1,90 @@
+{
+  "$schema": "https://operator-mod-api.dev/schemas/operator-map-package-v1.json",
+  "schemaVersion": 1,
+  "packageId": "author.example-map",
+  "displayName": "Example Map",
+  "version": "0.1.0",
+  "maps": [
+    {
+      "mapId": "author.example-map.main",
+      "displayName": "EXAMPLE MAP",
+      "sceneBundle": "content/example_map_scene",
+      "dependencyBundles": [
+        "content/example_map_assets"
+      ],
+      "scenePath": "Assets/Maps/ExampleMap/Scenes/ExampleMap.unity",
+      "previewImage": "media/example_map_preview.jpg",
+      "operations": [
+        {
+          "operationId": "author.example-map.main-pve",
+          "displayName": "EXAMPLE MAP PVE",
+          "displayOrder": 0,
+          "mode": "pve",
+          "areaOfOperation": "EXAMPLE REGION",
+          "sitrep": "Operators enter from the south. Armed contacts hold the north route. Clear the marked combat area and keep the team inside the boundary.",
+          "minPlayers": 1,
+          "maxPlayers": 8,
+          "minEnemies": 10,
+          "maxEnemies": 15,
+          "spawnSet": "main-pve",
+          "infiltrations": [
+            {
+              "id": "south-entry",
+              "displayName": "SOUTH ENTRY",
+              "mapPositionX": 0.5,
+              "mapPositionY": 0.2,
+              "maxPlayers": 8
+            }
+          ],
+          "timeCodes": [
+            "1100",
+            "0200"
+          ],
+          "defaultTimeCode": "1100"
+        },
+        {
+          "operationId": "author.example-map.main-pvp",
+          "displayName": "EXAMPLE MAP PVP",
+          "displayOrder": 1,
+          "mode": "pvp",
+          "areaOfOperation": "EXAMPLE REGION",
+          "sitrep": "Two teams enter from opposite sides. Use the declared team spawn sets and remain inside the marked combat area.",
+          "minPlayers": 2,
+          "maxPlayers": 16,
+          "spawnSet": "main-pvp",
+          "infiltrations": [
+            {
+              "id": "south-entry",
+              "displayName": "SOUTH ENTRY",
+              "mapPositionX": 0.5,
+              "mapPositionY": 0.2,
+              "maxPlayers": 16
+            }
+          ],
+          "timeCodes": [
+            "1100",
+            "0200"
+          ],
+          "defaultTimeCode": "1100"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "content/example_map_assets",
+      "bytes": 0,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "content/example_map_scene",
+      "bytes": 0,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "media/example_map_preview.jpg",
+      "bytes": 0,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}
