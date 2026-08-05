@@ -24,6 +24,21 @@ The new profile path and the Forest 274-blocker activation are
 matrix remains open. See
 [Fixed PVE AI profile and vegetation sight](../architecture/pve-ai-profile-and-forest-sight.md).
 
+The exact candidate artifacts are:
+
+```text
+OperatorModdedOperations.dll
+bytes=152576
+sha256=E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A
+
+OperatorModdedOperationsFramework_v0.3.19.zip
+bytes=931101
+sha256=12ED4EB22B7EAAB820D9416272B9C879C5AC2355CCD90F185EBDC66830A00CD3
+```
+
+The ZIP passed a complete 7-Zip integrity test. Closed-game deployment copied
+the exact staged Core and framework DLL hashes into the pinned local install.
+
 ## Runtime state
 
 The physical Cerberus tab, package preview, one-click Confirm flow, exact scene

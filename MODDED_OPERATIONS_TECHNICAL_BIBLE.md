@@ -330,6 +330,13 @@ The framework archive contains Core and framework files only. A map archive
 contains package data and its map companion only. A complete convenience
 archive can contain both ownership domains.
 
+The `0.3.19` candidate framework archive is 931,101 bytes with SHA-256
+`12ED4EB22B7EAAB820D9416272B9C879C5AC2355CCD90F185EBDC66830A00CD3`.
+Its `OperatorModdedOperations.dll` is 152,576 bytes with SHA-256
+`E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A`.
+The archive passed a full 7-Zip integrity test. These identities do not close
+the physical Forest AI acceptance gate.
+
 Never ship QA flags, force-scene code, test controls, private logs, copied game
 DLLs, or extracted game assets.
 
