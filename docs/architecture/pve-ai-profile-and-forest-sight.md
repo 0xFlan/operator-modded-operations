@@ -388,15 +388,15 @@ static build is not a runtime acceptance result.
 
 ## Accepted Forest runtime evidence
 
-The release candidate passed two complete 120-second windows in one fresh
+The final release bytes passed two complete 120-second windows in one fresh
 process. The second window followed the shipped Restart Operation route.
 Both runs used the same `dense-forest-balanced-v1` profile and passed the
 repository verifier with a 10-through-15 population range.
 
 | Run | Live AI | Positive native delay | Moved at least 1 m at 120 s | Moved at least 5 m toward insertion | Maximum displacement | Vegetation probe evidence |
 | --- | ---: | --- | ---: | ---: | ---: | --- |
-| Initial operation | `12` | `6.99..40.58 s` | `12` | `4` | `40.16 m` | Present |
-| Native restart | `10` | `9.04..42.12 s` | `9` | `4` | `46.87 m` | Present |
+| Initial operation | `15` | `9.31..36.78 s` | `15` | `6` | `51.19 m` | Present |
+| Native restart | `14` | `10.97..33.02 s` | `14` | `4` | `49.34 m` | Present |
 
 The corresponding world contract reported `7079` transforms, `5533`
 renderers, `1931` active renderers, zero portable/error-shader renderers,

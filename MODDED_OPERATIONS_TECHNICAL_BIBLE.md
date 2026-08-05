@@ -577,10 +577,13 @@ linecast is geometry evidence, not acquisition proof. Physical camera behavior
 and reciprocal firearm damage remain required.
 
 The first launch and same-process native restart are `PROVEN-RUNTIME` for the
-tested Forest scope. The exact-package 120-second windows created 12 and 10
-native bots, moved 12 and 9 bots, moved 4 and 4 bots toward insertion, and recorded
-vegetation first-hit evidence. Reciprocal firearm damage remains a separate
-gate.
+tested Forest scope. The final release-byte observer created 15 and 14 native
+bots. At 120 seconds, all 15 and all 14 bots had moved at least 1 m. Six and
+four bots had moved at least 5 m toward insertion. Maximum displacement was
+`51.19 m` and `49.34 m`. The native delay ranges were `9.31..36.78 s` and
+`10.97..33.02 s`. Both generations recorded vegetation first-hit evidence.
+The repository verifier accepted both six-snapshot windows. Reciprocal firearm
+damage remains a separate gate.
 
 ## 24. Private stationary observer QA
 

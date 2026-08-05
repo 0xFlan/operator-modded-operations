@@ -97,26 +97,31 @@ The shipped `BOT V2` prefab keeps `BrainAI` on its network root. The moving
 The release diagnostic therefore measures `brain.agent.position`, not the
 stationary `brain.transform.position`.
 
-One fresh process completed a first launch and a native same-process restart.
-Both 120-second windows passed the closed verifier:
+One fresh process completed a first launch and a native same-process restart
+with the final release bytes. Both 120-second windows passed the repository
+verifier:
 
 | Run | Native bots | Native initial delay | Moved at least 1 m | Moved at least 5 m toward insertion | Maximum displacement | Vegetation evidence |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| First launch | 12 | `6.99..40.58 s` | 12 | 4 | `40.16 m` | present |
-| Native restart | 10 | `9.04..42.12 s` | 9 | 4 | `46.87 m` | present |
+| First launch | 15 | `9.31..36.78 s` | 15 | 6 | `51.19 m` | present |
+| Native restart | 14 | `10.97..33.02 s` | 14 | 4 | `49.34 m` | present |
 
 The runtime used the exact 183 authored layer-18 vegetation triggers. The
 framework diagnostic is read-only. It does not set a destination, target,
 vision field, weapon field, or AI state.
 
 The exact-package two-window log has SHA-256
-`DD8F2B6DB569F12ADB14358C764ECDAFB0E8E07709D2CB2C81E6CF968B05713B`.
+`EB246BBBE8334C72702FDF2C8B58DD1D7DB15E566405B194D89914A8F94B29C8`.
 The smoke trace has SHA-256
-`B33D745321F4A11F8272AEEA162531683D39185BF0574129B7524AA6452214E`.
+`10AECCF44BED40E747097FF5C637D838B3A068E585498A80675DF53339353B09`.
 The first-launch player-camera capture has SHA-256
-`6823B4933ACA51BBB4C319D77EFDC8ACD4BDC910F5A3BF092A51993DF955692B`.
+`C3FAAA9459E559AE8B15B7AF90BAA10068EE3AF46CBE99CB77190AB3E1589423`.
 The restart capture has SHA-256
-`D2CEAF125C2105D52F191FB596AEA78955618CAF1C47259FA1A6DDA82C7F1C9E`.
+`3CE33FDD42B3EC9273888E1A3248F20705F8BE3E6196A8F167F2794FC67C999D`.
+The machine-readable result has SHA-256
+`5FEE75A6B50ED680E805214E230DD4FA1FF9FC7805A205F5445838188F62A8A3`.
+It reports `passed`, exact operation `community.ukrainian-forest.pve`, hold
+time `122`, and no private driver after cleanup.
 
 ## Other accepted runtime gates
 

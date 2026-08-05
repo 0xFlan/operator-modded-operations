@@ -13,9 +13,10 @@
 - Measure native bot movement through `BrainAI.agent.position`. The shipped
   `BOT V2` root is the stationary network owner; its `AgentController` and
   `FollowerEntity` live on the moving model child.
-- Accept two complete 120-second exact-package Forest runs: 12 and 10 native
-  bots, positive native delays, 12 and 9 moved bots, 4 and 4 bots moving toward
-  insertion, and authored vegetation sight-obstruction evidence.
+- Accept two complete 120-second exact-package Forest runs with the final
+  release bytes: 15 and 14 native bots, positive native delays, all bots moved
+  at least 1 m, 6 and 4 bots moved toward insertion, and authored vegetation
+  sight-obstruction evidence.
 - Keep the profile PVE-only and operation-local. Add no difficulty UI and no
   effect on PVP, vanilla operations, or another package.
 
