@@ -6,6 +6,11 @@ Cerberus laptop. It reads verified map packages from Operator Mod API. It then
 uses the shipped briefing, infiltration, scene, player, AI, PVP, failure, and
 restart systems.
 
+Related public projects:
+
+- [Ukrainian Forest reference map](https://github.com/0xFlan/operator-ukrainian-forest)
+- [OPERATOR map-modding guide and reusable skill](https://github.com/0xFlan/operator-map-modding-guide)
+
 The framework does not contain Ukrainian Forest code. It does not contain a
 map name, a map coordinate, a map-material profile, a terrain size, or an A*
 graph size. It can own named, map-neutral process contracts such as
