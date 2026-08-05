@@ -581,3 +581,47 @@ tested Forest scope. The exact-package 120-second windows created 12 and 10
 native bots, moved 12 and 9 bots, moved 4 and 4 bots toward insertion, and recorded
 vegetation first-hit evidence. Reciprocal firearm damage remains a separate
 gate.
+
+## 24. Private stationary observer QA
+
+An unattended observer can validate Modded Operations without steering the
+playable character. It must remain a separate private BepInEx plug-in. It is
+not framework behavior and it must never enter the Nexus archive.
+
+The observer uses the actual product path:
+
+```text
+Lone Wolf
+-> player-owned MissionLaptop.AccessLaptop
+-> MissionLaptop.CerebusWindow.OpenWindow
+-> MODDED_OPS_NATIVE_TAB
+-> exact MODDED_NATIVE_ROW_<index>
+-> private OperationBoardUI Execute
+-> confirmation Confirm
+-> shipped InfilSelectorDisplayer selection and Confirm
+-> exact additive package scene
+-> native readiness and owned player camera
+-> GameManagerNetwork.RestartOperation
+```
+
+The private driver must select an exact immutable operation ID from the frozen
+catalog. It must not select only the first operation with a compatible mode.
+It must refuse an ID/mode mismatch. A configurable observation time must have
+a strict upper bound. Use at least 122 seconds when the test must include the
+0, 10, 30, 60, 90, and 120 second AI snapshots.
+
+The player remains stationary. The observer requires the real owned
+`PlayerMaster`, `PlayerSpawnedObject`, package spawn, declared Cinemachine
+camera, and retail output camera. A free camera or forced scene is not
+equivalent evidence.
+
+The launcher must refuse to attach to an existing OPERATOR process. It records
+the executable path, process ID, and start time for every process created by
+the controlled launch. On a timeout, it uses a graceful close first and acts
+only on an exact recorded process. It collects and hashes the BepInEx logs,
+driver trace, initial capture, and restart capture. It then removes its driver,
+control files, and capture directory.
+
+Do not use this method to bypass the physical first-Confirm gate. The private
+driver invokes the live UI events, but a human physical-pointer pass remains a
+separate release gate when the UI interaction surface itself changed.
