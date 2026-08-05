@@ -8,11 +8,11 @@ The current snapshot is:
 
 ```text
 [MOD DLL] OperatorModdedOperations.dll
-version: 0.3.18
-bytes: 151552
-SHA-256: 71F21527FF959DBCF3C7AD1894937F56A9D931E0BF1A6B038C857249861A745C
+version: 0.3.19
+bytes: 152576
+SHA-256: E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A
 decompiler: ILSpy command-line tool 10.1.1.8388
-output: decompiled/release-0.3.18
+output: decompiled/release-0.3.19
 ```
 
 The repository does not include the input DLL in normal Git history. Obtain
@@ -20,7 +20,7 @@ the DLL from the matching release asset. A reviewer can hash that DLL and run:
 
 ```powershell
 ilspycmd --disable-updatecheck --nested-directories -p `
-  -o .\decompiled\release-0.3.18 `
+  -o .\decompiled\release-0.3.19 `
   '<MOD_DLL>'
 ```
 

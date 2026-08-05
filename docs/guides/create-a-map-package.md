@@ -294,6 +294,21 @@ $sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLo
 
 Start with
 [`examples/operator-map-package.example.json`](../../examples/operator-map-package.example.json).
+Use schema version 2 only when the operation needs a fixed package-owned PVE
+AI profile:
+
+```json
+{
+  "$schema": "https://operator-mod-api.dev/schemas/operator-map-package-v2.json",
+  "schemaVersion": 2
+}
+```
+
+Schema v1 remains valid and cannot contain `pveAiProfile`. Schema v2 accepts
+the closed profile only on PVE. The framework applies it through native
+`BotSpawnDetails`; it does not add a difficulty UI or change another
+operation.
+
 The following PVE operation is complete enough to explain every presentation
 and population field:
 
@@ -309,6 +324,15 @@ and population field:
   "maxPlayers": 8,
   "minEnemies": 10,
   "maxEnemies": 15,
+  "pveAiProfile": {
+    "id": "woodland-balanced-v1",
+    "detectionRangeMeters": 45.0,
+    "fieldOfViewDegrees": 90.0,
+    "maximumEffectiveRangeMeters": -1.0,
+    "wanderDistanceMeters": 38,
+    "useComms": true,
+    "counterSuppression": false
+  },
   "spawnSet": "main-pve",
   "infiltrations": [
     {
@@ -323,6 +347,20 @@ and population field:
   "defaultTimeCode": "1100"
 }
 ```
+
+Measure the playable combat volume and every accepted player-to-enemy spawn
+distance before choosing values. Do not use the larger visual terrain apron.
+Keep `wanderDistanceMeters` below the distance that would let one native
+wander choice cross the intended encounter midpoint. The native bot waits for
+its prefab-owned `WanderTimer * Patience` before it chooses a destination
+around its current position, so repeated choices create a progressive search.
+
+Use `maximumEffectiveRangeMeters=-1` to preserve each native AI prefab's
+effective range. This does not mean unlimited range. It means the current
+native settings copier skips that field. Read
+[Fixed PVE AI profile and vegetation sight](../architecture/pve-ai-profile-and-forest-sight.md)
+for bounds, current-build native offsets/RVAs, line-of-sight layers, code, and
+diagnostics.
 
 For PVP, omit PVE enemy bounds and author non-empty Team 1 and Team 2 world
 marker sets.

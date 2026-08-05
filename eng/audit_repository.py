@@ -37,7 +37,7 @@ def required_paths() -> tuple[str, ...]:
             "src/OperatorModdedOperations/NativeBundleAssetLoader.cs",
             "src/OperatorModdedOperations/OperatorModdedOperations.csproj",
             "decompiled/README.md",
-            "decompiled/release-0.3.18/CerberusNativeTabFix.cs",
+            "decompiled/release-0.3.19/CerberusNativeTabFix.cs",
             "packaging/README-PACKAGE-PLACEHOLDER.md",
             "MODDED_OPERATIONS_TECHNICAL_BIBLE.md",
         )
@@ -53,7 +53,7 @@ def required_paths() -> tuple[str, ...]:
             "tools/validate_ukrainian_forest_bundle.py",
             "tools/audit_pvp_map_volume_profile.py",
             "decompiled/README.md",
-            "decompiled/release-0.4.15/OperatorUkrainianForest/OperatorUkrainianForestPlugin.cs",
+            "decompiled/release-0.4.16/OperatorUkrainianForest/OperatorUkrainianForestPlugin.cs",
             "packaging/README-PACKAGE-PLACEHOLDER.md",
             "UKRAINIAN_FOREST_TECHNICAL_BIBLE.md",
         )
@@ -85,7 +85,7 @@ def main() -> int:
         authored = (ROOT / "src/OperatorModdedOperations/CerberusNativeTabFix.cs").read_text(
             encoding="utf-8", errors="replace"
         )
-        decompiled = (ROOT / "decompiled/release-0.3.18/CerberusNativeTabFix.cs").read_text(
+        decompiled = (ROOT / "decompiled/release-0.3.19/CerberusNativeTabFix.cs").read_text(
             encoding="utf-8", errors="replace"
         )
         decompiled_readme = (ROOT / "decompiled/README.md").read_text(
@@ -95,7 +95,9 @@ def main() -> int:
             encoding="utf-8", errors="replace"
         )
         required_authored = (
-            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.18")]',
+            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]',
+            "operation.Operation.PveAiProfile",
+            "details.WanderDistance = profile?.WanderDistanceMeters ?? 18;",
             "sun.colorTemperature = night ? 9754f : 5500f;",
             "sun.intensity = night ? 40f : 30000f;",
             "sun.bounceIntensity = night ? 1f : 5f;",
@@ -104,9 +106,11 @@ def main() -> int:
             'night ? "PVP-map night" : "PVP Woods Warehouse day"',
         )
         required_decompiled = (
-            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.18")]',
-            "val.colorTemperature = (flag ? 9754f : 5500f);",
-            "val.intensity = (flag ? 40f : 30000f);",
+            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]',
+            "operation.Operation.PveAiProfile",
+            "details.WanderDistance = ((profile != null) ? profile.WanderDistanceMeters : 18);",
+            "light.colorTemperature = (flag ? 9754f : 5500f);",
+            "light.intensity = (flag ? 40f : 30000f);",
             'flag ? "PVP-map night" : "PVP Woods Warehouse day"',
         )
         for fragment in required_authored:
@@ -122,11 +126,11 @@ def main() -> int:
 
         required_decompilation_identity = (
             "[MOD DLL] OperatorModdedOperations.dll",
-            "version: 0.3.18",
-            "bytes: 151552",
-            "SHA-256: 71F21527FF959DBCF3C7AD1894937F56A9D931E0BF1A6B038C857249861A745C",
+            "version: 0.3.19",
+            "bytes: 152576",
+            "SHA-256: E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A",
             "decompiler: ILSpy command-line tool 10.1.1.8388",
-            "output: decompiled/release-0.3.18",
+            "output: decompiled/release-0.3.19",
         )
         for fragment in required_decompilation_identity:
             if fragment not in decompiled_readme:
@@ -151,7 +155,7 @@ def main() -> int:
         )
         decompiled = (
             ROOT
-            / "decompiled/release-0.4.15/OperatorUkrainianForest/OperatorUkrainianForestPlugin.cs"
+            / "decompiled/release-0.4.16/OperatorUkrainianForest/OperatorUkrainianForestPlugin.cs"
         ).read_text(encoding="utf-8", errors="replace")
         decompiled_readme = (ROOT / "decompiled/README.md").read_text(
             encoding="utf-8", errors="replace"
@@ -162,11 +166,15 @@ def main() -> int:
 
         required_authored = (
             'public const string PluginGuid = "operator.ukrainianforest";',
-            'public const string PluginVersion = "0.4.15";',
+            'public const string PluginVersion = "0.4.16";',
+            "ConfigureForestVegetationVisionBlockers(mapRoot.transform)",
+            'LayerMask.NameToLayer("AI_VisionBlock")',
         )
         required_decompiled = (
-            '[BepInPlugin("operator.ukrainianforest", "Operator Ukrainian Forest", "0.4.15")]',
-            'public const string PluginVersion = "0.4.15";',
+            '[BepInPlugin("operator.ukrainianforest", "Operator Ukrainian Forest", "0.4.16")]',
+            'public const string PluginVersion = "0.4.16";',
+            "ConfigureForestVegetationVisionBlockers(mapRoot.transform)",
+            'LayerMask.NameToLayer("AI_VisionBlock")',
         )
         for fragment in required_authored:
             if fragment not in authored:
@@ -177,11 +185,11 @@ def main() -> int:
 
         required_decompilation_identity = (
             "[MOD DLL] OperatorUkrainianForest.dll",
-            "version: 0.4.15",
-            "bytes: 296960",
-            "SHA-256: 86F9FC38CC519A68B1AC3B0E506828519D7E064CA9FD0468886C7D183A9A7903",
+            "version: 0.4.16",
+            "bytes: 297472",
+            "SHA-256: 1B93F389137EEB003A37FF3DAB30B11DC21B159D0D4FD5A78E25BA6393407D7D",
             "decompiler: ILSpy command-line tool 10.1.1.8388",
-            "output: decompiled/release-0.4.15",
+            "output: decompiled/release-0.4.16",
         )
         for fragment in required_decompilation_identity:
             if fragment not in decompiled_readme:

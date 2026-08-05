@@ -20,7 +20,7 @@ optional map companion owns exact-scene reconstruction.
 
 ## Current status
 
-The source version in this repository is `0.3.18`. Local live testing on the
+The source version in this repository is `0.3.19`. Local live testing on the
 pinned game build accepts first launch, one-click Confirm, complete unload,
 repeat launch, player grounding, 11:00 native daylight, and 02:00 four-tube
 white-phosphor NVG behavior. Multiplayer PVP and reciprocal firearm-damage
@@ -35,7 +35,8 @@ tests remain separate release gates. Read
 | `src/OperatorModdedOperations` | Exact BepInEx IL2CPP framework source. |
 | `decompiled` | Hash-pinned decompiler snapshots of release DLLs. |
 | `packaging` | Drag-and-drop release-layout placeholders. |
-| `schemas/operator-map-package.schema.json` | Closed package schema used by Operator Mod API. |
+| `schemas/operator-map-package.schema.json` | Closed legacy schema v1. |
+| `schemas/operator-map-package-v2.schema.json` | Closed schema v2 with a fixed PVE AI profile. |
 | `examples/operator-map-package.example.json` | Complete PVE and PVP manifest example. |
 | `MODDED_OPERATIONS_TECHNICAL_BIBLE.md` | Complete implementation and maintenance index. |
 | `docs/architecture` | Ownership, UI, launch, game-mode, and teardown contracts. |
@@ -50,7 +51,7 @@ inputs from your own installation:
 - OPERATOR with Unity `6000.3.8f1` for the pinned source state;
 - BepInEx IL2CPP;
 - generated interop assemblies under `<OPERATOR_INSTALL>/BepInEx/interop`;
-- Operator Mod API `0.2.0-alpha.2`.
+- Operator Mod API `0.2.0-alpha.3`.
 
 ## Build
 

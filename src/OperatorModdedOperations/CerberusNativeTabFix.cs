@@ -23,12 +23,12 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.18")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed class CerberusNativeTabFix : BasePlugin
 {
-    internal const string RequiredApiVersion = "0.2.0-alpha.2";
+    internal const string RequiredApiVersion = "0.2.0-alpha.3";
     // These IDs identify the two runtime templates that every peer builds from
     // the same accepted package operation. They are collision-checked against
     // Mirror's current client registry before use.
@@ -4447,11 +4447,13 @@ public sealed class CerberusNativeTabFix : BasePlugin
             raid.mapSpecificWeapons = new Il2CppReferenceArray<PuppetWeapon>(0);
             raid.botSpawnPoints =
                 new Il2CppSystem.Collections.Generic.List<GameObject>();
+            ModdedPveAiProfileDefinition pveAiProfile =
+                operation.Operation.PveAiProfile;
             foreach (Transform marker in markers)
             {
                 var details = marker.GetComponent<BotSpawnDetails>() ??
                     marker.gameObject.AddComponent<BotSpawnDetails>();
-                ConfigureStandaloneBotDetails(details);
+                ConfigureStandaloneBotDetails(details, pveAiProfile);
                 raid.botSpawnPoints.Add(marker.gameObject);
             }
 
@@ -4476,7 +4478,8 @@ public sealed class CerberusNativeTabFix : BasePlugin
                 "through shipped RaidManager.ServerSpawnAI: count=" +
                 targetCount + ", requestedRange=" + minimumEnemies + "-" +
                 maximumEnemies + ", chosen=" + requestedCount + ", markers=" +
-                markers.Count + ", firearmCapablePrefabs=" + prefabs.Count + ".");
+                markers.Count + ", firearmCapablePrefabs=" + prefabs.Count +
+                ", aiProfile=" + FormatPveAiProfile(pveAiProfile) + ".");
         }
         catch (Exception ex)
         {
@@ -4507,18 +4510,30 @@ public sealed class CerberusNativeTabFix : BasePlugin
         return minimum + (int)(hash % (uint)(maximum - minimum + 1));
     }
 
-    private static void ConfigureStandaloneBotDetails(BotSpawnDetails details)
+    private static void ConfigureStandaloneBotDetails(
+        BotSpawnDetails details,
+        ModdedPveAiProfileDefinition profile)
     {
         if (details == null)
             return;
-        details.DetectionTimeMultiplier = 1.15f;
-        details.DetectionRange = 72f;
-        details.HearingRange = 52f;
-        details.FOV = 105f;
-        details.maxEffectiveRange = 90f;
-        details.useComms = true;
-        details.DoesCounterSuppression = true;
-        details.WanderDistance = 18;
+        // The current ServerSpawnAI body consumes range, FOV, maximum
+        // effective range, communications, and counter-suppression. It does
+        // not consume DetectionTimeMultiplier or HearingRange. Keep those two
+        // fields at the common outdoor marker baseline so a future
+        // compatible native implementation does not inherit the old custom
+        // 1.15/52 values by accident.
+        details.DetectionTimeMultiplier = profile == null ? 1.15f : 1f;
+        details.HearingRange = profile == null ? 52f : 20f;
+        details.DetectionRange = profile?.DetectionRangeMeters ?? 72f;
+        details.FOV = profile?.FieldOfViewDegrees ?? 105f;
+        details.maxEffectiveRange = profile?.MaximumEffectiveRangeMeters ?? 90f;
+        details.useComms = profile?.UseComms ?? true;
+        details.DoesCounterSuppression = profile?.CounterSuppression ?? true;
+        // BrainAI.Wander waits for its prefab-owned WanderTimer multiplied by
+        // Patience before it calls RandomNavSphere(currentPosition, 5,
+        // WanderDistance). The package changes only the radius. It preserves
+        // the native delay and therefore does not release all bots at launch.
+        details.WanderDistance = profile?.WanderDistanceMeters ?? 18;
         details.modifyStance = true;
         details.doesCrouch = true;
         details.doesProne = false;
@@ -4529,6 +4544,21 @@ public sealed class CerberusNativeTabFix : BasePlugin
         details.PatrolLooping = false;
         details.patrolWaitTime = 2f;
         details.disableNavmesh = false;
+    }
+
+    private static string FormatPveAiProfile(ModdedPveAiProfileDefinition profile)
+    {
+        if (profile == null)
+            return "framework-legacy(range=72m,fov=105,maxEffective=90m,wander=18m,comms=true,counterSuppression=true)";
+        return profile.Id + "(range=" +
+            profile.DetectionRangeMeters.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+            "m,fov=" +
+            profile.FieldOfViewDegrees.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+            ",maxEffective=" +
+            profile.MaximumEffectiveRangeMeters.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+            "m,wander=" + profile.WanderDistanceMeters +
+            "m,comms=" + profile.UseComms +
+            ",counterSuppression=" + profile.CounterSuppression + ")";
     }
 
     private static List<Transform> FindSceneMarkers(Scene scene, string prefix)

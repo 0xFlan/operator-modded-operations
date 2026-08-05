@@ -7,10 +7,10 @@ this repository. It is written for a human maintainer and for an automated
 coding agent. Use the exact names in this document. Do not infer a game
 contract from a similar name.
 
-The framework version is `0.3.18`. The plugin identity is
+The framework version is `0.3.19`. The plugin identity is
 `operator.modded-operations`. The assembly is
 `OperatorModdedOperations.dll`. The required Core version is
-`0.2.0-alpha.2`.
+`0.2.0-alpha.3`.
 
 ## 2. Path tokens
 
@@ -44,7 +44,7 @@ for a map name. A release source must contain no map identity.
 The plugin attribute is the first closed gate:
 
 ```csharp
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.18")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.19")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 ```
@@ -320,8 +320,8 @@ reciprocal firearm damage or a remote PVP peer.
 ## 15. Release layout
 
 The Git repository publishes the authored source and the hash-pinned
-`decompiled/release-0.3.18` verification snapshot. The archived rejected
-`0.3.17` snapshot is under `decompiled/archive`. The release ZIP contains
+`decompiled/release-0.3.19` verification snapshot. The previous `0.3.18` and
+rejected `0.3.17` snapshots are under `decompiled/archive`. The release ZIP contains
 the compiled DLL, not the bracketed repository placeholders. Use
 [the package placeholder](packaging/README-PACKAGE-PLACEHOLDER.md) as the exact
 install-root-relative staging contract.
@@ -499,3 +499,41 @@ The exhaustive construction procedure is
 [Create a map package](docs/guides/create-a-map-package.md). The public map
 guide and each map-specific repository must add their own exact asset and
 companion details; this framework BIBLE does not invent map data.
+
+## 23. Schema-v2 fixed PVE AI profile
+
+Modded Operations `0.3.19` and Operator Mod API `0.2.0-alpha.3` add the
+optional `pveAiProfile` object. Only a schema-v2 PVE operation can own it. PVP
+rejects it. Schema v1 rejects it. There is no difficulty UI and no process-
+global AI write.
+
+The closed fields are `id`, `detectionRangeMeters`, `fieldOfViewDegrees`,
+`maximumEffectiveRangeMeters`, `wanderDistanceMeters`, `useComms`, and
+`counterSuppression`. Operator Mod API validates and freezes them. Framework
+member `ConfigureStandaloneBotDetails` writes the selected values to each
+native `BotSpawnDetails` before `RaidManager.ServerSpawnAI(false)`.
+
+The current native `RaidManager.ApplyBotSpawnSettings` transfers detection
+range to `BrainAI` and `EyesAI`, FOV to `BrainAI`, communications,
+counter-suppression, effective range unless the marker value is `-1`, and
+wander distance unless the marker value is `-1`. It does not consume marker
+`DetectionTimeMultiplier` or `HearingRange` in the pinned build.
+
+`BrainAI.Wander(float)` preserves the native prefab delay. It waits for
+`WanderTimer * Patience`, then chooses around the current position with the
+equivalent of `RandomNavSphere(position, 5, WanderDistance)`. Package authors
+must therefore tune wander from playable geometry and spawn gaps. Repeated
+native choices can expand a search; a larger radius does not remove the first
+delay.
+
+Foliage sight remains map content. The map companion must inspect how the
+same installed vanilla prefab participates in the shipped `EyesAI` linecast.
+It can activate an authored `AI_VisionBlock` collider when that is the native
+prefab contract. The generic framework must not invent map-specific bush
+names, counts, colliders, or coordinates.
+
+The full schema bounds, source members, native offsets/RVAs, exact application
+order, foliage collision rules, logging, and gates are in
+[Fixed PVE AI profile and vegetation sight](docs/architecture/pve-ai-profile-and-forest-sight.md).
+This candidate is `PROVEN-STATIC`. Do not label it `SUPPORTED` until its
+physical first-launch and repeat-launch behavior matrix passes.

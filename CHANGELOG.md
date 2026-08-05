@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.19 candidate
+
+- Add schema v2 and the immutable PVE-only `pveAiProfile` contract.
+- Apply package-owned detection range, field of view, effective-range
+  sentinel, wander radius, communications, and counter-suppression through
+  each native `BotSpawnDetails` before `RaidManager.ServerSpawnAI(false)`.
+- Preserve the legacy 72 m, 105 degree, 90 m, 18 m, communications-on, and
+  counter-suppression-on values for schema-v1 maps and schema-v2 PVE
+  operations that omit a profile.
+- Add no AI difficulty UI and make no change to PVP, vanilla operations, or a
+  different map package.
+- Document the exact current-build `BrainAI.Wander` delay and
+  `RandomNavSphere(currentPosition, 5, WanderDistance)` behavior.
+- Static build and contract tests pass. A fresh in-game Forest session remains
+  the runtime acceptance gate for this candidate.
+
 ## 0.3.18
 
 - Replace the rejected generic `PVP map` day transplant with the exact

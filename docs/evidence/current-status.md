@@ -2,7 +2,7 @@
 
 ## Source state
 
-Framework source version: `0.3.18`.
+Framework source version: `0.3.19` candidate.
 
 The source and package validators prove these bounded facts:
 
@@ -13,6 +13,16 @@ The source and package validators prove these bounded facts:
   `LoadVerifiedMapDependencyAsset<T>`;
 - PVE and PVP use distinct shipped-compatible owners;
 - player and process-global state has identity-checked teardown code.
+- schema-v2 `pveAiProfile` is immutable, PVE-only, and operation-local;
+- Modded Operations writes its six consumed values before the shipped
+  `RaidManager.ServerSpawnAI(false)` call;
+- schema-v1 and schema-v2 operations without a profile keep the 72 m, 105
+  degree, 90 m, 18 m, communications-on, counter-suppression-on legacy values.
+
+The new profile path and the Forest 274-blocker activation are
+`PROVEN-STATIC`. The first-launch and repeat-launch physical Forest behavior
+matrix remains open. See
+[Fixed PVE AI profile and vegetation sight](../architecture/pve-ai-profile-and-forest-sight.md).
 
 ## Runtime state
 
@@ -86,6 +96,8 @@ probe proves it. Do not make the Forest release depend on that open probe.
 
 ## Open acceptance gates
 
+- Forest schema-v2 AI search, foliage occlusion, acquisition, and reciprocal
+  firearm behavior on first and repeat launch.
 - Host and remote-client PVP full round lifecycle.
 - PVE reciprocal firearm damage after the current package build.
 - Generic verified dependency-asset API live probe with a non-release test asset.

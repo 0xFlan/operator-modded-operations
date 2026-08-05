@@ -16,15 +16,16 @@ artifact. A reviewer can rebuild, diff, and audit the framework.
 
 ## 2. Release DLL decompilation snapshot
 
-`decompiled/release-0.3.18` is ILSpy `10.1.1.8388` output from the exact
-151,552-byte release DLL with SHA-256
-`71F21527FF959DBCF3C7AD1894937F56A9D931E0BF1A6B038C857249861A745C`.
+`decompiled/release-0.3.19` is ILSpy `10.1.1.8388` output from the exact
+152,576-byte release DLL with SHA-256
+`E98A6989717BAE78159159504AAE1A3571041935D72947A6EDBDE1641A99CC7A`.
 It lets a reviewer inspect what the compiler emitted even when the release DLL
 is distributed separately.
 
-`decompiled/archive/release-0.3.17` preserves the prior snapshot as rejected
-historical evidence. It contains the old 52,241.375-lux daylight value. Do not
-copy that value into a current build.
+`decompiled/archive/release-0.3.18` preserves the previous accepted snapshot.
+`decompiled/archive/release-0.3.17` preserves the earlier rejected snapshot
+with the old 52,241.375-lux daylight value. Do not copy that rejected value
+into a current build.
 
 The decompiled tree is not the edit source. It can use generated variable
 names and can lose comments. Modify `src/OperatorModdedOperations`, rebuild,
