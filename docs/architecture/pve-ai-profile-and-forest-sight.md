@@ -271,6 +271,39 @@ The exact line is:
 Profiled PVE AI snapshot: operation=<operationId>, profile=<profileId>, scheduled=<S>s, elapsed=<T>s, live=<N>, moved>=1m=<N>, movedTowardInsertion>=5m=<N>, movementMean=<M>m, movementMax=<M>m, actualSeenTarget=<N>, sameMaskSightProbe(vegetation=<N>,other=<N>,clearOrPlayer=<N>), states=<stateCounts>.
 ```
 
+Use the repository verifier after the two required Forest runs:
+
+```powershell
+python eng\verify_profiled_pve_runtime.py `
+  "<OPERATOR_INSTALL>\BepInEx\LogOutput.log" `
+  --minimum-runs 2 `
+  --expected-profile dense-forest-balanced-v1 `
+  --brain-min 10 `
+  --brain-max 15 `
+  --detection 45 `
+  --fov 90 `
+  --wander 38 `
+  --require-positive-delay `
+  --require-delayed-start `
+  --require-search-movement `
+  --minimum-search-displacement 5 `
+  --minimum-toward-insertion 1 `
+  --require-vegetation-block
+```
+
+The verifier selects the last two profiled-PVE runs. It requires one contract,
+all six unique snapshots, and one completion line for each run. It also checks
+the exact profile values, population range, live sight-probe accounting,
+positive native delay, no movement or acquired target in the zero-second
+snapshot, search movement by 120 seconds, movement toward insertion, and at
+least one vegetation-blocked probe. Exit code 0 means that the log contract
+passes. Exit code 1 means that evidence is missing or rejected. Exit code 2
+means that the command or log path is invalid.
+
+This tool verifies the recorded fields. It cannot prove what the player saw,
+whether a thin gap permitted acquisition, or whether firearms damaged both
+sides. Record those physical observations separately.
+
 The map companion must log the blocker count. A dense map must reject its
 scene when its exact authored blocker count is incomplete. A successful
 static build is not a runtime acceptance result.

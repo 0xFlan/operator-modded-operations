@@ -38,6 +38,8 @@ def required_paths() -> tuple[str, ...]:
             "src/OperatorModdedOperations/OperatorModdedOperations.csproj",
             "decompiled/README.md",
             "decompiled/release-0.3.19/CerberusNativeTabFix.cs",
+            "eng/verify_profiled_pve_runtime.py",
+            "eng/test_verify_profiled_pve_runtime.py",
             "packaging/README-PACKAGE-PLACEHOLDER.md",
             "MODDED_OPERATIONS_TECHNICAL_BIBLE.md",
         )

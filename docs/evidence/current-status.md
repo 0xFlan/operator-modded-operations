@@ -21,6 +21,10 @@ The source and package validators prove these bounded facts:
 - profiled PVE operations start one read-only six-snapshot diagnostic; its
   source compiles and its gate is `PveAiProfile != null`, but no current live
   log has completed the 120-second window yet.
+- `eng/verify_profiled_pve_runtime.py` parses the last requested runs and fails
+  closed on incomplete schedules, wrong live profile values, zero native
+  delay, immediate movement or acquisition, absent search movement, absent
+  toward-insertion movement, or absent vegetation-blocked sight evidence.
 
 The new profile path and the Forest 274-blocker activation are
 `PROVEN-STATIC`. The first-launch and repeat-launch physical Forest behavior
