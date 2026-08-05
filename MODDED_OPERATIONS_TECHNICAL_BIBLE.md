@@ -306,6 +306,17 @@ Restart Operation control. The framework must not clone that UI. The PVE
 `InfiltrationManager` and timer supply the state that native failure code
 expects.
 
+The 2026-08-04 bounded KIA test proves this path at runtime. The driver used
+the normal Cerberus launch, applied lethal head damage through the current
+native `Health` command handler, observed the dead state, and invoked the
+current `GameManagerNetwork` fail-operation RPC handler. It found and invoked
+the real `MissionFailedPopup/RestartOperation` control. The replacement scene
+had a new Forest scene handle, one owned playable player, and 14 active
+`BrainAI` instances. All 14 AI instances were grounded. The largest absolute
+AI-to-Terrain height difference was 0.03 m. This evidence is
+`PROVEN-RUNTIME` for same-process KIA restart. It is not evidence for
+reciprocal firearm damage or a remote PVP peer.
+
 ## 15. Release layout
 
 The Git repository publishes the authored source and the hash-pinned

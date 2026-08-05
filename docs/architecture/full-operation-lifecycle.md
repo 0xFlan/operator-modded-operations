@@ -498,6 +498,24 @@ Restart has two separate acceptance gates:
 1. Restart while the player is alive.
 2. Restart from the Mission Failed screen.
 
+The 2026-08-04 bounded runtime test accepts gate 2 for the current pinned
+release. It used this exact sequence:
+
+```text
+normal Cerberus PVE launch
+-> native Health lethal-damage command handler
+-> native player dead state
+-> GameManagerNetwork fail-operation RPC handler
+-> MissionFailedPopup/RestartOperation
+-> new UkrainianForest scene handle
+-> one owned playable player
+-> 14 active and grounded BrainAI instances
+```
+
+The largest absolute AI-to-Terrain height difference after restart was
+0.03 m. This test used the real shipped failure popup. It did not clone or
+synthesize a replacement control.
+
 The old `MAP LOADED !BUG!` loop came from a stale Mirror registration. Unity
 had destroyed the template object, so its IL2CPP wrapper compared as null.
 `UnregisterPrefab(GameObject)` could not recover the ID. The current release
