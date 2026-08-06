@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.22
+
+- Require exactly one package-authored `PVE_ExfilZone_` Transform with a
+  positive trigger BoxCollider for every standalone StandardPVE scene.
+- Create one shipped `RaidManager` and one shipped `ExfilZone` on the
+  Mirror-owned `StandalonePveGameMode : InfiltrationManager` bootstrap.
+- Start extraction locked. Reset the zone and global occupant sets,
+  `NetworkcanExtract`, `NetworkisExtracting`, extraction start time, and the
+  15-second timer for each operation generation.
+- Keep enemy elimination in the shipped lifecycle. Native AI `Health` deaths
+  drain `GameManager.allAI`; the shipped `RaidManager` unlocks extraction;
+  physical trigger occupancy starts the native timer; the shipped Mission
+  Successful After Action Report ends the operation.
+- Restore `raid.exfilZones` to exactly the current map zone after
+  `RaidManager.ServerSpawnAI(false)` so persistent donor objects cannot own
+  completion.
+- Reconstruct the current-build `level16` `ATAK Exfil Marker`: layer 17,
+  four-vertex `Marker` mesh, `HDRP/Unlit` `ExfilZone` material, resident
+  512-by-512 `ExfilZone` texture, exact transform, UVs, and render queue 2501.
+- Let the shipped `ExfilZone.ExfilMarker` activation show the icon only after
+  native extraction unlock.
+- Destroy only operation-owned ATAK mesh/material assets during teardown.
+  Preserve `GameManagerNetwork.SuccessfulOperation` during successful map
+  unload so the Operation Room can consume the result.
+- Accept the complete insertion-area extraction flow with release-version
+  framework and Forest assemblies and exact package bytes.
+
 ## 0.3.20
 
 - Enter the shipped `GameManagerNetwork.ShowLoadingScreen()` presentation at

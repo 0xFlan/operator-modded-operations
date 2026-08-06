@@ -23,7 +23,7 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.20")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.22")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed class CerberusNativeTabFix : BasePlugin
@@ -34,6 +34,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
     // Mirror's current client registry before use.
     private const uint StandalonePveGameModeAssetId = 0x4D4F5001;
     private const uint StandalonePvpGameModeAssetId = 0x4D4F5002;
+    private const string StandalonePveExfilMarkerPrefix = "PVE_ExfilZone_";
+    // Installed level16 RaidManager serialized value. GameManagerNetwork uses
+    // this value for its shipped server-side extraction countdown.
+    private const float StandalonePveExtractionSeconds = 15f;
     private static readonly float[] ProfiledPveAiDiagnosticSnapshotSeconds =
     {
         0f, 10f, 30f, 60f, 90f, 120f
@@ -185,7 +189,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
             new List<VolumeProfile>();
         public bool PveSpawnAttempted;
         public int PveEnemyCount;
-        public GameObject RaidUtilityRoot;
+        public RaidManager PveRaidManager;
+        public ExfilZone PveExfilZone;
+        public BoxCollider PveExfilCollider;
         // Read-only acceptance evidence for a schema-v2 PVE AI profile. The
         // framework samples only the BrainAI instances that its native
         // RaidManager call added. It never changes their state.
@@ -203,6 +209,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
         public bool ProfiledPveAiDiagnosticComplete;
         public bool ProfiledPveAiDiagnosticAwaitingBrains;
         public bool ProfiledPveNativeContractLogged;
+        public readonly List<Object> RuntimePveAssets = new List<Object>();
         public readonly List<Object> RuntimePvpAssets = new List<Object>();
     }
 
@@ -1670,7 +1677,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
         data.AffectGamemode = true;
         data.GameModeOverride = operation.Mode ==
             ModdedOperationMode.PlayerVersusEnvironment
-                ? OperationsManager.GameMode.PVE_HVTKILL
+                ? OperationsManager.GameMode.StandardPVE
                 : OperationsManager.GameMode.StandardPVP;
         if (presentation.NativeTargetData != null)
         {
@@ -2542,7 +2549,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
         operation.PlayerMoveRequestFrames.Clear();
         operation.PveSpawnAttempted = false;
         operation.PveEnemyCount = 0;
-        operation.RaidUtilityRoot = null;
+        operation.PveRaidManager = null;
+        operation.PveExfilZone = null;
+        operation.PveExfilCollider = null;
     }
 
     private void ShowNativeLoadingScreenForPackageScene(
@@ -2617,7 +2626,9 @@ public sealed class CerberusNativeTabFix : BasePlugin
         operation.PlayerMoveRequestFrames.Clear();
         operation.PveSpawnAttempted = false;
         operation.PveEnemyCount = 0;
-        operation.RaidUtilityRoot = null;
+        operation.PveRaidManager = null;
+        operation.PveExfilZone = null;
+        operation.PveExfilCollider = null;
         log.LogInfo("Modded Operations map scene unloaded; package bundles remain " +
             "resident so the shipped Restart Operation route can reload the same scene.");
     }
@@ -3349,6 +3360,26 @@ public sealed class CerberusNativeTabFix : BasePlugin
             error = "PVE mode has no PVE_EnemySpawn_ markers";
             return false;
         }
+        if (operation.Operation.Mode == ModdedOperationMode.PlayerVersusEnvironment)
+        {
+            List<Transform> exfilMarkers = FindSceneMarkers(
+                scene,
+                StandalonePveExfilMarkerPrefix);
+            if (exfilMarkers.Count != 1)
+            {
+                error = "PVE mode requires exactly one PVE_ExfilZone_ marker; found=" +
+                    exfilMarkers.Count;
+                return false;
+            }
+            BoxCollider authoredExfil = exfilMarkers[0].GetComponent<BoxCollider>();
+            if (authoredExfil == null || !authoredExfil.isTrigger ||
+                authoredExfil.size.x <= 0f || authoredExfil.size.y <= 0f ||
+                authoredExfil.size.z <= 0f)
+            {
+                error = "PVE_ExfilZone_ marker requires a positive BoxCollider trigger";
+                return false;
+            }
+        }
         if (operation.Operation.Mode == ModdedOperationMode.PlayerVersusPlayer)
         {
             bool team1 = playerMarkers.Any(marker =>
@@ -3429,6 +3460,11 @@ public sealed class CerberusNativeTabFix : BasePlugin
                 pveGameMode.AllowRespawns = false;
                 pveGameMode.NetworkRaidTimer = 0f;
                 InfiltrationManager.instance = pveGameMode;
+                ConfigureStandalonePveController(
+                    scene,
+                    operation,
+                    root,
+                    pveGameMode);
                 gameMode = pveGameMode;
                 assetId = StandalonePveGameModeAssetId;
             }
@@ -3450,13 +3486,38 @@ public sealed class CerberusNativeTabFix : BasePlugin
             operation.BootstrapCreated = true;
             operation.BootstrapFrame = Time.frameCount;
             identity.assetId = assetId;
+            // Runtime-added IL2CPP NetworkBehaviours complete part of their
+            // Mirror/native initialization on their first activation. Vanilla
+            // serialized prefabs have already passed this lifecycle before
+            // registration. Give the deterministic runtime template the same
+            // activation edge, then return it inactive before RegisterPrefab.
+            root.SetActive(true);
+            root.SetActive(false);
+            var mirrorStates = root.GetComponents<NetworkBehaviour>()
+                .Select(item => item == null
+                    ? "<null-component>"
+                    : item.GetType().Name + ":syncObjects=" +
+                        (item.syncObjects == null
+                            ? "null"
+                            : item.syncObjects.Count.ToString()))
+                .ToArray();
+            log.LogInfo("Standalone runtime Mirror prefab prewarm state: " +
+                string.Join(", ", mirrorStates) + ".");
             EnsureStandaloneBootstrapPrefabRegistered(operation);
 
             if (OperationsManager.singleton != null)
             {
+                // A package operation selected from Modded Operations is an
+                // active operation unless its own catalog mode says otherwise.
+                // Clear the persistent retail simulation flag before assigning
+                // the shipped game mode. StandardPVE.UpdateAICount suppresses
+                // extraction completion while IsSimulation is true.
+                OperationsManager.singleton.IsSimulation = false;
                 if (operation.Operation.Mode ==
                     ModdedOperationMode.PlayerVersusEnvironment)
                 {
+                    OperationsManager.singleton.NetworkCurrentGameMode =
+                        OperationsManager.GameMode.StandardPVE;
                     OperationsManager.singleton.AssignTeamsPVE();
                 }
                 else
@@ -3476,6 +3537,249 @@ public sealed class CerberusNativeTabFix : BasePlugin
             log.LogError("Standalone gameplay bootstrap failed: " +
                 ex.GetType().Name + ": " + ex.Message);
         }
+    }
+
+    private void ConfigureStandalonePveController(
+        Scene scene,
+        ActiveMapOperation operation,
+        GameObject bootstrapRoot,
+        StandalonePveGameMode pve)
+    {
+        if (operation == null || bootstrapRoot == null || pve == null)
+            throw new ArgumentNullException(nameof(pve));
+
+        List<Transform> markers = FindSceneMarkers(
+            scene,
+            StandalonePveExfilMarkerPrefix);
+        if (markers.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "StandardPVE requires exactly one package-authored " +
+                "PVE_ExfilZone_ marker; found=" + markers.Count);
+        }
+        Transform marker = markers[0];
+        BoxCollider authoredCollider = marker.GetComponent<BoxCollider>();
+        if (authoredCollider == null || !authoredCollider.isTrigger)
+        {
+            throw new InvalidOperationException(
+                marker.name + " requires a BoxCollider trigger");
+        }
+
+        bootstrapRoot.layer = marker.gameObject.layer;
+        bootstrapRoot.transform.SetPositionAndRotation(
+            marker.position,
+            marker.rotation);
+
+        var trigger = bootstrapRoot.AddComponent<BoxCollider>();
+        trigger.isTrigger = true;
+        trigger.center = authoredCollider.center;
+        trigger.size = authoredCollider.size;
+
+        var lockedMarker = new GameObject("MODDED_PVE_EXFIL_LOCKED_MARKER");
+        lockedMarker.transform.SetParent(bootstrapRoot.transform, false);
+        lockedMarker.SetActive(false);
+        GameObject availableMarker = CreateNativeAtakExfilMarker(
+            operation,
+            bootstrapRoot.transform);
+        availableMarker.SetActive(false);
+
+        var exfil = bootstrapRoot.AddComponent<ExfilZone>();
+        exfil.unlockingKey = string.Empty;
+        exfil.notificationCooldown = 20f;
+        exfil._notifT = 0f;
+        exfil.isHelicopter = false;
+        exfil.InfiltrationAnimationPrefab = null;
+        exfil.exfilName = operation.Operation.DisplayName + " Extraction";
+        exfil.ExfilAnimationName = string.Empty;
+        exfil.exfilSpawned = false;
+        exfil.InfilMarker = lockedMarker;
+        exfil.ExfilMarker = availableMarker;
+        exfil._occupants = new Il2CppSystem.Collections.Generic.HashSet<int>();
+        exfil.NetworkPlayersInExfil = 0;
+        exfil.NetworkcanExtract = false;
+        exfil.linkedInfils = new Il2CppSystem.Collections.Generic.List<string>();
+        if (operation.Operation.Infiltrations != null)
+        {
+            for (int index = 0;
+                 index < operation.Operation.Infiltrations.Count;
+                 index++)
+            {
+                string infilName =
+                    operation.Operation.Infiltrations[index].DisplayName;
+                if (!string.IsNullOrWhiteSpace(infilName))
+                    exfil.linkedInfils.Add(infilName);
+            }
+        }
+
+        var raid = bootstrapRoot.AddComponent<RaidManager>();
+        raid.enabled = false;
+        raid.infiltrationManager = pve;
+        raid.EXTRACT_TIMER = StandalonePveExtractionSeconds;
+        raid.objectives = new Il2CppReferenceArray<ObjectiveSetter>(0);
+        raid.missionAssets =
+            new Il2CppSystem.Collections.Generic.List<VehicleHealth>();
+        raid.standardAI = new Il2CppReferenceArray<GameObject>(0);
+        raid.customAI =
+            new Il2CppSystem.Collections.Generic.List<GameObject>();
+        raid.hvtSpawnPoints = new Il2CppReferenceArray<GameObject>(0);
+        raid.hvtAI = new Il2CppReferenceArray<GameObject>(0);
+        raid.staticVehicleSpawnPoints = new Il2CppReferenceArray<GameObject>(0);
+        raid.staticVehicleAI = new Il2CppReferenceArray<GameObject>(0);
+        raid.Reinforcements = new Il2CppReferenceArray<aiReinforcement>(0);
+        raid.prohibitedWeapons = new Il2CppReferenceArray<PuppetWeapon>(0);
+        raid.mapSpecificWeapons = new Il2CppReferenceArray<PuppetWeapon>(0);
+        raid.IED_locations = new Il2CppReferenceArray<Transform>(0);
+        raid.botSpawnPoints =
+            new Il2CppSystem.Collections.Generic.List<GameObject>();
+        raid.allHelicopters =
+            new Il2CppSystem.Collections.Generic.List<HelicopterV2>();
+        raid.objectiveObjects =
+            new Il2CppSystem.Collections.Generic.List<ObjectiveObject>();
+        raid.ImportantObjectiveObjects =
+            new Il2CppSystem.Collections.Generic.List<ObjectiveObject>();
+        raid.spawnVehicleAI = false;
+        raid.hasReinforcements = false;
+        raid.timedBackup = false;
+        raid.hasIEDs = false;
+        raid.hasNotified = false;
+        raid.hasNotifiedEnemiesDead = false;
+        raid.exfilZones = new Il2CppSystem.Collections.Generic.List<ExfilZone>();
+        raid.exfilZones.Add(exfil);
+        RaidManager.singleton = raid;
+
+        operation.PveRaidManager = raid;
+        operation.PveExfilZone = exfil;
+        operation.PveExfilCollider = trigger;
+        ResetStandalonePveExtractionState();
+        log.LogInfo("Standalone StandardPVE owner wired to shipped RaidManager and " +
+            "ExfilZone: marker=" + marker.name +
+            ", position=" + marker.position +
+            ", triggerCenter=" + trigger.center +
+            ", triggerSize=" + trigger.size +
+            ", extractionSeconds=" + StandalonePveExtractionSeconds + ".");
+    }
+
+    private static GameObject CreateNativeAtakExfilMarker(
+        ActiveMapOperation operation,
+        Transform parent)
+    {
+        if (operation == null || parent == null)
+            throw new ArgumentNullException(nameof(parent));
+
+        Texture2D exfilTexture = Resources.FindObjectsOfTypeAll<Texture2D>()
+            .FirstOrDefault(texture =>
+                texture != null &&
+                string.Equals(texture.name, "ExfilZone", StringComparison.Ordinal) &&
+                texture.width == 512 && texture.height == 512);
+        if (exfilTexture == null)
+        {
+            throw new InvalidOperationException(
+                "The resident vanilla 512x512 ExfilZone texture is unavailable");
+        }
+        Shader shader = Shader.Find("HDRP/Unlit");
+        if (shader == null)
+            throw new InvalidOperationException("The resident HDRP/Unlit shader is unavailable");
+
+        var marker = new GameObject("ATAK Exfil Marker");
+        marker.layer = 17;
+        marker.transform.SetParent(parent, false);
+        marker.transform.localPosition = Vector3.zero;
+        marker.transform.localRotation = new Quaternion(
+            -3.0159049e-7f,
+            -0.70710683f,
+            -0.70710677f,
+            3.2782552e-7f);
+        marker.transform.localScale = Vector3.one * 0.65f;
+
+        var mesh = new Mesh
+        {
+            name = "Marker"
+        };
+        mesh.vertices = new[]
+        {
+            new Vector3(-9.59999943f, -5.40000010f, 0f),
+            new Vector3(-9.59999943f,  5.40000010f, 0f),
+            new Vector3( 9.59999943f,  5.40000010f, 0f),
+            new Vector3( 9.59999943f, -5.40000010f, 0f)
+        };
+        mesh.uv = new[]
+        {
+            new Vector2(0.000227630138f, 0.437887728f),
+            new Vector2(0.000227630138f, 1.00013173f),
+            new Vector2(0.999772370000f, 1.00013173f),
+            new Vector2(0.999772370000f, 0.437887728f)
+        };
+        mesh.normals = new[]
+        {
+            Vector3.forward,
+            Vector3.forward,
+            Vector3.forward,
+            Vector3.forward
+        };
+        mesh.triangles = new[] { 2, 1, 0, 3, 2, 0 };
+        mesh.RecalculateBounds();
+        mesh.UploadMeshData(true);
+
+        var material = new Material(shader)
+        {
+            name = "ExfilZone",
+            enableInstancing = true,
+            renderQueue = 2501
+        };
+        material.SetTexture("_MainTex", exfilTexture);
+        material.SetTexture("_UnlitColorMap", exfilTexture);
+        material.SetTextureOffset("_MainTex", new Vector2(0f, -0.22f));
+        material.SetTextureOffset("_UnlitColorMap", new Vector2(0f, -0.22f));
+        material.SetColor("_Color", Color.white);
+        material.SetColor("_UnlitColor", Color.white);
+        material.SetColor("_BaseColor", Color.white);
+        material.SetColor("_EmissionColor", Color.white);
+        material.SetFloat("_SurfaceType", 0f);
+        material.SetFloat("_BlendMode", 0f);
+        material.SetFloat("_ZWrite", 1f);
+        material.SetFloat("_CullMode", 2f);
+        material.SetFloat("_OpaqueCullMode", 2f);
+        material.SetFloat("_AlphaCutoffEnable", 0f);
+        material.SetFloat("_Smoothness", 1f);
+        material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.SetShaderPassEnabled("DistortionVectors", false);
+        material.SetShaderPassEnabled("MOTIONVECTORS", false);
+
+        MeshFilter filter = marker.AddComponent<MeshFilter>();
+        filter.sharedMesh = mesh;
+        MeshRenderer renderer = marker.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = true;
+
+        operation.RuntimePveAssets.Add(mesh);
+        operation.RuntimePveAssets.Add(material);
+        return marker;
+    }
+
+    private static void ResetStandalonePveExtractionState()
+    {
+        if (!NetworkServer.active)
+            return;
+        GameManagerNetwork manager = GameManagerNetwork.instance;
+        if (manager == null)
+            return;
+        if (manager._globalExfilOccupants == null)
+        {
+            manager._globalExfilOccupants =
+                new Il2CppSystem.Collections.Generic.HashSet<int>();
+        }
+        else
+        {
+            manager._globalExfilOccupants.Clear();
+        }
+        manager.NetworkPlayersInAnyExfil = 0;
+        manager.NetworkcanExtract = false;
+        manager.NetworkisExtracting = false;
+        manager.NetworkextractionStartTime = 0d;
+        manager.ExfilTime = StandalonePveExtractionSeconds;
+        manager.SuccessfulOperation = false;
     }
 
     private void EnsureStandaloneBootstrapPrefabRegistered(
@@ -4161,7 +4465,26 @@ public sealed class CerberusNativeTabFix : BasePlugin
         operation.GameModeComponent = gameMode;
         global::GameMode.singleton = gameMode;
         if (gameMode is StandalonePveGameMode pve)
+        {
+            var raid = gameMode.GetComponent<RaidManager>();
+            var exfil = gameMode.GetComponent<ExfilZone>();
+            var trigger = gameMode.GetComponent<BoxCollider>();
+            if (raid == null || exfil == null || trigger == null ||
+                !trigger.isTrigger)
+            {
+                return false;
+            }
             InfiltrationManager.instance = pve;
+            RaidManager.singleton = raid;
+            raid.infiltrationManager = pve;
+            raid.EXTRACT_TIMER = StandalonePveExtractionSeconds;
+            raid.exfilZones =
+                new Il2CppSystem.Collections.Generic.List<ExfilZone>();
+            raid.exfilZones.Add(exfil);
+            operation.PveRaidManager = raid;
+            operation.PveExfilZone = exfil;
+            operation.PveExfilCollider = trigger;
+        }
         if (gameMode is StandalonePvpGameMode pvp)
             PvpGameode.instance = pvp;
         log.LogInfo("Standalone game-mode Mirror spawn adopted on this peer: " +
@@ -4405,23 +4728,39 @@ public sealed class CerberusNativeTabFix : BasePlugin
         operation.BootstrapAssetId = 0;
         operation.BootstrapPrefabIdentity = null;
         operation.BootstrapPrefabRoot = null;
+        foreach (Object runtimeAsset in operation.RuntimePveAssets)
+        {
+            if (runtimeAsset != null)
+                Object.Destroy(runtimeAsset);
+        }
+        operation.RuntimePveAssets.Clear();
         foreach (Object runtimeAsset in operation.RuntimePvpAssets)
         {
             if (runtimeAsset != null)
                 Object.Destroy(runtimeAsset);
         }
         operation.RuntimePvpAssets.Clear();
-        if (operation.RaidUtilityRoot != null)
+        if (operation.PveRaidManager != null &&
+            RaidManager.singleton == operation.PveRaidManager)
         {
-            var raid = operation.RaidUtilityRoot.GetComponent<RaidManager>();
-            if (raid != null && RaidManager.singleton == raid)
-                RaidManager.singleton = null;
-            // RaidManager.OnDestroy clears its shipped static singleton. Queue
-            // this scene-owned utility for destruction during teardown, before
-            // another operation can establish a different RaidManager owner.
-            Object.Destroy(operation.RaidUtilityRoot);
-            operation.RaidUtilityRoot = null;
+            RaidManager.singleton = null;
         }
+        GameManagerNetwork network = GameManagerNetwork.instance;
+        if (NetworkServer.active && network != null &&
+            !network.SuccessfulOperation)
+        {
+            if (network._globalExfilOccupants != null)
+                network._globalExfilOccupants.Clear();
+            network.NetworkPlayersInAnyExfil = 0;
+            network.NetworkcanExtract = false;
+            network.NetworkisExtracting = false;
+            network.NetworkextractionStartTime = 0d;
+        }
+        // Do not clear SuccessfulOperation here. The shipped Operation Room
+        // reads that persistent result after the additive map scene unloads.
+        operation.PveRaidManager = null;
+        operation.PveExfilZone = null;
+        operation.PveExfilCollider = null;
     }
 
     private void TrySpawnStandalonePveEnemies(ActiveMapOperation operation)
@@ -4486,12 +4825,13 @@ public sealed class CerberusNativeTabFix : BasePlugin
 
         try
         {
-            var utility = new GameObject("MODDED_OPERATIONS_PVE_DIRECTOR");
-            SceneManager.MoveGameObjectToScene(utility, scene);
-            var raid = utility.AddComponent<RaidManager>();
-            raid.enabled = false;
+            var raid = operation.PveRaidManager;
+            if (raid == null || operation.PveExfilZone == null)
+            {
+                throw new InvalidOperationException(
+                    "StandardPVE network owner is missing RaidManager or ExfilZone");
+            }
             RaidManager.singleton = raid;
-            operation.RaidUtilityRoot = utility;
 
             int requestedCount = ChooseStandalonePveEnemyCount(operation);
             int targetCount = Math.Min(requestedCount, markers.Count);
@@ -4506,6 +4846,10 @@ public sealed class CerberusNativeTabFix : BasePlugin
                 raid.standardAI[index] = prefabs[index];
             raid.prohibitedWeapons = new Il2CppReferenceArray<PuppetWeapon>(0);
             raid.mapSpecificWeapons = new Il2CppReferenceArray<PuppetWeapon>(0);
+            raid.EXTRACT_TIMER = StandalonePveExtractionSeconds;
+            raid.exfilZones =
+                new Il2CppSystem.Collections.Generic.List<ExfilZone>();
+            raid.exfilZones.Add(operation.PveExfilZone);
             raid.botSpawnPoints =
                 new Il2CppSystem.Collections.Generic.List<GameObject>();
             ModdedPveAiProfileDefinition pveAiProfile =
@@ -4535,6 +4879,14 @@ public sealed class CerberusNativeTabFix : BasePlugin
             // standalone SpawnPointsInScene list.
             CaptureProfiledPvePreexistingBrains(operation, gameManager);
             raid.ServerSpawnAI(false);
+            // ServerSpawnAI runs the remaining shipped RaidManager startup
+            // work. That native path can repopulate exfilZones from persistent
+            // donor objects that are present in Resources. A vanilla scene
+            // finishes with its own serialized raid list; restore the same
+            // map-local final state after native population initialization.
+            raid.exfilZones =
+                new Il2CppSystem.Collections.Generic.List<ExfilZone>();
+            raid.exfilZones.Add(operation.PveExfilZone);
             operation.PveEnemyCount = targetCount;
             StartProfiledPveAiDiagnostics(operation, gameManager);
             log.LogInfo("Standalone PVE released a server-owned AI population " +
@@ -4542,6 +4894,7 @@ public sealed class CerberusNativeTabFix : BasePlugin
                 targetCount + ", requestedRange=" + minimumEnemies + "-" +
                 maximumEnemies + ", chosen=" + requestedCount + ", markers=" +
                 markers.Count + ", firearmCapablePrefabs=" + prefabs.Count +
+                ", raidExfilsAfterNativeSpawn=" + raid.exfilZones.Count +
                 ", aiProfile=" + FormatPveAiProfile(pveAiProfile) + ".");
         }
         catch (Exception ex)

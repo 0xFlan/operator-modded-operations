@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 This document describes the schema-v2 fixed PVE AI profile in Modded
-Operations `0.3.20`. It also describes the interface that a dense map uses to
+Operations `0.3.22`. It also describes the interface that a dense map uses to
 make native vegetation block AI sight.
 
 Modded Operations owns the generic profile parser result and the native

@@ -28,6 +28,7 @@
     <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>$(OperatorGameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2CppInterop.Runtime"><HintPath>$(OperatorGameDir)\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2Cppmscorlib"><HintPath>$(OperatorGameDir)\BepInEx\interop\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppSystem.Core"><HintPath>$(OperatorGameDir)\BepInEx\interop\Il2CppSystem.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp"><HintPath>$(OperatorGameDir)\BepInEx\interop\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="AstarPathfindingProject"><HintPath>$(OperatorGameDir)\BepInEx\interop\AstarPathfindingProject.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="PackageTools"><HintPath>$(OperatorGameDir)\BepInEx\interop\PackageTools.dll</HintPath><Private>false</Private></Reference>

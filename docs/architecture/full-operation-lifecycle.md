@@ -607,6 +607,9 @@ map scene unloaded; package bundles remain resident
 | Player under terrain | Player creation ran before terrain/collider and marker raycast gates. | `PrepareStandaloneScene`, `ValidateWalkableGroundContract`. |
 | AI outside wall | Scene marker set or A* coverage is wrong. | Exact PVE markers, wall bounds, graph-node test. |
 | Grenades work, bullets do not | AI was not created through the shipped owner-aware raid route. | `TrySpawnStandalonePveEnemies`, `RaidManager.ServerSpawnAI(false)`. |
+| All AI die but no exfil appears | The native raid list does not contain exactly the current zone, or AI did not use native Health death. | `ConfigureStandalonePveController`, post-`ServerSpawnAI` `raid.exfilZones`, `GameManager.allAI`. |
+| ATAK has no exfil icon | `ExfilZone.ExfilMarker` does not match the current-build resource contract. | `CreateNativeAtakExfilMarker`, layer 17, `Marker`, `ExfilZone`, `HDRP/Unlit`, resident 512-by-512 texture. |
+| Extraction timer does not start | Zone/global unlock or physical occupant state is incomplete. | `NetworkcanExtract`, zone/global occupant counts, `NetworkisExtracting`. |
 | Teams use the same side | Team values or arrays are wrong. | one-based `TeamID`, Team 1 and Team 2 arrays. |
 | `MAP LOADED !BUG!` repeats | Mirror key or handler survived scene unload. | `ReleaseStandaloneGameMode` ID removal. |
 | Armory player floats | Process-global spawn state was not identity-conditionally restored. | `RestoreStandalonePlayerSpawnContract`. |
@@ -624,7 +627,11 @@ Run these tests with physical input:
 7. Restart while alive.
 8. Restart from Mission Failed.
 9. Start 0200 and verify white-phosphor NVG and readable ambient light.
-10. Start PVP with a host and remote client. Verify opposite teams, death,
+10. Kill all native PVE AI. Verify native extraction unlock and the exact
+    current-build ATAK exfil marker.
+11. Enter the physical trigger. Verify the 15-second native timer, Mission
+    Successful After Action Report, and Continue return.
+12. Start PVP with a host and remote client. Verify opposite teams, death,
     score, round respawn, and operation end.
 
 A compile proves syntax and type compatibility. A static bundle validator

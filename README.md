@@ -20,15 +20,19 @@ optional map companion owns exact-scene reconstruction.
 
 ## Current status
 
-The source version in this repository is `0.3.20`. Local live testing on the
+The source version in this repository is `0.3.22`. Local live testing on the
 pinned game build accepts first launch, one-click Confirm, complete unload,
 repeat launch, player grounding, 11:00 native daylight, and 02:00 four-tube
 white-phosphor NVG behavior. Two complete Forest PVE runs also accept the
 fixed profile, positive native search delays, native agent movement, movement
-toward insertion, and foliage sight obstruction. The additive-scene boundary
+toward insertion, and foliage sight obstruction. Release-version completion
+runs also accept one shipped `RaidManager`, one shipped `ExfilZone`, locked
+initial extraction, all-enemies-dead native unlock, the exact current-build
+ATAK exfil marker, physical occupancy, the 15-second extraction timer, and the
+Mission Successful After Action Report. The additive-scene boundary
 now enters the shipped loading canvas before terrain/material preparation, so
-the portable brown proxy is not presented to the player. Multiplayer PVP and
-reciprocal firearm-damage tests remain separate release gates. Read
+the portable brown proxy is not presented to the player. The two-peer PVP
+matrix remains a separate release gate. Read
 [the evidence status](docs/evidence/current-status.md) before you use the word
 `SUPPORTED`.
 
@@ -46,6 +50,10 @@ reciprocal firearm-damage tests remain separate release gates. Read
 | `docs/architecture` | Ownership, UI, launch, game-mode, and teardown contracts. |
 | `docs/guides` | Build, install, map-package, and test procedures. |
 | `docs/reference` | Exact source members, native types, manifest fields, and diagnostics. |
+
+Read [native PVE completion, extraction, and ATAK](docs/architecture/native-pve-completion-exfil-and-atak.md)
+for the exact map marker, runtime owner, native unlock, ATAK visual, success,
+and restart contract.
 
 ## Required local inputs
 

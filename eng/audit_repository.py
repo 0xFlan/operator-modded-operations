@@ -37,7 +37,7 @@ def required_paths() -> tuple[str, ...]:
             "src/OperatorModdedOperations/NativeBundleAssetLoader.cs",
             "src/OperatorModdedOperations/OperatorModdedOperations.csproj",
             "decompiled/README.md",
-            "decompiled/release-0.3.20/CerberusNativeTabFix.cs",
+            "decompiled/release-0.3.22/CerberusNativeTabFix.cs",
             "eng/verify_profiled_pve_runtime.py",
             "eng/test_verify_profiled_pve_runtime.py",
             "packaging/README-PACKAGE-PLACEHOLDER.md",
@@ -87,7 +87,7 @@ def main() -> int:
         authored = (ROOT / "src/OperatorModdedOperations/CerberusNativeTabFix.cs").read_text(
             encoding="utf-8", errors="replace"
         )
-        decompiled = (ROOT / "decompiled/release-0.3.20/CerberusNativeTabFix.cs").read_text(
+        decompiled = (ROOT / "decompiled/release-0.3.22/CerberusNativeTabFix.cs").read_text(
             encoding="utf-8", errors="replace"
         )
         decompiled_readme = (ROOT / "decompiled/README.md").read_text(
@@ -97,7 +97,7 @@ def main() -> int:
             encoding="utf-8", errors="replace"
         )
         required_authored = (
-            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.20")]',
+            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.22")]',
             "operation.Operation.PveAiProfile",
             "details.WanderDistance = profile?.WanderDistanceMeters ?? 18;",
             "CaptureProfiledPvePreexistingBrains",
@@ -114,9 +114,14 @@ def main() -> int:
             "bloom.intensity.Override(night ? 0.3f : 0.03f);",
             "lensFlare.intensity.Override(night ? 1f : 0.5f);",
             'night ? "PVP-map night" : "PVP Woods Warehouse day"',
+            'StandalonePveExfilMarkerPrefix = "PVE_ExfilZone_"',
+            "ConfigureStandalonePveController(",
+            "CreateNativeAtakExfilMarker(",
+            "ResetStandalonePveExtractionState()",
+            "!network.SuccessfulOperation",
         )
         required_decompiled = (
-            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.20")]',
+            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.22")]',
             "operation.Operation.PveAiProfile",
             "details.WanderDistance = ((profile != null) ? profile.WanderDistanceMeters : 18);",
             "CaptureProfiledPvePreexistingBrains",
@@ -130,6 +135,11 @@ def main() -> int:
             "colorTemperature = (flag ? 9754f : 5500f);",
             "intensity = (flag ? 40f : 30000f);",
             'flag ? "PVP-map night" : "PVP Woods Warehouse day"',
+            'StandalonePveExfilMarkerPrefix = "PVE_ExfilZone_"',
+            "ConfigureStandalonePveController(",
+            "CreateNativeAtakExfilMarker(",
+            "ResetStandalonePveExtractionState()",
+            "!val.SuccessfulOperation",
         )
         for fragment in required_authored:
             if fragment not in authored:
@@ -144,11 +154,11 @@ def main() -> int:
 
         required_decompilation_identity = (
             "[MOD DLL] OperatorModdedOperations.dll",
-            "version: 0.3.20",
-            "bytes: 165888",
-            "SHA-256: 193EEFB44511AA8E0A102D9D145C7BD1DEBDBFF4021A7C81E8C991A53A3BE1EB",
+            "version: 0.3.22",
+            "bytes: 173568",
+            "SHA-256: 0B8BE9B55C36AFCA81BAB677C5D0720D89A3E2B0E5F25A60BD2FF81C4192349A",
             "decompiler: ILSpy command-line tool 10.1.1.8388",
-            "output: decompiled/release-0.3.20",
+            "output: decompiled/release-0.3.22",
         )
         for fragment in required_decompilation_identity:
             if fragment not in decompiled_readme:
@@ -161,7 +171,9 @@ def main() -> int:
             "[SHIPPED OPERATION ROW]",
             "[SHIPPED CERBERUS OPERATION BOARD]",
             "[SHIPPED INFILTRATION SELECTOR]",
-            "[SHIPPED FAILURE AND RESTART UI]",
+            "[SHIPPED FAILURE, SUCCESS, AND RESTART UI]",
+            "[SHIPPED EXFILZONE TEXTURE]",
+            "[SHIPPED HDRP/UNLIT SHADER]",
         )
         for fragment in required_framework_placeholders:
             if fragment not in package_placeholder:

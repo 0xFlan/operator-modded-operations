@@ -16,13 +16,14 @@ artifact. A reviewer can rebuild, diff, and audit the framework.
 
 ## 2. Release DLL decompilation snapshot
 
-`decompiled/release-0.3.20` is ILSpy `10.1.1.8388` output from the exact
-165,888-byte release DLL with SHA-256
-`193EEFB44511AA8E0A102D9D145C7BD1DEBDBFF4021A7C81E8C991A53A3BE1EB`.
+`decompiled/release-0.3.22` is ILSpy `10.1.1.8388` output from the exact
+173,568-byte release DLL with SHA-256
+`0B8BE9B55C36AFCA81BAB677C5D0720D89A3E2B0E5F25A60BD2FF81C4192349A`.
 It lets a reviewer inspect what the compiler emitted even when the release DLL
 is distributed separately.
 
-`decompiled/archive/release-0.3.19` preserves the previous snapshot.
+`decompiled/archive/release-0.3.20` preserves the previous snapshot.
+`decompiled/archive/release-0.3.19` preserves an earlier snapshot.
 `decompiled/archive/release-0.3.18` preserves an earlier accepted snapshot.
 `decompiled/archive/release-0.3.17` preserves the earlier rejected snapshot
 with the old 52,241.375-lux daylight value. Do not copy that rejected value

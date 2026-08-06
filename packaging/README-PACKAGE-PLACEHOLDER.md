@@ -21,7 +21,9 @@ objects remain in the installed game and are not copied into this package:
 [SHIPPED OPERATION ROW]
 [SHIPPED CERBERUS OPERATION BOARD]
 [SHIPPED INFILTRATION SELECTOR]
-[SHIPPED FAILURE AND RESTART UI]
+[SHIPPED FAILURE, SUCCESS, AND RESTART UI]
+[SHIPPED EXFILZONE TEXTURE]
+[SHIPPED HDRP/UNLIT SHADER]
 ```
 
 The required Operator Mod API files are a separate product. Do not silently

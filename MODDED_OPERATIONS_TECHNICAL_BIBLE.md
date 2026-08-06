@@ -7,7 +7,7 @@ this repository. It is written for a human maintainer and for an automated
 coding agent. Use the exact names in this document. Do not infer a game
 contract from a similar name.
 
-The framework version is `0.3.20`. The plugin identity is
+The framework version is `0.3.22`. The plugin identity is
 `operator.modded-operations`. The assembly is
 `OperatorModdedOperations.dll`. The required Core version is
 `0.2.0-alpha.3`.
@@ -44,7 +44,7 @@ for a map name. A release source must contain no map identity.
 The plugin attribute is the first closed gate:
 
 ```csharp
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.20")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.22")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 ```
@@ -206,6 +206,30 @@ prefabs and the package-valid markers to a scene-owned `RaidManager`. It calls
 `RaidManager.ServerSpawnAI(false)`. Do not use a one-argument manual
 `NetworkServer.Spawn` as an AI replacement.
 
+### Native completion, extraction, and ATAK
+
+Every standalone StandardPVE scene must contain exactly one inactive
+`PVE_ExfilZone_` marker with a positive trigger `BoxCollider`. The map owns
+that transform and collider. `ConfigureStandalonePveController` copies them to
+the Mirror-owned PVE bootstrap and adds one shipped `ExfilZone` plus one
+shipped `RaidManager`.
+
+The operation starts with zone and global extraction locked. Normal AI
+`Health` deaths drain the native `GameManager.allAI` population. The shipped
+raid unlocks its one current zone. A living player must physically occupy the
+zone for the shipped 15-second `GameManagerNetwork` countdown. Completion uses
+the shipped Mission Successful After Action Report and Continue route.
+
+`CreateNativeAtakExfilMarker` reconstructs the current-build `level16` marker:
+layer `17`, four-vertex `Marker` mesh, `HDRP/Unlit` material named
+`ExfilZone`, resident `512 x 512` `ExfilZone` texture, render queue `2501`,
+and the audited transform/UV data. `ExfilZone.ExfilMarker` activates it only
+after native unlock.
+
+The full source, serialized-resource identities, code, state sequence,
+teardown rules, and evidence are in
+[Native PVE completion, extraction, and ATAK](docs/architecture/native-pve-completion-exfil-and-atak.md).
+
 ## 11. PVP owner
 
 The PVP runtime owner is `StandalonePvpGameMode : PvpGameode`. The current
@@ -270,7 +294,7 @@ the four GPNVG tubes can resolve terrain and foliage outside the brighter
 ECOTI circle. The 2026-08-04 repeat run accepted white phosphor across all
 four tubes and visible world detail outside that circle.
 
-For day choices, `0.3.20` copies the audited
+For day choices, `0.3.22` copies the audited
 `level11/PVP Woods Warehouse` donor instead of the rejected generic
 `level6/PVP map` donor:
 
@@ -333,9 +357,9 @@ reciprocal firearm damage or a remote PVP peer.
 ## 15. Release layout
 
 The Git repository publishes the authored source and the hash-pinned
-`decompiled/release-0.3.20` verification snapshot. The previous `0.3.19`,
-`0.3.18`, and
-rejected `0.3.17` snapshots are under `decompiled/archive`. The release ZIP contains
+`decompiled/release-0.3.22` verification snapshot. The previous `0.3.20`,
+`0.3.19`, `0.3.18`, and rejected `0.3.17` snapshots are under
+`decompiled/archive`. The release ZIP contains
 the compiled DLL, not the bracketed repository placeholders. Use
 [the package placeholder](packaging/README-PACKAGE-PLACEHOLDER.md) as the exact
 install-root-relative staging contract.
@@ -344,12 +368,13 @@ The framework archive contains Core and framework files only. A map archive
 contains package data and its map companion only. A complete convenience
 archive can contain both ownership domains.
 
-The `0.3.20` framework archive is 961,620 bytes with SHA-256
-`8B09D64FCFCEBB3A4B086913F0734657C2E71CAB023C552E11D8F0715DF324A3`.
-Its `OperatorModdedOperations.dll` is 165,888 bytes with SHA-256
-`193EEFB44511AA8E0A102D9D145C7BD1DEBDBFF4021A7C81E8C991A53A3BE1EB`.
-The archive passed a full 7-Zip integrity test and its internal checksum
-manifest.
+The `0.3.22` `OperatorModdedOperations.dll` is 173,568 bytes with SHA-256
+`0B8BE9B55C36AFCA81BAB677C5D0720D89A3E2B0E5F25A60BD2FF81C4192349A`.
+The drag-and-drop framework ZIP is
+`OperatorModdedOperationsFramework_v0.3.22.zip`: 1,005,267 bytes, SHA-256
+`4A173D50EABCFEEE3F87D63000D92D31D96CFB3FD11D28713ED01043D13A74A8`.
+It passed a full 7-Zip integrity test. All 54 entries in
+`CHECKSUMS_MODDED_OPERATIONS.sha256` match their staged files.
 
 Never ship QA flags, force-scene code, test controls, private logs, copied game
 DLLs, or extracted game assets.
@@ -361,7 +386,7 @@ DLLs, or extracted game assets.
 | UI | Physical click on `MODDED OPS`, row, Back, Execute, Cancel, and Confirm. |
 | First Confirm | One physical Confirm starts the scene. No second laptop interaction. |
 | Preview | Same verified image in preparation, fullscreen, and infiltration views. |
-| PVE | Package count range, in-bounds markers, armed AI, reciprocal bullet damage. |
+| PVE | Package count range, in-bounds markers, armed AI, reciprocal bullet damage, all-AI-dead unlock, ATAK marker, physical 15-second extraction, native success screen. |
 | PVP | Host and remote client on different authored sides, death, score, round respawn. |
 | Player | Player object, camera, input, movement, correct terrain spawn, repeat launch. |
 | Restart | Alive restart and KIA end-screen restart as separate gates. |
@@ -523,7 +548,7 @@ companion details; this framework BIBLE does not invent map data.
 
 ## 23. Schema-v2 fixed PVE AI profile
 
-Modded Operations `0.3.20` and Operator Mod API `0.2.0-alpha.3` add the
+Modded Operations `0.3.22` and Operator Mod API `0.2.0-alpha.3` implement the
 optional `pveAiProfile` object. Only a schema-v2 PVE operation can own it. PVP
 rejects it. Schema v1 rejects it. There is no difficulty UI and no process-
 global AI write.
@@ -576,14 +601,17 @@ not set a destination, target, vision field, weapon field, or AI state. Its
 linecast is geometry evidence, not acquisition proof. Physical camera behavior
 and reciprocal firearm damage remain required.
 
-The first launch and same-process native restart are `PROVEN-RUNTIME` for the
-tested Forest scope. The final release-byte observer created 15 and 14 native
+The first launch and same-process native restart movement baseline is
+`PROVEN-RUNTIME` for the tested Forest scope. The Forest `0.4.17` and Modded
+Operations `0.3.20` observer created 15 and 14 native
 bots. At 120 seconds, all 15 and all 14 bots had moved at least 1 m. Six and
 four bots had moved at least 5 m toward insertion. Maximum displacement was
 `51.19 m` and `49.34 m`. The native delay ranges were `9.31..36.78 s` and
 `10.97..33.02 s`. Both generations recorded vegetation first-hit evidence.
-The repository verifier accepted both six-snapshot windows. Reciprocal firearm
-damage remains a separate gate.
+The repository verifier accepted both six-snapshot windows. The current
+Forest `0.4.19` and Modded Operations `0.3.22` single-player scope separately
+passed reciprocal firearm play and the native completion/extraction flow.
+Two-peer combat remains a separate gate.
 
 ## 24. Private stationary observer QA
 

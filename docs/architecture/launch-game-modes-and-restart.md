@@ -62,6 +62,19 @@ create AI prefabs. `TrySpawnStandalonePveEnemies` filters the installed
 `NetworkIdentity`, and an armed `WeaponsAI` configuration. The framework then
 uses `RaidManager.ServerSpawnAI(false)`.
 
+`ConfigureStandalonePveController` also requires one package-authored
+`PVE_ExfilZone_` marker. It copies the marker transform and trigger to the
+Mirror-owned PVE bootstrap and adds one shipped `RaidManager` plus one shipped
+`ExfilZone`. Extraction starts locked. The shipped raid unlocks the zone when
+the native live-AI population reaches zero. A living player must occupy the
+trigger for the native 15-second countdown. Completion uses the shipped
+Mission Successful After Action Report.
+
+The current framework also assigns the exact current-build ATAK visual to
+`ExfilZone.ExfilMarker`. Read
+[Native PVE completion, extraction, and ATAK](native-pve-completion-exfil-and-atak.md)
+for exact code, mesh/material/texture data, and teardown.
+
 ## PVP owner
 
 `StandalonePvpGameMode` derives from `PvpGameode`. It installs distinct team
@@ -103,4 +116,5 @@ completions, removes only owned Mirror IDs, restores only captured globals,
 destroys owned mode and render objects, unloads framework-owned bundles, and
 clears generation state. A second launch must create a new generation. It must
 not reuse player attempts, mode singletons, or map-ready flags from generation
-one.
+one. Successful teardown preserves `GameManagerNetwork.SuccessfulOperation`
+until the Operation Room consumes it.
