@@ -1,8 +1,243 @@
 # Current evidence status
 
-## Release state
+## Current source candidate: 0.3.29
 
-Framework version: `0.3.22`.
+The authored plugin identity is Modded Operations `0.3.29`; it requires the
+bundled-only Operator Mod API `0.2.0-alpha.6` preview. Its standalone PVP path
+now freezes the authenticated host/remote membership and exchanges an exact
+framework/API Core/API host binary SHA-256 identity, game build/capability,
+package ID/version/content hash, declared runtime-companion identity and hash,
+map/operation/mode/spawn-set, variant/scene, time, and min/max-player identity.
+The content identity covers the manifest and every declared package file; a
+same-version local edit therefore cannot satisfy exact agreement.
+Every remote must preload and verify that exact local package, commit the
+remote operation, and acknowledge content readiness before native launch.
+Every peer must then construct and register the exact native PVP template and,
+when declared, observe the companion's unique exact-scene ready marker before
+acknowledging the host-issued nonzero scene-generation epoch. Restart advances
+the epoch once and binds the acknowledgement to the corresponding monotonic
+local package-scene generation, covering host-first, remote-first, and
+load-before-unload callback ordering without reusing stale readiness. A
+failure marker wins even after readiness.
+Remote owner adoption/readiness and host all-players-loaded are independently
+bounded; any native lifecycle exception aborts instead of using a position-only
+fallback.
+
+Player-marker discovery is isolated by mode. PVP requires at least
+`ceil(maximumPlayers / 2)` markers on each team; a 12-player declaration
+therefore requires six per side without a map-specific or fixed-capacity
+branch. PVE does not consume PVP markers and does not enter the peer-agreement
+path. The PVP membership snapshot also binds the connection object, not only
+its numeric ID. Late join is unsupported: a join, disconnect, or replacement
+during the agreement aborts instead of changing the frozen roster. Because PVE
+co-op bypasses this protocol, no current result proves remote PVE package/scene
+equivalence, AI placement, movement, bullets, or damage.
+
+The complete 78-test Python suite, including 39 focused PVP
+agreement/restart tests, the separate 9-test C# scene-variant selector suite,
+and a Release build with zero warnings and
+zero errors pass. These results prove source shape and compiler compatibility,
+including the direct IL2CPP Mirror handler/writer/connection seam. They do not
+prove transport behavior between two OPERATOR processes. The exact
+host-plus-remote content barrier, scene barrier, first spawn, movement
+replication, firearm-specific hit registration, opposite teams, score, round
+respawn, restart, and return lifecycle remains open. The candidate is therefore
+`PROVEN-STATIC`, not `SUPPORTED`.
+
+A separately labeled archive exists to transfer the exact framework/API set
+for a controlled multiplayer matrix:
+
+```text
+OperatorModdedOperations_v0.3.29_API-alpha.6_MULTIPLAYER_TEST_ONLY.zip
+bytes=486369
+sha256=4507C858888339B19F318F7D23B55F771B53E102CDA2B335F95B52BDF91FC1B8
+```
+
+That archive is test packaging only. It is not a Nexus binary release, does
+not establish installation or runtime behavior on another machine, and does
+not close any host-plus-remote gate. The exact `0.3.29` decompiled tree is now
+published as a Git source checkpoint. The runtime-release publication record
+immediately below remains immutable `0.3.28` with bundled Operator Mod API
+`0.2.0-alpha.5`.
+
+The final non-packaging static build identities for independent review are:
+
+```text
+OperatorModdedOperations.dll
+bytes=279552
+sha256=95CEF59F62B2DF40ED69C066692953210CDC17A9C3D08DB95753DA7A9B4142CD
+
+OperatorModAPI.dll
+bytes=179200
+sha256=0C27854DFDD3C9F0946F5BCBC61CE37DAE3037215BB5FC11C3400BD50190EB77
+
+OperatorModAPI.BepInEx.dll
+bytes=25600
+sha256=A58E1FA50CE345931104B9980AFBAF356B8EEAC0E7A735BEF7BD21FC93727AD9
+```
+
+## Prior hash-pinned publication source: 0.3.28
+
+The `0.3.28` publication targets Modded Operations `0.3.28` and keeps bundled
+Operator Mod API at `0.2.0-alpha.5`. It retains strict native hostile-team
+cohort selection, then captures the exact Mirror netId/identity/BrainAI delta
+created by `RaidManager.ServerSpawnAI(false)`. Because native `BrainAI.Start`
+joins `GameManager.allAI` after the synchronous spawn call returns, full
+team/reference/pool/list validation now begins on the next Unity frame and is
+bounded by a 60-frame deadline. Pending or failed validation keeps both
+zone-level and global extraction state locked. Failure, restart, and unload
+destroy only the exact owned identity set before game-mode release.
+
+The Release build completed with zero warnings and zero errors, and the
+complete Python suite passes 39 of 39 tests. Its exact identity is:
+
+```text
+OperatorModdedOperations.dll
+bytes=223232
+sha256=75BB479E863A94807ACCB78E6FA37271BE340B226E4EBDFB1BE48C0B8248852B
+```
+
+The exact authored `CerberusNativeTabFix.cs` is SHA-256
+`3A33AC1C1B97CA31E77F5198EE77BBCD24EFE3CD2DE9284758540AC94E9F4302`.
+The final independent source/lifecycle review found no unresolved publication
+blocker. ILSpy `10.1.1.8388` produced the seven-file
+`decompiled/release-0.3.28` tree: 427,039 bytes with tree SHA-256
+`59D672462C7AA4DA00268D3A2185EA79D2C43F078853F71E40EAE40FDEE361C8`.
+The deterministic publication manifest and adjacent SHA-256 sidecar bind the
+complete public source state to those exact compiler/decompiler artifacts.
+
+This is publication and static-test evidence, not packaging, deployment, or
+runtime-acceptance evidence. No archive was created and OPERATOR was not
+launched for this promotion.
+
+## Prior hash-pinned publication source: 0.3.27
+
+The `0.3.27` publication and bundled Operator Mod API `0.2.0-alpha.5` added
+strict hostile-team cohort selection and post-spawn team/target-graph
+validation, plus opt-in native reaction disposition and maximum-reaction-time
+controls. Its exact privacy-clean Release DLL is 216,064 bytes with SHA-256
+`CD2B326E76FC95439352E999BB138EB4499B08895C5BE552807D2C8A7FF62579`.
+
+The optional reaction fields are fail-closed and map-scoped. Omission preserves
+the selected native prefab behavior; declared values use native response
+disposition and cap only `_baseReactionTime` and `ReactionTime`. Final live
+team, target-graph, reaction, and combat acceptance for these exact bytes
+remains a separate QA gate.
+
+That historical DLL has a hash-pinned ILSpy `10.1.1.8388` tree at
+`decompiled/release-0.3.27`. The deterministic
+publication record for `0.3.28` supersedes it as current identity. The
+`0.3.26` binary and snapshot remain historical evidence and are not relabeled.
+
+## Prior static candidate: 0.3.25
+
+The exact `0.3.25` Mirror/bootstrap and bundle-cache candidate remains
+200,704 bytes with SHA-256
+`E5354D32336C10FAB4A86EFA5CAC073604B075B58B0FE9761FC291DD6148E016`.
+Its corrections are retained by `0.3.28`; its hash is historical evidence,
+not the identity of the current source.
+
+## Last complete runtime candidate: 0.3.24
+
+The exact runtime-tested `0.3.24` DLL is 195,584 bytes with SHA-256
+`0B61F0C3CCEC667B5FD38BAD7884C8F7349479F61AE3682F4DD4BB08C8243992`.
+
+Scene variants are manifest-driven and strictly opt-in. Only a map with
+`SceneVariants.Count > 1` enters the selector. A single-scene map keeps its
+primary `ScenePath` and does not construct, read, or write variant state,
+consume variant RNG, or emit variant-selection logs. An opted-in map uses one
+persistent shuffle bag scoped to package ID plus map ID. A fresh Operation
+Room Confirm advances that bag; alive Restart and KIA Restart retain the exact
+active selection. The persisted state also prevents an immediate repeat after
+an OPERATOR process restart.
+
+The exact single-process lifecycle under
+`<AUTHOR_WORKSPACE>/reports/observer_qa/forest_20260810_020127` reports
+`Outcome=passed` and proves:
+
+1. A fresh Confirm selected `KH10_WideLabyrinth`; one player and 12 of 12
+   grounded PVE AI became playable.
+2. Alive Restart reloaded `KH10_WideLabyrinth` with a new scene handle; one
+   player and 11 of 11 grounded PVE AI became playable.
+3. The shipped Standard-PVE path reached zero native AI, unlocked the native
+   extraction zone and ATAK marker, completed the physical 15-second timer,
+   showed Mission Successful, and returned through Continue to the Operation
+   Room.
+4. A second fresh Confirm selected the different
+   `KH03_SerpentineApartment`; one player and 9 of 9 grounded PVE AI became
+   playable.
+5. Native lethal damage showed the shipped Mission Failed popup. Its Restart
+   Operation control reloaded `KH03_SerpentineApartment`, kept the selection,
+   and restored a playable operation.
+
+The final trace reports `freshBdiffersFromA=True`,
+`sameSceneOnKiaRestart=true`, and `playableAfterKiaRestart=true`. The trace
+SHA-256 is
+`348ADF149CF569D1C9F38805FFD3E229F7D474C856D01F61375A32381781A51A`.
+The machine-readable result SHA-256 is
+`95BC5FE668D72A252E22DC00942B1D885C69CB0E18EC8ADBFBBF7155C280792A`.
+This is `PROVEN-RUNTIME` for the pinned single-player variant lifecycle.
+Multiplayer replication remains a separate gate.
+
+## Mirror bootstrap clean-spawn correction
+
+The exact later `0.3.24` lifecycle log at
+`<AUTHOR_WORKSPACE>/reports/observer_qa/forest_20260810_071941` retained the
+correct selected scene across alive and KIA Restart and completed successfully,
+but it also exposed one caught first-attempt Mirror exception on each of its
+four operation generations. Every exception entered
+`Mirror.NetworkBehaviour.ClearAllDirtyBits`. The runtime audit immediately
+before spawn reported:
+
+```text
+StandalonePveGameMode:syncObjects=null
+ExfilZone:syncObjects=0
+RaidManager:syncObjects=0
+```
+
+Current-build Cecil inspection confirms that the injected subtype's `IntPtr`
+wrapper constructor does not invoke `Mirror.NetworkBehaviour`'s native
+parameterless constructor. `syncObjects` is an assignable
+`Il2CppSystem.Collections.Generic.List<Mirror.SyncObject>`, and the exact
+native baseline is a non-null empty list. This constructor boundary, not the
+map or scene-variant selector, caused the `ClearAllDirtyBits` null dereference
+and delayed readiness at the shipped transient `Map Loaded... !BUG!` text.
+The accepted `0.3.21` comparison run at
+`<AUTHOR_WORKSPACE>/reports/observer_qa/forest_20260805_190946` reported all
+three root lists at count zero, spawned on the first native attempt without
+that exception, and entered readiness through `OnStartClient`.
+
+`0.3.25` supplies only that missing baseline on operation-owned runtime root
+behaviours, hard-gates registration and spawn, records a single attempt before
+native re-entry, and performs ordered unspawn/unregister/root destruction.
+Five source-level regression tests prevent null restoration, retry, global
+spawner clearing, and teardown reordering. The correction is
+`PROVEN-STATIC`; a new controlled lifecycle must still prove zero warnings,
+zero `!BUG!` fallback, and unchanged restart pinning before runtime promotion.
+
+## Cross-map bundle-cache correction
+
+Earlier source retained every distinct verified map in `loadedMapBundles`
+until plug-in unload. `0.3.25` now trims prior completed maps only at a proven
+safe Operation Room boundary. The check requires a zero active package-scene
+handle and compares every cached and in-flight scene bundle inventory against
+all loaded Unity scenes; an unreadable inventory or any match vetoes unload.
+
+The retained owner set is map-neutral: selected/current map, exact
+`activeOperation` map for same-scene alive or KIA Restart, and exact
+`pendingLaunch` map during asynchronous prefetch. Fresh different-map native
+launch transfers `activeOperation` before the trim, returning the completed
+cache to LRU=1 with `Unload(false)`. Six static integration gates cover the
+boundary, loaded-scene veto, same-map reuse, different-map ownership
+transfer, pending-owner preservation, and single-scene/variant isolation.
+This correction is `PROVEN-STATIC`; it has not been deployed or observed in
+the game.
+
+## Archived 0.3.22 publication state
+
+The following exact artifact record is the preserved `0.3.22` public
+publication snapshot. It is historical release evidence, not the identity of
+the current hash-pinned `0.3.28` publication source.
 
 The exact release artifacts are:
 
@@ -22,9 +257,16 @@ The ZIP passed a complete 7-Zip integrity test. Every entry in
 QA driver, forced-scene control, log, PDB, or map package.
 
 The Release build completed with zero warnings and zero errors. The profiled
-PVE verifier unit suite passed all three tests. The public repository audit
-checks source closure, decompiler identity, private-path absence, links, JSON,
-and forbidden release binaries.
+PVE verifier unit suite passed all three tests.
+
+`eng/audit_repository.py` binds the current `0.3.28` authored source,
+`decompiled/release-0.3.28`, exact DLL/decompiler identities, bundled alpha.5
+API pins, and deterministic source-state manifest. The `0.3.22` DLL, ZIP, and
+decompiler tree above remain historical evidence and are not relabeled.
+
+The loading, Forest profile, completion, and ATAK sections below preserve
+their original version-bounded runtime evidence. They are not an implicit
+claim that every historical gate was rerun with `0.3.28`.
 
 ## Native loading presentation
 
@@ -167,7 +409,13 @@ placement and completion behavior.
 
 ## Open acceptance gates
 
-- Host and remote-client PVP first spawn, freeze, death, respawn, score,
-  round, restart, and return lifecycle.
+- Host and remote-client PVP exact-content transfer/preload, scene agreement,
+  first spawn, freeze, synchronized movement, firearm-specific hit
+  registration, death, respawn, score, round, retained-content Restart, and
+  return lifecycle.
+- Deliberate PVP mismatch and membership-change live tests must fail closed.
+  Late join is not a supported target for this protocol.
+- Online PVE package/scene identity, AI placement, movement, projectile, and
+  damage equivalence. This is separate because PVE bypasses PVP agreement.
 - A separate type-specific live probe for the generic verified dependency-
   asset borrower API. Ukrainian Forest does not depend on that open path.

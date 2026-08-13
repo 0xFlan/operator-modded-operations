@@ -16,3 +16,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python eng/audit_repository.py
+      - run: python -m unittest discover -s eng -p 'test_*.py'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "6.0.x"
+      - run: dotnet run --project eng/SceneVariantSelectionStore.Tests/SceneVariantSelectionStore.Tests.csproj --configuration Release

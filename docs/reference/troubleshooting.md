@@ -82,3 +82,43 @@ Check that teardown cleared the previous active generation before the new
 scene callback. Check exact scene identity and companion readiness. Do not
 accept a stale ready flag. Log the generation ID, scene handle, package ID,
 map ID, and failing readiness gate.
+
+## PVP offer is rejected before the scene loads
+
+Compare the exact framework DLL, API Core DLL, API host DLL, game build,
+package manifest and declared-file content identity, operation fields, and any
+declared companion GUID/version/DLL SHA-256 on host and remote. Matching
+displayed versions are insufficient when bytes differ. A malformed envelope,
+message-ID collision, conflicting package load, or changed authenticated roster
+also fails closed.
+
+Do not bypass the agreement or fall back to position-only play. Install the
+same explicitly labeled test build and map archive on both peers, close the
+game while replacing files, then confirm every recorded hash again.
+
+## PVP waits at scene readiness or aborts on Restart
+
+Check the current nonzero host scene epoch and the remote's monotonic local
+package-scene generation. `SceneReady(epoch)` is valid only for the exact
+generation after its scene, spawn, deterministic PVP template, and companion
+checks pass. A duplicate request can resend the current acknowledgement; a
+zero, stale, future, out-of-phase, or overflowing epoch fails closed.
+
+When `runtimeCompanion` is declared, require exactly one ready marker with the
+declared name in the active generation scene. The declared failure marker wins
+even after readiness. Also confirm at least `ceil(maximumPlayers / 2)` accepted
+spawn markers per side; a 12-player operation needs six per team.
+
+## PVP aborts when another player joins
+
+This is the intended fail-closed behavior. The current PVP protocol freezes
+the authenticated connection objects before agreement; late join is
+unsupported. A join, disconnect, or replacement connection aborts even when a
+numeric connection ID is reused. Start a new session with the intended roster.
+
+## PVE works locally but differs for a remote player
+
+PVE co-op does not use the PVP peer agreement. A passing PVP identity test does
+not prove online PVE package/scene selection, enemy placement, movement,
+projectiles, or damage. Treat online PVE as unsupported until its separate
+host/remote matrix passes.

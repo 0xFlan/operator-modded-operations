@@ -7,10 +7,34 @@ this repository. It is written for a human maintainer and for an automated
 coding agent. Use the exact names in this document. Do not infer a game
 contract from a similar name.
 
-The framework version is `0.3.22`. The plugin identity is
-`operator.modded-operations`. The assembly is
-`OperatorModdedOperations.dll`. The required Core version is
-`0.2.0-alpha.3`.
+The current authored source candidate is `0.3.29`. The plugin identity is
+`operator.modded-operations`, the assembly is
+`OperatorModdedOperations.dll`, and the required bundled-only Core version is
+`0.2.0-alpha.6`. The frozen candidate binaries are
+`OperatorModdedOperations.dll` at 279,552 bytes / SHA-256
+`95CEF59F62B2DF40ED69C066692953210CDC17A9C3D08DB95753DA7A9B4142CD`,
+`OperatorModAPI.dll` at 179,200 bytes / SHA-256
+`0C27854DFDD3C9F0946F5BCBC61CE37DAE3037215BB5FC11C3400BD50190EB77`, and
+`OperatorModAPI.BepInEx.dll` at 25,600 bytes / SHA-256
+`A58E1FA50CE345931104B9980AFBAF356B8EEAC0E7A735BEF7BD21FC93727AD9`.
+These identities and the current regression suite are `PROVEN-STATIC`, not
+host-plus-remote runtime evidence. The latest hash-pinned public publication
+remains the exact reviewed
+`0.3.28` Release build at 223,232
+bytes with SHA-256
+`75BB479E863A94807ACCB78E6FA37271BE340B226E4EBDFB1BE48C0B8248852B`.
+Its publication closure does not by itself promote runtime evidence. The last
+complete runtime candidate remains `0.3.24`: 195,584 bytes with SHA-256
+`0B61F0C3CCEC667B5FD38BAD7884C8F7349479F61AE3682F4DD4BB08C8243992`.
+
+The current Git source-checkpoint verification snapshot is
+`decompiled/release-0.3.29`; it is `PROVEN-STATIC`, not a supported binary
+release. The last public runtime-release snapshot is
+`decompiled/release-0.3.28`. Every section that explicitly names a `0.3.27`,
+`0.3.26`, or `0.3.22`
+DLL, ZIP, decompiler output, Forest evidence, or render value remains an
+immutable historical record; the current audit no longer treats those bytes
+as the active publication identity.
 
 ## 2. Path tokens
 
@@ -44,7 +68,7 @@ for a map name. A release source must contain no map identity.
 The plugin attribute is the first closed gate:
 
 ```csharp
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.22")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.29")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 ```
@@ -128,12 +152,90 @@ Do not patch or call `OperationsManager.StartOperation`,
 `CMD_StartOperation`, or `DebugStartOperation`. That combined prefix set is a
 known current-build crash boundary.
 
+### Completed bundle-cache lifetime in 0.3.25
+
+`loadedMapBundles` is a verified ownership cache, not a process-lifetime
+archive. `TrimCompletedMapBundleCacheAtSafeBoundary` keeps the selected/current
+map, the exact `activeOperation` map required by alive or KIA Restart, and the
+exact `pendingLaunch` map whose asynchronous prefetch is in flight. A fresh
+different-map launch first transfers `activeOperation`; only then can the
+previous completed map become an eviction candidate. Same-map Restart never
+enters the trim path and reuses the resident bundle.
+
+Do not treat `SceneManager.GetActiveScene().name == "Operation Room"` as
+sufficient proof. The Operation Room remains Unity's active scene while a
+package scene is loaded additively. The eviction boundary additionally
+requires `activeOperation.SceneHandle == 0` and scans every cached and
+in-flight scene bundle's `GetAllScenePaths()` inventory against all loaded
+Unity scenes. Any match or unreadable inventory vetoes eviction. An accepted
+candidate unloads its scene and dependency bundles with `Unload(false)` and
+is then removed from `loadedMapBundles`.
+
+The older incomplete/stale same-map discard path uses the same ownership
+discipline. It refuses disposal when the entry belongs to `activeOperation`,
+belongs to `pendingLaunch`, or owns a loaded scene. It cannot be used as a
+shortcut around Restart protection.
+
+The steady-state completed cache is LRU=1 after fresh launch ownership
+transfer. A short cross-map transition may retain the active/restart owner
+alongside the selected prefetch owner; no third speculative completed cache
+is allowed to accumulate at a safe selection boundary. This logic is keyed
+only by frozen map identity. It never branches on a scene-variant count or a
+specific package/map ID.
+
+### Manifest-driven scene variants in 0.3.24
+
+The sole variant opt-in is `HasDeclaredSceneVariants(map)`, which is true only
+when `SceneVariants.Count > 1`. Do not infer opt-in from a package ID, map ID,
+bundle path, or companion. A single-scene map keeps its primary `ScenePath`;
+the framework does not instantiate, read, or write
+`SceneVariantSelectionStore`, consume variant RNG, or emit variant-selection
+logs for that map.
+
+For an opted-in map, `SceneVariantSelectionStore` owns a persistent shuffle
+bag scoped to package ID plus map ID and preserves exact variant ID-to-path
+identity. `TrySelectFreshLaunchScene` advances it only for a fresh Operation
+Room Confirm. The exact choice is copied into pending and active operation
+state. Alive Restart and KIA Restart reload that active scene without
+advancing the bag. Persisted history prevents an immediate repeat across
+OPERATOR process restarts.
+
+On an asynchronous cold launch, first validate the dependency and scene
+bundles, then select. An already verified cached launch can select immediately
+from the same closed manifest inventory. When maps share one content identity
+and scene-bundle path and any participating map declares variants, require the
+bundle scene addresses to equal the exact union of the declared inventories.
+Reject every missing, extra, subset, superset, or unrelated address.
+
+This ownership is generic framework behavior. A map companion must not choose
+once at plug-in startup, mutate the map definition's `ScenePath`, or
+Harmony-patch `ValidateLoadedSceneBundle`.
+
+The exact single-process observer under
+`<AUTHOR_WORKSPACE>/reports/observer_qa/forest_20260810_020127` passed this
+sequence:
+
+```text
+fresh Confirm -> KH10_WideLabyrinth
+alive Restart -> KH10_WideLabyrinth with a new scene handle
+native completion -> Mission Successful -> Operation Room
+fresh Confirm -> KH03_SerpentineApartment
+native KIA -> Mission Failed -> Restart Operation -> KH03_SerpentineApartment
+```
+
+Both fresh generations and both restarts became playable with grounded native
+PVE AI. The second fresh selection differed from the first; neither restart
+rerolled. This is `PROVEN-RUNTIME` for the pinned single-player lifecycle.
+Multiplayer selection agreement remains a separate gate.
+
 ## 8. Exact scene and readiness
 
-The framework loads the exact `scenePath` from the accepted scene bundle. It
-does not load Office, Georgia, or a donor mission. The scene contract checks
-the expected package, map, scene path, map marker, current-scene spawn sets,
-terrain declaration, and map-companion readiness when required.
+The framework loads the exact effective scene path from the accepted scene
+bundle: the primary `ScenePath` for a single-scene map or the framework-owned
+active selection for an opted-in map. It does not load Office, Georgia, or a
+donor mission. The scene contract checks the expected package, map, effective
+scene path, map marker, current-scene spawn sets, terrain declaration, and
+map-companion readiness when required.
 
 The companion must finish its strict world contract before the framework
 creates PVE actors. Do not replace this barrier with an arbitrary frame delay.
@@ -199,6 +301,20 @@ The framework filters `GameManager.AllAITypes`. An accepted AI prefab has:
 - `WeaponsAI.SpawnWeapon == true`;
 - at least one weapon in `weaponList`.
 
+Before spawning PVE, the framework groups firearm-capable prefabs by their
+complete native `TeamIdentifier`/`StartingTeamStats` contract, excludes the
+live player's team, and requires one unique strict-largest hostile cohort.
+Only that cohort is supplied to `RaidManager.standardAI` for the synchronous
+native spawn call; the prior array is restored afterward. New operation brains
+are owned by the exact `NetworkServer.spawned` netId/identity/root-`BrainAI`
+delta. Native `BrainAI.Start` joins `GameManager.allAI` after the synchronous
+spawn call returns, so the framework keeps extraction locked and validates
+the full selected-team/reference/pool/target graph from the next Unity frame
+through a bounded 60-frame deadline. A missing, extra, vanished, or mismatched
+owned entry fails closed and destroys only that exact population. The
+framework does not mutate global friendly fire or hand-edit native AI,
+enemy, or target lists.
+
 `ChooseStandalonePveEnemyCount` validates
 `1 <= minEnemies <= maxEnemies <= 64`. It selects one inclusive,
 deterministic host count. `TrySpawnStandalonePveEnemies` passes the valid
@@ -251,6 +367,57 @@ that shipped PVP methods read. It calls the shipped `OnStartClient` and
 `Server_AllPlayersLoaded` bodies. It keeps shipped round, freeze, score,
 death, respawn, and operation-end logic.
 
+The `0.3.29` source also owns a multi-stage, PVP-only peer agreement. Before the
+native board starts, the host freezes the exact authenticated remote
+connection IDs and every peer must agree on protocol plus exact SHA-256 values
+for the loaded framework, API Core, API host, and any declared map companion.
+The digest also binds API version/game build/capabilities, package
+ID/version/content hash, companion GUID/version/marker contract,
+map/operation/mode/spawn set, scene variant/path, time, and min/max players. A remote preloads the exact
+locally verified bundles and commits the matching operation before sending
+`ContentReady`. The package content hash covers the exact manifest and declared
+package files; a matching package version is insufficient when any byte
+differs. After transition, every peer creates and registers the native
+PVP template and passes the declared companion's unique exact-scene ready
+marker before sending `SceneReady`; a failure marker wins even after readiness.
+The host issues a nonzero scene-generation epoch before initial transition and
+increments it exactly once per retained-content Restart. `SceneReady(epoch)`
+is accepted only for the current session, exact connection object, current
+host phase, and current epoch. The remote maps each request to its monotonic
+local package-scene generation, so remote-first and host-first replacement
+loads cannot reuse the preceding generation's readiness. Requests retry within
+the existing bounded deadline; duplicates resend the current acknowledgement;
+zero, stale, out-of-phase, and overflowing epochs fail closed.
+Unchanged membership and the full
+scene-ready set gate the host's one `NetworkServer.Spawn` call. The remote
+adopts only the exact deterministic PVP asset and subtype while the agreement
+is live.
+
+Marker discovery is mode-isolated. PVP never consumes `PVE_PlayerSpawn_`, and
+each side must expose at least `ceil(maximumPlayers / 2)` accepted markers.
+The pinned maximum declaration of 12 therefore requires at least six accepted
+markers for Team 1 and six for Team 2; fewer markers fail before launch.
+PVE never consumes the PVP-prefixed or Team 2 markers and never enters either
+agreement barrier. Same-operation Restart retains content agreement and
+repeats scene and native-lifecycle readiness. Remote owner adoption/readiness
+and host owner publication/all-players-loaded are bounded. Mismatch,
+malformed/trailing envelope, private message-ID collision, membership change,
+rejection, timeout, scene failure, or native lifecycle exception fails closed
+and triggers the shipped host return or remote disconnect before teardown.
+Membership is immutable for the session. Late join is unsupported, and a
+disconnect, new connection, or replacement connection aborts even if it reuses
+the same numeric connection ID. PVE co-op does not inherit this PVP agreement;
+remote PVE content/scene identity, AI equivalence, movement, and combat remain
+unproven online.
+
+Implementation-test note: the first focused run after replacing the
+unversioned readiness latch compiled cleanly but reported four test failures.
+All four asserted retired field names or the old method that directly sent
+`SceneReady`; none exposed a compiler or lifecycle defect. The assertions were
+updated to the epoch helpers, ordering/overflow coverage expanded from 28 to
+39 focused cases, and the final focused and complete suites passed. Keep this
+distinction so assertion drift is not misreported as a native runtime result.
+
 ## 12. Mirror template identity
 
 The framework uses deterministic nonzero IDs:
@@ -268,6 +435,48 @@ that ID's spawn handler before registration.
 On release, the framework removes only the operation-owned prefab key and
 spawn handler. It does this by asset ID even when Unity destroyed the template
 wrapper. Never use `NetworkClient.ClearSpawners()` for this repair.
+
+### Injected NetworkBehaviour constructor boundary in 0.3.25
+
+The exact `0.3.24` lifecycle log recorded four caught first-attempt spawn
+exceptions, one on each fresh/alive-restart/fresh/KIA-restart generation. In
+every case the top native frame was
+`Mirror.NetworkBehaviour.ClearAllDirtyBits`; the root
+`StandalonePveGameMode` reported `syncObjects=null`, while the native
+`ExfilZone` and `RaidManager` components reported non-null empty lists. The
+failed first entry delayed readiness and exposed the shipped transient
+`Map Loaded... !BUG! Click Restart Operation` fallback before a later bounded
+recovery.
+
+The earlier accepted `0.3.21` generation at
+`<AUTHOR_WORKSPACE>/reports/observer_qa/forest_20260805_190946` is the direct
+working comparison: `StandalonePveGameMode`, `ExfilZone`, and the then-current
+raid subtype all reported `syncObjects=0`; the first native spawn emitted no
+`ClearAllDirtyBits` exception and readiness entered through `OnStartClient`.
+This comparison isolates the list baseline from map content and restart
+selection.
+
+Current-build Cecil inspection proves that `NetworkBehaviour.syncObjects` is
+an assignable
+`Il2CppSystem.Collections.Generic.List<Mirror.SyncObject>`. Its managed
+parameterless wrapper allocates a native object and invokes Mirror's native
+constructor; its `IntPtr` wrapper only attaches to an existing native object.
+ClassInjector creates `StandalonePveGameMode` and `StandalonePvpGameMode`
+through that `IntPtr` route, so their base native constructor never supplies
+the normally non-null empty list. This is the confirmed cause; the scene,
+variant selector, and package identity are not involved.
+
+`0.3.25` initializes only a null list on operation-owned root behaviours,
+tracks that ownership, and validates every root behaviour before both
+`NetworkClient.RegisterPrefab` and `NetworkServer.Spawn`. The framework
+records one spawn attempt before entering native code and never retries a
+partially entered spawn. Teardown unspawns first, unregisters the exact
+deterministic ID second, and destroys the root/list ownership last. It never
+restores null and never clears another owner's spawners. Five regression gates,
+the complete 14-test Python suite, the nine-test selector suite, and a
+zero-warning Release build pass. This correction is `PROVEN-STATIC` until a
+fresh exact lifecycle run proves zero `ClearAllDirtyBits` warnings, no
+`Map Loaded... !BUG!` fallback, and unchanged restart pinning.
 
 ## 13. Time, NVG, and process-global state
 
@@ -331,12 +540,15 @@ operation from overwriting state installed later by another owner.
 generation in reverse order. The framework:
 
 1. stops stale asynchronous completions;
-2. removes the operation-owned Mirror keys;
-3. clears mode singletons only when they still point at the owned component;
-4. restores player spawn globals only when identity still matches;
-5. restores NVG state and destroys the owned Volume/profile;
-6. unloads scene and bundle state owned by the operation;
-7. clears cached player attempts, assignments, and generation handles.
+2. destroys the exact operation-owned PVE identity set before game-mode
+   release;
+3. removes the operation-owned Mirror keys;
+4. clears mode singletons only when they still point at the owned component;
+5. restores player spawn globals only when identity still matches;
+6. restores NVG state and destroys the owned Volume/profile;
+7. releases scene-lifetime state while retaining the exact verified bundle
+   required by same-map Restart;
+8. clears cached player attempts, assignments, and generation handles.
 
 The persistent shipped `GameManagerNetwork` owns Mission Failed UI and its
 Restart Operation control. The framework must not clone that UI. The PVE
@@ -356,25 +568,72 @@ reciprocal firearm damage or a remote PVP peer.
 
 ## 15. Release layout
 
-The Git repository publishes the authored source and the hash-pinned
-`decompiled/release-0.3.22` verification snapshot. The previous `0.3.20`,
-`0.3.19`, `0.3.18`, and rejected `0.3.17` snapshots are under
-`decompiled/archive`. The release ZIP contains
-the compiled DLL, not the bracketed repository placeholders. Use
+The current Git source checkpoint is `0.3.29`; its exact frozen DLL is 279,552
+bytes with SHA-256
+`95CEF59F62B2DF40ED69C066692953210CDC17A9C3D08DB95753DA7A9B4142CD`.
+The last runtime-release publication source is `0.3.28`; its exact reviewed DLL
+is 223,232 bytes with SHA-256
+`75BB479E863A94807ACCB78E6FA37271BE340B226E4EBDFB1BE48C0B8248852B`.
+The last complete runtime candidate remains `0.3.24`: 195,584 bytes with
+SHA-256
+`0B61F0C3CCEC667B5FD38BAD7884C8F7349479F61AE3682F4DD4BB08C8243992`.
+The Git repository publishes the `0.3.29` compiler surface as the hash-pinned
+`decompiled/release-0.3.29` source-checkpoint snapshot and preserves the final
+`0.3.28` runtime-release compiler surface at
+`decompiled/release-0.3.28`. The prior
+`decompiled/release-0.3.27`, `decompiled/release-0.3.26`, and
+`decompiled/release-0.3.22` trees plus the `0.3.20`, `0.3.19`, `0.3.18`, and
+rejected `0.3.17` snapshots remain historical comparison evidence. The
+release ZIP contains the compiled DLL, not the bracketed repository
+placeholders. Use
 [the package placeholder](packaging/README-PACKAGE-PLACEHOLDER.md) as the exact
 install-root-relative staging contract.
 
-The framework archive contains Core and framework files only. A map archive
-contains package data and its map companion only. A complete convenience
-archive can contain both ownership domains.
+The current public release-layout record is pinned to a Modded Operations
+`0.3.28` archive contract with Operator Mod API `0.2.0-alpha.5` Core (174,592
+bytes,
+`43445DC37FE85196EFFF0744233847223D87B8BA68EC5BD79B12585F2A764DC3`)
+and BepInEx host (25,600 bytes,
+`BC9D4ABCDB62D37E045FDEEAB80098788891B690965F2367CDC17EAC308978EF`)
+plus the framework, each in its own
+plugin folder, and contains no map data. Runtime ownership remains separate;
+download ownership does not. The preview API is not published as a standalone
+archive. A map archive contains only package data and its map companion and
+must not duplicate Core or framework files. A separate public Operator Mod API
+release is deferred until the API reaches a full stable version.
 
-The `0.3.22` `OperatorModdedOperations.dll` is 173,568 bytes with SHA-256
+The frozen `0.3.29` / alpha.6 set has one separately labeled transfer archive
+for controlled multiplayer testing:
+
+```text
+OperatorModdedOperations_v0.3.29_API-alpha.6_MULTIPLAYER_TEST_ONLY.zip
+bytes=486369
+sha256=4507C858888339B19F318F7D23B55F771B53E102CDA2B335F95B52BDF91FC1B8
+```
+
+It contains the candidate framework plus the bundled preview API; it is not a
+standalone API release or Nexus binary publication. Its existence is packaging
+evidence only. The Git source-checkpoint decompiler is public, while the
+runtime-release publication source-state remains `0.3.28`. The future promoted framework
+archive will continue to bundle the preview API, while each map stays a
+separate download and must not duplicate the framework or API.
+
+The historical `0.3.22` `OperatorModdedOperations.dll` is 173,568 bytes with SHA-256
 `0B8BE9B55C36AFCA81BAB677C5D0720D89A3E2B0E5F25A60BD2FF81C4192349A`.
-The drag-and-drop framework ZIP is
+Its archived drag-and-drop framework ZIP is
 `OperatorModdedOperationsFramework_v0.3.22.zip`: 1,005,267 bytes, SHA-256
 `4A173D50EABCFEEE3F87D63000D92D31D96CFB3FD11D28713ED01043D13A74A8`.
 It passed a full 7-Zip integrity test. All 54 entries in
 `CHECKSUMS_MODDED_OPERATIONS.sha256` match their staged files.
+
+`eng/audit_repository.py` verifies the current `0.3.29` authored and
+source-checkpoint decompiler seams plus the immutable `0.3.28` runtime-release
+publication record. It binds exact DLL and
+decompiler identities, explicit placeholders, privacy rules, Markdown/JSON
+integrity, and the deterministic
+`publication/source-state-manifest.json`. The adjacent sidecar pins the exact
+manifest bytes. The historical `0.3.22` archive record above is not relabeled
+or treated as current evidence.
 
 Never ship QA flags, force-scene code, test controls, private logs, copied game
 DLLs, or extracted game assets.
@@ -387,9 +646,12 @@ DLLs, or extracted game assets.
 | First Confirm | One physical Confirm starts the scene. No second laptop interaction. |
 | Preview | Same verified image in preparation, fullscreen, and infiltration views. |
 | PVE | Package count range, in-bounds markers, armed AI, reciprocal bullet damage, all-AI-dead unlock, ATAK marker, physical 15-second extraction, native success screen. |
-| PVP | Host and remote client on different authored sides, death, score, round respawn. |
+| PVP agreement | Exact host/remote binary and package-content identity, declared companion identity/readiness/failure precedence, remote verified preload and operation commit, every content-ready ACK before native launch, host-issued scene epoch plus exact-generation scene-ready ACK before spawn, unchanged connection-object membership, explicit late-join rejection, restart-ordering races, and closed mismatch/timeout/overflow tests. |
+| PVP gameplay | Host and remote client on different authored sides; synchronized first spawn and movement; firearm-specific hit registration and death; score, round respawn, Restart, and return. |
+| PVE online | Separate host/remote package, scene, AI-placement, movement, projectile, and damage equivalence. The PVP agreement does not satisfy this gate. |
 | Player | Player object, camera, input, movement, correct terrain spawn, repeat launch. |
 | Restart | Alive restart and KIA end-screen restart as separate gates. |
+| Scene variants | `SceneVariants.Count > 1` opt-in, single-scene bypass, different fresh selections, and the exact active scene retained across alive and KIA Restart. |
 | Teardown | Armory return and a second operation generation without stale state. |
 | Deployment | Source, stage, archive, and installed hashes match while game was closed. |
 
@@ -463,7 +725,9 @@ operator-map-package.json
   -> Core canonical path, size, and SHA-256 validation
   -> dependencyBundles[] load in declared order
   -> sceneBundle load
-  -> scenePath equality check
+  -> exact scene-address validation, including the declared union for variants
+  -> fresh variant selection only when SceneVariants.Count > 1
+  -> effective scene-path equality check
   -> MAP_ID_<mapId> and SPAWN_SET_<spawnSet> scene checks
   -> optional map-companion reconstruction and ready result
   -> package-owned player marker registration
@@ -504,6 +768,8 @@ authors and maintainers:
 | Package infiltration prefab | `BuildPackageInfiltrationMapPrefab` |
 | Selected-map prefetch | `BeginSelectedMapPrefetch` |
 | Physical Confirm request | `BeginCatalogOperationLaunch` |
+| Variant opt-in | `HasDeclaredSceneVariants` |
+| Fresh variant selection | `TrySelectFreshLaunchScene` and `SceneVariantSelectionStore` |
 | Asynchronous launch state | `PendingMapLaunch` and `ProcessPendingLaunch` |
 | Final board handoff | `InvokeNativeCatalogLaunch` |
 | Exact map/scene/spawn-set gate | `ValidateStandaloneSceneContract` |
@@ -548,14 +814,16 @@ companion details; this framework BIBLE does not invent map data.
 
 ## 23. Schema-v2 fixed PVE AI profile
 
-Modded Operations `0.3.22` and Operator Mod API `0.2.0-alpha.3` implement the
-optional `pveAiProfile` object. Only a schema-v2 PVE operation can own it. PVP
-rejects it. Schema v1 rejects it. There is no difficulty UI and no process-
-global AI write.
+Modded Operations `0.3.28` and Operator Mod API `0.2.0-alpha.5` introduced the
+optional `pveAiProfile` object; `0.3.29` / `0.2.0-alpha.6` retain it unchanged.
+Only a schema-v2 PVE operation can own it. PVP rejects it. Schema v1 rejects
+it. There is no difficulty UI and no process-global AI write.
 
 The closed fields are `id`, `detectionRangeMeters`, `fieldOfViewDegrees`,
-`maximumEffectiveRangeMeters`, `wanderDistanceMeters`, `useComms`, and
-`counterSuppression`. Operator Mod API validates and freezes them. Framework
+`maximumEffectiveRangeMeters`, `wanderDistanceMeters`, optional
+`initialWanderDelayMaxSeconds`, optional `reactionDisposition`, optional
+`maximumReactionTimeSeconds`, `useComms`, and `counterSuppression`. Operator
+Mod API validates and freezes them. Framework
 member `ConfigureStandaloneBotDetails` writes the selected values to each
 native `BotSpawnDetails` before `RaidManager.ServerSpawnAI(false)`.
 
@@ -565,12 +833,26 @@ counter-suppression, effective range unless the marker value is `-1`, and
 wander distance unless the marker value is `-1`. It does not consume marker
 `DetectionTimeMultiplier` or `HearingRange` in the pinned build.
 
-`BrainAI.Wander(float)` preserves the native prefab delay. It waits for
+`BrainAI.Wander(float)` normally preserves the native prefab delay. It waits for
 `WanderTimer * Patience`, then chooses around the current position with the
 equivalent of `RandomNavSphere(position, 5, WanderDistance)`. Package authors
 must therefore tune wander from playable geometry and spawn gaps. Repeated
 native choices can expand a search; a larger radius does not remove the first
-delay.
+delay. When `initialWanderDelayMaxSeconds` is omitted, the framework returns
+before writing any AI state and this complete native delay remains unchanged.
+When present, `TryApplyProfiledPveInitialWanderDelayCap` advances only each
+new operation-owned, non-responding Wander bot's first `wanderTime` on the
+server. A stable FNV-1a stagger leaves 50–100% of the declared cap. It never
+writes `WanderTimer`, `Patience`, or `ReactionTime`; after the first native
+destination resets `wanderTime`, all later cycles use the full shipped delay.
+
+When declared, `reactionDisposition` maps the exact lowercase values
+`defensive`, `offensive`, and `random` to the native marker `reactType` before
+spawn. `maximumReactionTimeSeconds` accepts 0.10 through 1.50 seconds. After
+native `BrainAI.Awake`, the authoritative server caps `_baseReactionTime` and
+`ReactionTime` independently with `min(native, declared)`, preserving zero and
+every faster prefab value. Omission performs no corresponding write; no
+reaction timer, difficulty, target, combat state, or existing bot is changed.
 
 Foliage sight remains map content. The map companion must inspect how the
 same installed vanilla prefab participates in the shipped `EyesAI` linecast.
@@ -582,11 +864,13 @@ The full schema bounds, source members, native offsets/RVAs, exact application
 order, foliage collision rules, logging, and gates are in
 [Fixed PVE AI profile and vegetation sight](docs/architecture/pve-ai-profile-and-forest-sight.md).
 
-`CaptureProfiledPvePreexistingBrains` records the existing
-`GameManager.allAI` instance IDs immediately before the native population
-call. `StartProfiledPveAiDiagnostics` then tracks only new IDs. The diagnostic
-gate is `operation.Operation.PveAiProfile != null`. There is no map ID in the
-framework gate.
+`CaptureOwnedStandalonePveServerPopulation` records the exact new
+`NetworkServer.spawned` netIds, identity references, and root `BrainAI`
+instance IDs created by the native population call. After deferred startup
+validation binds those same roots in `GameManager.allAI`,
+`StartProfiledPveAiDiagnostics` tracks only that exact owned set. The
+diagnostic gate is `operation.Operation.PveAiProfile != null`. There is no map
+ID in the framework gate.
 
 The diagnostic first reads the live spawned bots' `WanderTimer * Patience`,
 `DetectionRange`, `EyesFOVAngle`, `WanderDistance`, and `useComms`. It then

@@ -145,7 +145,10 @@ marker inside the playable collision boundary, above the live terrain, and on
 a valid navigation node. Author at least `minEnemies` enemy markers.
 
 The current PVP contract is one-based. Team ID `1` must use the Team 1 set.
-Team ID `2` must use the Team 2 set. Do not use zero and one.
+Team ID `2` must use the Team 2 set. Do not use zero and one. Each side must
+contain at least `ceil(operation.maximumPlayers / 2)` accepted markers. The
+vanilla-compatible maximum declaration of 12 therefore requires six markers
+per side.
 
 ## 7. Separate UI infiltration markers from world spawns
 
@@ -265,6 +268,28 @@ TextAsset state = CerberusNativeTabFix
 Treat the returned object as borrowed. Modded Operations owns the bundle
 lifetime.
 
+When a map with PVP depends on companion code, schema v2 must declare the
+loaded module and its scene-lifecycle gate exactly:
+
+```json
+"runtimeCompanion": {
+  "pluginGuid": "author.example-map.runtime",
+  "pluginVersion": "1.0.0",
+  "sha256": "<64 lowercase hex characters>",
+  "readyMarkerName": "RUNTIME_EXAMPLE_MAP_READY",
+  "failureMarkerName": "RUNTIME_EXAMPLE_MAP_FAILED"
+}
+```
+
+The companion creates exactly one ready marker only after every required
+runtime repair and validation passes. It creates the failure marker on any
+later fatal audit as well as initial failure. The framework resolves the exact
+loaded plugin GUID/version/DLL hash on every peer, searches only the active
+generation scene for the two exact case-sensitive names, gives failure
+precedence, and keeps monitoring failure after `SceneReady`. Omit the whole
+property (or use `null`) when no companion exists; never invent a sentinel
+plugin or marker.
+
 ## 13. Create the preview image
 
 Use a normal JPEG or PNG outside the AssetBundles. Set `previewImage` to its
@@ -294,8 +319,8 @@ $sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLo
 
 Start with
 [`examples/operator-map-package.example.json`](../../examples/operator-map-package.example.json).
-Use schema version 2 only when the operation needs a fixed package-owned PVE
-AI profile:
+Use schema version 2 when the operation needs a fixed package-owned PVE AI
+profile, scene variants, runtime terrain, or `runtimeCompanion`:
 
 ```json
 {
@@ -304,10 +329,11 @@ AI profile:
 }
 ```
 
-Schema v1 remains valid and cannot contain `pveAiProfile`. Schema v2 accepts
-the closed profile only on PVE. The framework applies it through native
-`BotSpawnDetails`; it does not add a difficulty UI or change another
-operation.
+Schema v1 remains valid and cannot contain `pveAiProfile` or
+`runtimeCompanion`. Schema v2 accepts the closed profile only on PVE and the
+optional companion contract at map level. The framework applies the PVE
+profile through native `BotSpawnDetails`; it does not add a difficulty UI or
+change another operation.
 
 The following PVE operation is complete enough to explain every presentation
 and population field:
@@ -330,6 +356,7 @@ and population field:
     "fieldOfViewDegrees": 90.0,
     "maximumEffectiveRangeMeters": -1.0,
     "wanderDistanceMeters": 38,
+    "initialWanderDelayMaxSeconds": 12.0,
     "useComms": true,
     "counterSuppression": false
   },
@@ -354,6 +381,11 @@ Keep `wanderDistanceMeters` below the distance that would let one native
 wander choice cross the intended encounter midpoint. The native bot waits for
 its prefab-owned `WanderTimer * Patience` before it chooses a destination
 around its current position, so repeated choices create a progressive search.
+Omit `initialWanderDelayMaxSeconds` to preserve that complete prefab-owned
+first delay. Declare 2 through 60 seconds only when the map needs a bounded
+first search response. The server then advances only each new, non-responding
+Wander bot's first clock with a deterministic stagger; it does not change
+reaction time, patience, combat, or later wander cycles.
 
 Use `maximumEffectiveRangeMeters=-1` to preserve each native AI prefab's
 effective range. This does not mean unlimited range. It means the current
@@ -362,8 +394,8 @@ native settings copier skips that field. Read
 for bounds, current-build native offsets/RVAs, line-of-sight layers, code, and
 diagnostics.
 
-For PVP, omit PVE enemy bounds and author non-empty Team 1 and Team 2 world
-marker sets.
+For PVP, omit PVE enemy bounds and author separated Team 1 and Team 2 world
+marker sets at the capacity required by `ceil(maximumPlayers / 2)`.
 
 ## 15. Close the file identity list
 
@@ -389,7 +421,8 @@ Before install, prove all of these facts:
 3. The streamed scene has `MAP_ID_<mapId>` and
    `SPAWN_SET_<spawnSet>`.
 4. PVE has at least one player marker and at least `minEnemies` enemy markers.
-5. PVP has non-empty separated Team 1 and Team 2 markers.
+5. PVP has separated Team 1 and Team 2 markers, each with at least
+   `ceil(maximumPlayers / 2)` accepted entries.
 6. The scene has a Directional Light.
 7. Every renderer has non-null mesh and material slots.
 8. Every required texture and numerical payload is present in a declared
@@ -408,9 +441,15 @@ physical Cerberus laptop:
 4. select a time and infiltration;
 5. press Confirm once;
 6. verify the exact scene, terrain, player, input, camera, and movement;
-7. verify PVE firearms or the complete PVP round lifecycle;
+7. verify PVE firearms or, with a real host and remote, exact peer content,
+   synchronized movement, firearm-specific hit registration, opposite teams,
+   score, round respawn, Restart, and return;
 8. return to the armory;
 9. start the operation a second time;
 10. test alive restart and KIA Restart Operation separately.
 
 Do not label the package `SUPPORTED` until its documented live matrix passes.
+PVP static agreement tests do not prove transport or gameplay. PVE co-op
+bypasses the PVP peer agreement and requires its own online package/scene/AI/
+movement/projectile equivalence matrix. Late join is unsupported by the
+current PVP protocol.

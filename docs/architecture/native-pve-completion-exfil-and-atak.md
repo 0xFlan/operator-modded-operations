@@ -1,7 +1,7 @@
 # Native PVE completion, extraction, and ATAK
 
-This document specifies the implementation in OPERATOR: Modded Operations
-`0.3.22`. The implementation uses the shipped OPERATOR PVE lifecycle. It does
+This document specifies the implementation retained and tightened in OPERATOR:
+Modded Operations `0.3.28`. It uses the shipped OPERATOR PVE lifecycle and does
 not add a second mission-completion system.
 
 The source of record is:
@@ -19,6 +19,9 @@ The important members are:
 | `CreateNativeAtakExfilMarker` | Reconstruct the current-build vanilla ATAK exfil visual from resident runtime resources. |
 | `ResetStandalonePveExtractionState` | Clear old extraction occupants and reset all extraction SyncVars before a new operation. |
 | `TrySpawnStandalonePveEnemies` | Create the map population through `RaidManager.ServerSpawnAI(false)` and restore the map-local exfil list after the native call. |
+| `ProcessPendingStandalonePveTeamValidation` | Keep extraction locked while exact owned brains complete native startup, then validate their full team and target contract. |
+| `SuppressStandalonePveExtraction` | Clear and lock both zone-level and global extraction state while validation is pending or failed. |
+| `DestroyOwnedStandalonePvePopulation` | Destroy only exact Mirror identity references captured around the native population call. |
 | `ReleaseStandaloneGameMode` | Remove owned Mirror registrations and runtime ATAK assets. Preserve a successful-operation result for the Operation Room. |
 
 ## Ownership boundary
@@ -91,13 +94,19 @@ to the network bootstrap. It then initializes the zone as locked:
 
 ```csharp
 exfil.NetworkPlayersInExfil = 0;
+exfil.PlayersInExfil = 0;
 exfil.NetworkcanExtract = false;
+exfil.canExtract = false;
 exfil._occupants = new Il2CppSystem.Collections.Generic.HashSet<int>();
 
 manager.NetworkPlayersInAnyExfil = 0;
+manager.PlayersInAnyExfil = 0;
 manager.NetworkcanExtract = false;
+manager.canExtract = false;
 manager.NetworkisExtracting = false;
+manager.isExtracting = false;
 manager.NetworkextractionStartTime = 0d;
+manager.extractionStartTime = 0d;
 manager.ExfilTime = 15f;
 manager.SuccessfulOperation = false;
 ```
@@ -123,9 +132,22 @@ gameManager.botHVTAmount = 0;
 raid.ServerSpawnAI(false);
 ```
 
-The shipped AI `Health` death path removes or invalidates live actors in the
-native `GameManager.allAI` population. The shipped `RaidManager` observes the
-population, sets its one-shot enemy-dead state, and enables extraction.
+The shipped AI `Health.UserCode_Die` path directly invokes
+`RaidManager.UpdateAICount`. That call is independent of the utility
+`RaidManager` component's disabled `Update` loop. Native code removes or
+invalidates the dead actor in `GameManager.allAI`, sets its one-shot
+enemy-dead state, and enables extraction when the global population reaches
+zero.
+
+The synchronous spawn call does not prove that `BrainAI.Start` has already
+registered each identity in `GameManager.allAI`. Modded Operations therefore
+requires an empty raw global list, captures the exact `NetworkServer.spawned`
+delta immediately, keeps extraction locked, and validates the full native
+team/reference/pool/list contract from the next Unity frame through a 60-frame
+deadline. Missing, extra, vanished, or mismatched exact-owned entries fail
+closed and are destroyed before the game mode is released. The framework never
+removes entries directly from `allAI` or team target lists; native component
+teardown owns those lists.
 
 `RaidManager.ServerSpawnAI(false)` can repopulate `raid.exfilZones` from
 persistent objects that exist in `Resources`. A standalone map must finish

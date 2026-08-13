@@ -3,8 +3,14 @@
 ## Scope and ownership
 
 This document describes the schema-v2 fixed PVE AI profile in Modded
-Operations `0.3.22`. It also describes the interface that a dense map uses to
+Operations `0.3.28`. It also describes the interface that a dense map uses to
 make native vegetation block AI sight.
+
+The `0.3.28` publication retains the optional native reaction controls and
+mandatory native-team cohort boundary introduced in `0.3.27`. It adds exact
+Mirror ownership and bounded deferred validation for the native population.
+The `0.3.27` publication remains hash-pinned historical comparison evidence;
+final live acceptance of `0.3.28` remains a separate gate.
 
 Modded Operations owns the generic profile parser result and the native
 `BotSpawnDetails` write. A map package owns the values. A map companion owns
@@ -25,6 +31,13 @@ continues to use the framework legacy values.
 | Schema | `schemas/operator-map-package-v2.schema.json` |
 | PVE population owner | `CerberusNativeTabFix.TrySpawnStandalonePveEnemies` |
 | Marker settings | `CerberusNativeTabFix.ConfigureStandaloneBotDetails` |
+| Optional first-wander cap | `CerberusNativeTabFix.TryApplyProfiledPveInitialWanderDelayCap` |
+| Hostile cohort selection | `CerberusNativeTabFix.TrySelectStandalonePvePrefabCohort` |
+| Exact Mirror population capture | `CerberusNativeTabFix.CaptureOwnedStandalonePveServerPopulation` |
+| Deferred startup validation | `CerberusNativeTabFix.ProcessPendingStandalonePveTeamValidation` |
+| Spawned-team validation | `CerberusNativeTabFix.TryValidateStandalonePveSpawnedTeamContract` |
+| Exact population cleanup | `CerberusNativeTabFix.DestroyOwnedStandalonePvePopulation` |
+| Optional reaction cap | `CerberusNativeTabFix.TryApplyProfiledPveMaximumReactionTimeCap` |
 | Profile diagnostic text | `CerberusNativeTabFix.FormatPveAiProfile` |
 | Spawned-bot contract capture | `CerberusNativeTabFix.StartProfiledPveAiDiagnostics` |
 | Bounded runtime sampler | `CerberusNativeTabFix.ProcessProfiledPveAiDiagnostics` |
@@ -48,6 +61,9 @@ The PVE operation can contain this closed object:
   "fieldOfViewDegrees": 90.0,
   "maximumEffectiveRangeMeters": -1.0,
   "wanderDistanceMeters": 38,
+  "initialWanderDelayMaxSeconds": 12.0,
+  "reactionDisposition": "offensive",
+  "maximumReactionTimeSeconds": 0.25,
   "useComms": true,
   "counterSuppression": false
 }
@@ -62,7 +78,15 @@ The loader rejects an unknown property. It also rejects these errors:
 - `fieldOfViewDegrees` outside 30 through 180;
 - `maximumEffectiveRangeMeters` that is not `-1` and is outside 5 through
   300;
-- non-integer `wanderDistanceMeters`, or a value outside 5 through 100.
+- non-integer `wanderDistanceMeters`, or a value outside 5 through 100;
+- present `initialWanderDelayMaxSeconds` outside 2 through 60, or explicit
+  null. Omitting the property is valid and preserves prior behavior.
+- present `reactionDisposition` other than exact lowercase `defensive`,
+  `offensive`, or `random`, or explicit null. Omission preserves the native
+  marker disposition without a framework write;
+- present `maximumReactionTimeSeconds` outside 0.10 through 1.50, a non-finite
+  value, or explicit null. Omission preserves native reaction timing without
+  a framework write.
 
 The loader creates a new immutable `ModdedPveAiProfileDefinition`. It does not
 retain the JSON object. The frozen operation catalog is root-independent and
@@ -73,14 +97,48 @@ cannot be changed after Core startup.
 `TrySpawnStandalonePveEnemies` performs this sequence on the network server:
 
 1. It finds and ordinal-sorts `PVE_EnemySpawn_...` transforms.
-2. It filters `GameManager.AllAITypes` for a root `BrainAI`, a root
+2. It resolves the live player's `TeamIdentifier.NetworkTeamID`. If native
+   player startup has not resolved it yet, no raid or AI state is changed and
+   the existing bounded maintenance path retries. No player team is hardcoded.
+3. It filters `GameManager.AllAITypes` for a root `BrainAI`, a root
    `NetworkIdentity`, and a `WeaponsAI` with `SpawnWeapon == true` and a
    nonempty `weaponList`.
-3. It creates one scene-owned disabled `RaidManager` utility.
-4. It creates or reuses one `BotSpawnDetails` on each marker.
-5. It calls `ConfigureStandaloneBotDetails(details, pveAiProfile)`.
-6. It puts the marker GameObjects in `RaidManager.botSpawnPoints`.
-7. It calls `RaidManager.ServerSpawnAI(false)`.
+4. Every eligible dormant donor must also have a root `TeamIdentifier`,
+   non-null `StartingTeamStats` with valid `ThisTeamId`, and a root
+   `TeamIdentifierReference` component. Awake-owned back-pointers and target
+   pools are deliberately not required on an inactive prefab. Donors are
+   grouped by both exact stats-object identity and numeric team ID. The player
+   team is excluded, and only a unique strict-largest hostile cohort may
+   continue.
+5. It requires the global native `GameManager.allAI` raw list count to be zero,
+   so stale null or duplicate entries cannot later block vanilla
+   all-enemies-dead completion.
+6. It creates one scene-owned disabled `RaidManager` utility.
+7. It creates or reuses one `BotSpawnDetails` on each marker and calls
+   `ConfigureStandaloneBotDetails(details, pveAiProfile)`.
+8. It snapshots `NetworkServer.spawned`, supplies only the selected cohort to
+   `RaidManager.standardAI`, calls synchronous
+   `RaidManager.ServerSpawnAI(false)`, restores the prior array, and captures
+   every new registry identity even when native spawning throws.
+9. The exact identity and root-`BrainAI` delta must equal the requested count.
+   Extraction stays locked while validation probes run every Update from the
+   next frame through a 60-frame deadline. Every registered brain must bind the
+   stored netId, stored identity reference, current Mirror registry entry, and
+   exact root.
+10. After all exact owned brains enter `GameManager.allAI`, it validates every
+   identifier/reference/pool/stats/team state and proves the cohort is absent
+   from enemy and possible-target collections.
+   Only an exact serialized selected donor whose SyncVar is unresolved may be
+   repaired through `TeamIdentifier.NetworkTeamID`. Any other mismatch removes
+   the new population and fails closed. Global friendly fire and native target
+   lists are never edited.
+11. If the frozen profile declares `initialWanderDelayMaxSeconds`, it advances
+   only the newly added native Wander brains' first clocks and starts the
+   read-only diagnostic window.
+12. If it declares `maximumReactionTimeSeconds`, it caps only each new brain's
+    `_baseReactionTime` and `ReactionTime` on the server, without raising a
+    faster native value or changing difficulty, reaction progress, targets, or
+    states.
 
 The exact profile write is:
 
@@ -93,6 +151,8 @@ details.DoesCounterSuppression = profile?.CounterSuppression ?? true;
 details.WanderDistance = profile?.WanderDistanceMeters ?? 18;
 if (profile != null)
     details.idleState = BrainAI.IdleStates.Wander;
+if (profile?.ReactionDisposition != null)
+    details.reactType = /* exact native Defensive, Offensive, or Random */;
 ```
 
 The null side of each expression is the schema-v1 compatibility path. Do not
@@ -102,6 +162,14 @@ The framework also writes `DetectionTimeMultiplier = 1` and
 `HearingRange = 20` when a profile exists. These are reserved baseline values.
 The current native `RaidManager.ApplyBotSpawnSettings` body does not read
 those two fields. They are not working controls in this game build.
+
+The same native settings body copies `BotSpawnDetails.reactType` to
+`BrainAI.reactType`. The framework writes it only for an explicitly declared
+profile value. `maximumReactionTimeSeconds` is not a marker field: after
+native `Awake` has established the brain's baseline, the authoritative server
+writes the lower of that baseline and the declared cap to `_baseReactionTime`,
+then writes the lower of current reaction time and that result to
+`ReactionTime`. Those are the only two writes in the optional cap path.
 
 ## Exact native field transfer
 
@@ -116,6 +184,7 @@ RVA `0x009D9E30`. The important writes are:
 | `FOV` | `0x38` | `0x204` | Native horizontal vision angle. |
 | `DetectionRange` | `0x30` | `0x1DC` and `0x200` | Live and original detection range. |
 | `useComms` | `0x40` | `0x088` | Native AI communications. |
+| `reactType` | `0x24` | `0x2D8` | Native defensive, offensive, or random response disposition. |
 
 The same body copies crouch/prone settings, patrol data, and navmesh-disable
 state. It does not read marker offsets `0x2C` or `0x34`, which are
@@ -167,9 +236,14 @@ wanderTime = 0f;
 
 The method uses the current position, not the original spawn position. A bot
 can therefore search farther after more than one interval. The profile keeps
-the prefab-owned `WanderTimer` and `Patience`. It changes only the radius.
-This preserves the native initial delay and avoids an immediate synchronized
-rush at scene start.
+the prefab-owned `WanderTimer` and `Patience`. The optional initial-delay cap
+does not replace either field. When absent, the framework never writes
+`wanderTime`. When present, the authoritative server handles each newly
+spawned operation brain once, refuses responding or non-Wander brains, and
+advances only `wanderTime` until 50–100% of the cap remains. The stagger is
+FNV-1a-derived and does not consume Unity's process-global random state. The
+first native destination resets `wanderTime` to zero, so every later cycle is
+the complete prefab-authored cadence.
 
 ## Native navigation owner and the correct movement position
 
@@ -285,10 +359,18 @@ properties:
 
 ## Required runtime diagnostics
 
-The framework log must contain one line in this form:
+The framework log must first record the exact captured population and pending
+native-startup window in this form:
 
 ```text
-Standalone PVE released a server-owned AI population through shipped RaidManager.ServerSpawnAI: count=<N>, requestedRange=10-15, chosen=<N>, markers=<M>, firearmCapablePrefabs=<P>, aiProfile=<ID>(range=45.0m,fov=90.0,maxEffective=-1.0m,wander=38m,comms=True,counterSuppression=False).
+Standalone PVE issued an exact server-owned AI population through shipped RaidManager.ServerSpawnAI; native BrainAI.Start validation is pending: count=<N>, requestedRange=10-15, chosen=<N>, markers=<M>, firearmCapablePrefabs=<P>, selectedCohortPrefabs=<C>, playerTeam=<T>, hostileTeam=<T>, ownedNetIds=<N>, issuedFrame=<F>, earliestFrame=<F+1>, deadlineFrame=<F+60>, aiProfile=<ID>(...).
+```
+
+After every exact owned brain registers and the team/target closure passes,
+the log must contain:
+
+```text
+Standalone PVE released its exact server-owned AI population after deferred native startup validation: count=<N>, validationFrame=<F>, issuedFrame=<F>, rawAllAI=<N>, teamContract=<summary>.
 ```
 
 When a PVE operation has `pveAiProfile`, the framework also starts one
@@ -296,15 +378,16 @@ read-only 120-second diagnostic. The gate is the presence of a profile. The
 generic source does not contain a map ID. Schema-v1 PVE, PVP, and vanilla
 operations do not enter this path.
 
-Before `RaidManager.ServerSpawnAI(false)`, the framework records the instance
-IDs already in `GameManager.allAI`. After the native call returns, it tracks
-only new `BrainAI` IDs. `NetworkServer.Spawn` can publish those IDs after the
-native population method returns. The diagnostic waits for that callback,
-then resets time zero and captures initial positions before it emits the live
-contract. This prevents a false zero-bot contract or zero-bot time-zero
-snapshot. It also prevents an old scene actor from entering the
-report. It does not write a `BrainAI`, `EyesAI`, navigation agent, weapon, or
-target field.
+Before `RaidManager.ServerSpawnAI(false)`, the framework snapshots Mirror's
+authoritative `NetworkServer.spawned` netIds. After the synchronous call, it
+owns only the exact new netId/identity/root-`BrainAI` delta. The diagnostic
+does not start until the bounded deferred validator binds every one of those
+same brains in `GameManager.allAI` and accepts the complete native team and
+target closure. It then resets time zero and captures initial positions before
+emitting the live contract. This prevents a false zero-bot contract, a
+zero-bot time-zero snapshot, or an unrelated actor entering the report. It
+does not write a `BrainAI`, `EyesAI`, navigation agent, weapon, or target
+field.
 
 The first line reports the values on the live spawned bots, not only the JSON
 inputs:

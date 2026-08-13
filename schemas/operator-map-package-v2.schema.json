@@ -10,7 +10,7 @@
     "schemaVersion": { "const": 2 },
     "packageId": { "$ref": "#/$defs/namespacedId" },
     "displayName": { "$ref": "#/$defs/displayText" },
-    "version": { "type": "string", "minLength": 5, "maxLength": 64 },
+    "version": { "$ref": "#/$defs/semanticVersion" },
     "maps": {
       "type": "array",
       "minItems": 1,
@@ -38,6 +38,12 @@
       "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
     },
     "displayText": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "semanticVersion": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 64,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
     "relativePath": {
       "type": "string",
       "minLength": 1,
@@ -64,6 +70,12 @@
           "maxLength": 240,
           "pattern": "^Assets/(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\\\:\\u0000-\\u001f\\u007f]+\\.unity$"
         },
+        "sceneVariants": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/sceneVariant" }
+        },
         "previewImage": { "$ref": "#/$defs/relativePath" },
         "externalTonemapLut": {
           "oneOf": [
@@ -77,12 +89,49 @@
             { "$ref": "#/$defs/runtimeTerrain" }
           ]
         },
+        "runtimeCompanion": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/runtimeCompanion" }
+          ]
+        },
         "operations": {
           "type": "array",
           "minItems": 1,
           "maxItems": 32,
           "items": { "$ref": "#/$defs/operation" }
         }
+      }
+    },
+    "sceneVariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scenePath"],
+      "properties": {
+        "id": { "$ref": "#/$defs/localId" },
+        "scenePath": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 240,
+          "pattern": "^Assets/(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\\\:\\u0000-\\u001f\\u007f]+\\.unity$"
+        }
+      }
+    },
+    "runtimeCompanion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pluginGuid", "pluginVersion", "sha256", "readyMarkerName", "failureMarkerName"],
+      "properties": {
+        "pluginGuid": {
+          "allOf": [
+            { "$ref": "#/$defs/namespacedId" },
+            { "not": { "enum": ["operator.modapi", "operator.modded-operations"] } }
+          ]
+        },
+        "pluginVersion": { "$ref": "#/$defs/semanticVersion" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "readyMarkerName": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^(?!\\s)(?!.*\\s$)[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+$" },
+        "failureMarkerName": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^(?!\\s)(?!.*\\s$)[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+$" }
       }
     },
     "externalTonemapLut": {
@@ -229,6 +278,12 @@
           ]
         },
         "wanderDistanceMeters": { "type": "integer", "minimum": 5, "maximum": 100 },
+        "initialWanderDelayMaxSeconds": { "type": "number", "minimum": 2, "maximum": 60 },
+        "reactionDisposition": {
+          "type": "string",
+          "enum": ["defensive", "offensive", "random"]
+        },
+        "maximumReactionTimeSeconds": { "type": "number", "minimum": 0.10, "maximum": 1.50 },
         "useComms": { "type": "boolean" },
         "counterSuppression": { "type": "boolean" }
       }

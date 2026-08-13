@@ -32,6 +32,7 @@
             "fieldOfViewDegrees": 90.0,
             "maximumEffectiveRangeMeters": -1.0,
             "wanderDistanceMeters": 38,
+            "initialWanderDelayMaxSeconds": 12.0,
             "useComms": true,
             "counterSuppression": false
           },
