@@ -7,6 +7,8 @@ release/
 *.pdb
 *.zip
 *.log
+__pycache__/
+*.py[cod]
 
 # IDE and operating-system state
 .vs/

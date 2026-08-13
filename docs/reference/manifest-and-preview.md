@@ -4,8 +4,8 @@
 
 | Field | Required | Rule |
 | --- | --- | --- |
-| `$schema` | Yes | Version 1 schema URL. |
-| `schemaVersion` | Yes | Integer `1`. |
+| `$schema` | Yes | Exact version 1 or version 2 schema URL. |
+| `schemaVersion` | Yes | Integer `1`, or integer `2` when PVE uses `pveAiProfile`. |
 | `packageId` | Yes | Stable lowercase identity. |
 | `displayName` | Yes | User-facing package name. |
 | `version` | Yes | Change when declared content changes. |
@@ -36,6 +36,7 @@
 | `timeCodes` | Allowed display and lighting choices. |
 | `defaultTimeCode` | Member of `timeCodes`. |
 | `minEnemies`/`maxEnemies` | PVE only; closed range from 1 through 64. |
+| `pveAiProfile` | Optional in schema v2 and PVE only; fixed map-owned native AI values. |
 | `infiltrations` | UI marker records, not world transforms. |
 
 ## File identity

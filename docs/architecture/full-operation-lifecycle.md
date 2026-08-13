@@ -261,15 +261,32 @@ MAP_ID_<mapId>
 SPAWN_SET_<spawnSet>
 one compatible player marker set
 PVE_EnemySpawn_... markers for PVE support
-PVP_Team1_... and PVP_Team2_... markers for PVP support
+PVP_Team1Spawn_... and PVP_Team2Spawn_... markers for PVP support
 one package-owned directional-light route
 ```
 
 The method also validates the scene name/path and operation ownership. A
 marker with the correct spelling in the wrong loaded scene does not pass.
+Marker discovery is mode-isolated: PVE excludes both PVP prefixes and every
+Team 2 marker; PVP excludes `PVE_PlayerSpawn_`. A PVP scene must supply at
+least `ceil(maximumPlayers / 2)` accepted markers for each side.
 
 `OnSceneLoaded` first releases any previous generation contracts. It then
-clears player attempts, mode objects, readiness flags, terrain references,
+calls `ShowNativeLoadingScreenForPackageScene`. This method enters the shipped
+`GameManagerNetwork.ShowLoadingScreen()` path at supported-build RVA
+`0x00916210` before any terrain or material preparation. It activates the
+shipped canvas, freezes the current player body, clears velocity, and closes
+infiltration UI. The persistent manager owns `HideLoadingScreen` at RVA
+`0x0090E950` after readiness.
+
+The call closes the one-frame additive-scene gap before the replacement
+`GameMode` can assert `OnAllPlayersLoaded(false)`. Without it, the camera can
+show the portable brown proxy. The release diagnostic reads
+`LoadingScreen.activeSelf` and `activeInHierarchy`. It does not use the
+misnamed `LoadingScreenVisible` property; that getter returns the private
+`_hideLoadingScreenSoon` byte on this build.
+
+`OnSceneLoaded` then clears player attempts, mode objects, readiness flags, terrain references,
 and PVE state. It schedules preparation for the next frame. This generation
 reset prevents a second operation from inheriting the first operation.
 
@@ -331,6 +348,7 @@ TryPrepareRuntimeTerrain
 -> CreateStandaloneGameplayBootstrap
 -> ApplyStandaloneRenderContract
 -> ScenePreparationComplete = true
+-> NotifyPvpScenePrepared for PVP
 ```
 
 Do not move player creation before terrain and collision are coherent. That
@@ -356,8 +374,10 @@ For PVE, the compatible player markers are the selected north infiltration
 set. For PVP:
 
 ```text
-PVP_Team1_... -> SpawnPoint.Team = 1
-PVP_Team2_... -> SpawnPoint.Team = 2
+Team1_Spawn_... / Team1_Backup_Spawn_... / PVP_Team1Spawn_...
+    -> SpawnPoint.Team = 1
+Team2_Spawn_... / Team2_Backup_Spawn_... / PVP_Team2Spawn_...
+    -> SpawnPoint.Team = 2
 ```
 
 Team values are one-based. The framework reads
@@ -390,14 +410,51 @@ private const uint StandalonePveGameModeAssetId = 0x4D4F5001;
 private const uint StandalonePvpGameModeAssetId = 0x4D4F5002;
 ```
 
-Every peer can register the same nonzero ID. A zero-ID runtime
+Every agreed peer can register the same nonzero ID. A zero-ID runtime
 `NetworkIdentity` can work on a host client but gives a remote client no
 prefab or scene ID to instantiate.
 
-The host activates and spawns the template only after terrain and scene
-preparation pass. The framework then runs the shipped initialization and
-all-players-loaded barrier. It does not spawn PVE actors before
-`AllPlayersLoaded`.
+For PVP, `0.3.29` adds a protocol-v2 fail-closed agreement. Before native board
+start, the host snapshots the exact authenticated remote connection objects and
+numeric IDs. Its private, collision-checked Mirror envelope carries a
+per-launch nonce and digest over
+the framework DLL, API Core DLL, API BepInEx host DLL, declared companion DLL,
+protocol/API version/game build/capabilities, package ID/version/content hash,
+companion GUID/version/marker contract, map/operation/mode/spawn set, scene variant/path,
+time, and min/max players. A remote resolves only that exact identity through
+its frozen local catalog, preloads the locally verified bundles when needed,
+commits `ActiveMapOperation`, and then acknowledges content readiness. Every
+frozen peer must acknowledge before the host enters the native transition.
+
+After scene preparation, the host and every remote must have constructed and
+registered `StandalonePvpGameMode` at `0x4D4F5002` and passed the declared
+companion's unique exact-scene ready marker. A failure marker always wins and
+remains monitored after readiness. Remote scene-ready
+acknowledgements and unchanged membership gate the host's one
+`NetworkServer.Spawn` call. The remote accepts the spawned owner only when its
+asset ID, subtype, and exact agreement still match. Same-operation Restart
+retains content agreement and repeats the scene/native barriers. Remote owner
+adoption/readiness and host owner publication/all-players-loaded are bounded.
+Mismatch, timeout, rejection, disconnect/join, handler collision, or a native
+lifecycle exception cancels the session and tears down the exact generation.
+
+The initial scene barrier uses host-issued epoch `1`. Each retained-content
+Restart advances it exactly once. The remote maps
+`SceneReadyRequest(epoch)` to its monotonic local package-scene generation and
+acknowledges only after that exact generation passes scene, spawn, template,
+and companion checks. Duplicate requests can resend the current
+acknowledgement; zero, stale, future, out-of-phase, or overflowing epochs fail
+closed. This covers host-first, remote-first, and load-before-unload ordering
+without allowing readiness from an earlier scene generation to cross Restart.
+Late join is unsupported. A join, disconnect, or replacement connection aborts
+instead of changing the frozen roster, even when a numeric ID is reused.
+
+PVE does not enter either PVP barrier. Its host activates and spawns the
+template after terrain and scene preparation pass, then runs the shipped
+initialization and all-players-loaded barrier. It does not spawn PVE actors
+before `AllPlayersLoaded`. This bypass means that PVP agreement evidence does
+not prove online PVE content/scene identity, AI placement, movement,
+projectiles, or damage.
 
 ## 15. PVE creation and firearm ownership
 
@@ -557,6 +614,22 @@ Identity-conditional restoration prevents the armory or another mod from
 losing newer state. Failure to restore the spawn globals caused a player to
 return floating in the armory hallway in an earlier candidate.
 
+The active map's verified bundle remains resident here because alive Restart
+and KIA Restart reload the pinned scene from that exact owner. A later
+different-map selection may overlap it only as the bounded
+`pendingLaunch`/prefetch owner. Cross-map eviction requires all of the
+following before `Unload(false)`:
+
+1. Unity's active scene is exactly `Operation Room`;
+2. the active package-scene handle is zero;
+3. no loaded Unity scene matches any cached or in-flight scene bundle path;
+4. the candidate is neither the active/restart map nor the pending map.
+
+The first gate alone is unsafe because Operation Room stays active underneath
+every additively loaded package scene. Fresh launch transfers
+`activeOperation` to the selected map before trimming, so a prior map cannot
+be unloaded out from under Restart.
+
 ## 20. Repeat-launch invariant
 
 A second launch is not a continuation of generation one. It must satisfy all
@@ -569,7 +642,9 @@ of these conditions:
 - no stale PVE or PVP singleton;
 - no stale Mirror prefab key or spawn handler;
 - no generation-one map-companion root or A* graph;
-- a resident bundle cache only when `PackageContentId` still matches.
+- a resident same-map bundle cache only when `PackageContentId` still matches;
+- after different-map ownership transfer, no prior distinct completed bundle
+  cache.
 
 Use this log order as evidence:
 
@@ -588,11 +663,18 @@ map scene unloaded; package bundles remain resident
 | --- | --- | --- |
 | First Confirm does nothing | Captured laptop/player owner was lost during I/O. | `BeginCatalogOperationLaunch`, `PendingMapLaunch`, loading-state log. |
 | Confirm loops or needs a second interaction | Confirm did not join same-map prefetch or final handoff did not run. | `ProcessPendingLaunch`, `InvokeNativeCatalogLaunch`. |
-| Flat brown plane | Runtime terrain was not reconstructed or render fallback stayed active. | `TryPrepareRuntimeTerrain`, payload paths, shared TerrainData identity. |
+| Brown proxy flashes before detail | Shipped loading canvas did not cover the additive-scene preparation gap. | `ShowNativeLoadingScreenForPackageScene`, `LoadingScreen.activeSelf`, `activeInHierarchy`. |
+| Flat brown plane remains after readiness | Runtime terrain was not reconstructed or render fallback stayed active. | `TryPrepareRuntimeTerrain`, payload paths, shared TerrainData identity. |
 | Player under terrain | Player creation ran before terrain/collider and marker raycast gates. | `PrepareStandaloneScene`, `ValidateWalkableGroundContract`. |
 | AI outside wall | Scene marker set or A* coverage is wrong. | Exact PVE markers, wall bounds, graph-node test. |
 | Grenades work, bullets do not | AI was not created through the shipped owner-aware raid route. | `TrySpawnStandalonePveEnemies`, `RaidManager.ServerSpawnAI(false)`. |
+| All AI die but no exfil appears | The native raid list does not contain exactly the current zone, or AI did not use native Health death. | `ConfigureStandalonePveController`, post-`ServerSpawnAI` `raid.exfilZones`, `GameManager.allAI`. |
+| ATAK has no exfil icon | `ExfilZone.ExfilMarker` does not match the current-build resource contract. | `CreateNativeAtakExfilMarker`, layer 17, `Marker`, `ExfilZone`, `HDRP/Unlit`, resident 512-by-512 texture. |
+| Extraction timer does not start | Zone/global unlock or physical occupant state is incomplete. | `NetworkcanExtract`, zone/global occupant counts, `NetworkisExtracting`. |
 | Teams use the same side | Team values or arrays are wrong. | one-based `TeamID`, Team 1 and Team 2 arrays. |
+| PVP offer is rejected before load | One peer has different framework/API/package/companion bytes or operation identity. | Exact offer digest inputs and all DLL/package SHA-256 values on both peers. |
+| PVP waits at scene readiness | The exact epoch generation, native template, spawn contract, or companion ready marker is missing; a failure marker may also be present. | Current host epoch, local scene generation, marker multiplicity, template asset ID, and companion failure state. |
+| PVP aborts when a player connects | Frozen membership changed. Late join is unsupported. | Exact connection objects captured at offer time and join/disconnect log order. |
 | `MAP LOADED !BUG!` repeats | Mirror key or handler survived scene unload. | `ReleaseStandaloneGameMode` ID removal. |
 | Armory player floats | Process-global spawn state was not identity-conditionally restored. | `RestoreStandalonePlayerSpawnContract`. |
 
@@ -609,8 +691,18 @@ Run these tests with physical input:
 7. Restart while alive.
 8. Restart from Mission Failed.
 9. Start 0200 and verify white-phosphor NVG and readable ambient light.
-10. Start PVP with a host and remote client. Verify opposite teams, death,
-    score, round respawn, and operation end.
+10. Kill all native PVE AI. Verify native extraction unlock and the exact
+    current-build ATAK exfil marker.
+11. Enter the physical trigger. Verify the 15-second native timer, Mission
+    Successful After Action Report, and Continue return.
+12. Start PVP with a host and remote client whose exact candidate DLL and
+    package hashes match. Verify content transfer/preload, synchronized first
+    spawn and movement, opposite teams, firearm-specific hit registration and
+    death, score, round respawn, retained-content Restart, and operation end.
+13. Repeat PVP with a deliberate binary/package mismatch and a membership
+    change. Verify both fail closed without spawning a partial native owner.
 
 A compile proves syntax and type compatibility. A static bundle validator
-proves a bounded artifact fact. Neither result proves player-camera behavior.
+proves a bounded artifact fact. Neither result proves player-camera behavior or
+network transport. The frozen `0.3.29` candidate remains `PROVEN-STATIC` until
+the host-plus-remote matrix passes.

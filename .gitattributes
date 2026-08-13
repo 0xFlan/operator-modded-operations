@@ -1,0 +1,6 @@
+* text=auto
+
+# ILSpy emits CRLF. Preserve that byte form so recorded decompiler-tree hashes
+# reproduce on every checkout, including Linux CI runners.
+decompiled/**/*.cs text eol=crlf
+decompiled/**/*.csproj text eol=crlf

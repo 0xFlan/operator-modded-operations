@@ -7,28 +7,46 @@ Operations. The principal source files are:
 
 ```text
 src/OperatorModdedOperations/CerberusNativeTabFix.cs
+src/OperatorModdedOperations/CerberusNativeTabFix.PvpPeerAgreement.cs
 src/OperatorModdedOperations/NativeBundleAssetLoader.cs
+src/OperatorModdedOperations/SceneVariantSelectionStore.cs
 src/OperatorModdedOperations/OperatorModdedOperations.csproj
 ```
 
 The release DLL is built from these files. It is not the only implementation
 artifact. A reviewer can rebuild, diff, and audit the framework.
 
-## 2. Release DLL decompilation snapshot
+## 2. DLL decompilation snapshots
 
-`decompiled/release-0.3.18` is ILSpy `10.1.1.8388` output from the exact
-151,552-byte release DLL with SHA-256
-`71F21527FF959DBCF3C7AD1894937F56A9D931E0BF1A6B038C857249861A745C`.
+`decompiled/release-0.3.29` is ILSpy `10.1.1.8388` output from the exact
+279,552-byte frozen Git source-checkpoint DLL with SHA-256
+`95CEF59F62B2DF40ED69C066692953210CDC17A9C3D08DB95753DA7A9B4142CD`.
+It is `PROVEN-STATIC` verification evidence, not a supported binary release or
+host-plus-remote runtime proof.
+
+`decompiled/release-0.3.28` is output from the exact
+223,232-byte reviewed Release DLL with SHA-256
+`75BB479E863A94807ACCB78E6FA37271BE340B226E4EBDFB1BE48C0B8248852B`.
 It lets a reviewer inspect what the compiler emitted even when the release DLL
 is distributed separately.
 
-`decompiled/archive/release-0.3.17` preserves the prior snapshot as rejected
-historical evidence. It contains the old 52,241.375-lux daylight value. Do not
-copy that value into a current build.
+`decompiled/release-0.3.27`, `decompiled/release-0.3.26`, and
+`decompiled/release-0.3.22` preserve prior snapshots.
+`decompiled/archive/release-0.3.20` preserves the previous snapshot.
+`decompiled/archive/release-0.3.19` preserves an earlier snapshot.
+`decompiled/archive/release-0.3.18` preserves an earlier accepted snapshot.
+`decompiled/archive/release-0.3.17` preserves the earlier rejected snapshot
+with the old 52,241.375-lux daylight value. Do not copy that rejected value
+into a current build.
 
 The decompiled tree is not the edit source. It can use generated variable
 names and can lose comments. Modify `src/OperatorModdedOperations`, rebuild,
 then regenerate the snapshot from the final DLL.
+
+The frozen `0.3.29` candidate has a separately labeled multiplayer-test
+transfer and the source-checkpoint snapshot above. It does not have a promoted
+runtime-release publication-source-state record. Host-plus-remote runtime gates
+remain open; do not describe these bytes as `SUPPORTED`.
 
 ## 3. What is not decompiled mod source
 
@@ -116,7 +134,28 @@ incomplete.
 The documentation states the bounded behavior that the adapter depends on. It
 does not reproduce the full proprietary method body.
 
-## 7. Native board behavior evidence
+## 7. Native loading-presentation evidence
+
+Read-only supported-build inspection established these native addresses:
+
+```text
+GameManagerNetwork.ShowLoadingScreen  RVA 0x00916210
+GameManagerNetwork.HideLoadingScreen  RVA 0x0090E950
+GameManagerNetwork.get_LoadingScreenVisible RVA 0x0091A840
+```
+
+`OnAllPlayersLoaded(false)` enters `ShowLoadingScreen`. The method activates
+the shipped loading canvas, freezes the current player body, clears velocity,
+and closes the infiltration UI. The property getter returns the private
+`_hideLoadingScreenSoon` byte at offset `0x2A4`; it is not the canvas active
+state. Runtime diagnostics therefore read `LoadingScreen.activeSelf` and
+`activeInHierarchy`.
+
+The framework calls the exact shipped show method when an additive package
+scene enters and before runtime terrain/material preparation. The persistent
+native manager keeps ownership of the hide transition.
+
+## 8. Native board behavior evidence
 
 The supported launch entry is:
 
@@ -135,7 +174,7 @@ The framework source is the executable proof of the adapter order. The
 installed interop types prove the called signatures. Physical first-Confirm
 testing proves the user flow.
 
-## 8. Serialized asset inspection
+## 9. Serialized asset inspection
 
 Use a Unity asset reader for scene, prefab, material, and shader records. Set
 the fallback version to `6000.3.8f1` for version-stripped Unity files when the
@@ -183,8 +222,14 @@ dotnet build .\src\OperatorModdedOperations\OperatorModdedOperations.csproj `
 ```
 
 Require zero warnings and zero errors. Record the source commit, interop
-assembly hashes, output DLL bytes, and output DLL SHA-256. A matching DLL hash
-proves the build artifact. It does not prove runtime support.
+assembly hashes, output DLL bytes, and output DLL SHA-256. For an explicit
+public promotion, create a new versioned decompiler snapshot and source-state
+record from the exact release source and binary. The checked-in
+`publication/source-state-manifest.json` remains the immutable `0.3.28` record;
+normal source work must not rewrite it to describe an unpromoted candidate. The
+repository audit verifies that historical record's sidecar and pinned identity
+without requiring an ignored local DLL. A matching DLL hash proves the build
+artifact. It does not prove runtime support.
 
 ## 11. Review checklist
 
@@ -198,3 +243,5 @@ proves the build artifact. It does not prove runtime support.
 - No private path or game binary is committed.
 - Physical launch, PVE, PVP, restart, and teardown evidence is tracked
   separately.
+- Test-transfer artifacts are labeled as non-public and do not replace a
+  promoted decompiler/source-state record.

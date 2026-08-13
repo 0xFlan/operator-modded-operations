@@ -1,0 +1,692 @@
+{
+  "artifacts": [
+    {
+      "bytes": 223232,
+      "decompiledBytes": 427039,
+      "decompiledFiles": 7,
+      "decompiledOutput": "decompiled/release-0.3.28",
+      "decompiledTreeSha256": "59D672462C7AA4DA00268D3A2185EA79D2C43F078853F71E40EAE40FDEE361C8",
+      "name": "OperatorModdedOperations.dll",
+      "sha256": "75BB479E863A94807ACCB78E6FA37271BE340B226E4EBDFB1BE48C0B8248852B",
+      "sourceRelativePath": "src/OperatorModdedOperations/bin/Release/OperatorModdedOperations.dll",
+      "version": "0.3.28"
+    }
+  ],
+  "decompiler": {
+    "bytes": 162816,
+    "executable": "ilspycmd.exe",
+    "name": "ILSpy command-line tool",
+    "sha256": "1B14D01FFB011887C8277B309E615CACCE72678CD5E87F56C29860190116F0DC",
+    "version": "10.1.1.8388"
+  },
+  "fileCount": 85,
+  "files": [
+    {
+      "bytes": 300,
+      "path": ".github/workflows/repository-audit.yml",
+      "sha256": "C8970AC9072D4BEE926A0C5CC7BEB9C91423B5691A2B39479BDB6BB55C3E1D90"
+    },
+    {
+      "bytes": 159,
+      "path": ".gitignore",
+      "sha256": "4FCC07E2E6BB04B49EDBA4F8A0BDE30394858554DCC68152E6C1899CF5C6020A"
+    },
+    {
+      "bytes": 18203,
+      "path": "CHANGELOG.md",
+      "sha256": "A2CA1F903BB4BA1DE37F17145A7797E1CD431BA6225C3211B4CAD9647B1D0A0A"
+    },
+    {
+      "bytes": 485,
+      "path": "CONTRIBUTING.md",
+      "sha256": "10E3DAA4AA22E22A77D06646B33389C59966652967C11EDEFFA71D624DE584E6"
+    },
+    {
+      "bytes": 1097,
+      "path": "LICENSE",
+      "sha256": "2A4B0835541748CC2BFD210F91517132D1BC8999156E1A10885B154FAFF9CE78"
+    },
+    {
+      "bytes": 42605,
+      "path": "MODDED_OPERATIONS_TECHNICAL_BIBLE.md",
+      "sha256": "A9000ACA64C5ED258219120B432DFC1F4B92972F7BD912AAE4096F864FBC6E9B"
+    },
+    {
+      "bytes": 10856,
+      "path": "README.md",
+      "sha256": "1F545B3FBB094D0BED828B31D34DA2FC06F18949C49468EBE7B9D20B115A8FA1"
+    },
+    {
+      "bytes": 472,
+      "path": "SECURITY.md",
+      "sha256": "85501DAB1449CD8AC747EDE5D80E850260642FA4337901C5B412BC1B5C72D2C4"
+    },
+    {
+      "bytes": 1661,
+      "path": "decompiled/README.md",
+      "sha256": "D758C9F2E1F8CB7CC308DD26FC6D46098A8A4A1A0846328613FDD5D699ED049C"
+    },
+    {
+      "bytes": 291196,
+      "path": "decompiled/archive/release-0.3.17/CerberusNativeTabFix.cs",
+      "sha256": "90127B1DE5C5D37B54228EEC2B0247C3E61900422A244863912437CFBA4B0186"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/archive/release-0.3.17/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1601,
+      "path": "decompiled/archive/release-0.3.17/OperatorModdedOperations.csproj",
+      "sha256": "FAA2C2B302E8DBC98309648D90A1DB1AE8BB425D109F8C9208638D4B24993105"
+    },
+    {
+      "bytes": 539,
+      "path": "decompiled/archive/release-0.3.17/Properties/AssemblyInfo.cs",
+      "sha256": "3B8C0A7CC78A134BE962F511C8D23973C5E9AEEB25F815A80ED74201222336F0"
+    },
+    {
+      "bytes": 292681,
+      "path": "decompiled/archive/release-0.3.18/CerberusNativeTabFix.cs",
+      "sha256": "722A862ECAF8950811B3D0A5C039903618026391F046C12E31F77654809785C1"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/archive/release-0.3.18/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1601,
+      "path": "decompiled/archive/release-0.3.18/OperatorModdedOperations.csproj",
+      "sha256": "FAA2C2B302E8DBC98309648D90A1DB1AE8BB425D109F8C9208638D4B24993105"
+    },
+    {
+      "bytes": 539,
+      "path": "decompiled/archive/release-0.3.18/Properties/AssemblyInfo.cs",
+      "sha256": "3B8C0A7CC78A134BE962F511C8D23973C5E9AEEB25F815A80ED74201222336F0"
+    },
+    {
+      "bytes": 241824,
+      "path": "decompiled/archive/release-0.3.19-pre-profiled-runtime-diagnostics/CerberusNativeTabFix.cs",
+      "sha256": "0485C1FB6892A0952DB8A50ABADB89EB6A970036F480FAA0535E5C68326DECCA"
+    },
+    {
+      "bytes": 2579,
+      "path": "decompiled/archive/release-0.3.19-pre-profiled-runtime-diagnostics/NativeBundleAssetLoader.cs",
+      "sha256": "5896223658C74DFF10D75207B37F57C2D3D321EB7466FE3BC9ECA5F6608E576B"
+    },
+    {
+      "bytes": 4112,
+      "path": "decompiled/archive/release-0.3.19-pre-profiled-runtime-diagnostics/OperatorModdedOperations.csproj",
+      "sha256": "44689B27ABEABB67BA1DD46C8B2374D241D5635578486F86D3A6C4031FF926AB"
+    },
+    {
+      "bytes": 539,
+      "path": "decompiled/archive/release-0.3.19-pre-profiled-runtime-diagnostics/Properties/AssemblyInfo.cs",
+      "sha256": "3B8C0A7CC78A134BE962F511C8D23973C5E9AEEB25F815A80ED74201222336F0"
+    },
+    {
+      "bytes": 308764,
+      "path": "decompiled/archive/release-0.3.19/CerberusNativeTabFix.cs",
+      "sha256": "68F9D27A5CFFF560AC92DF59AF0AA8CC82A446312839740AAB8572A6BA7FC4EA"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/archive/release-0.3.19/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1601,
+      "path": "decompiled/archive/release-0.3.19/OperatorModdedOperations.csproj",
+      "sha256": "FAA2C2B302E8DBC98309648D90A1DB1AE8BB425D109F8C9208638D4B24993105"
+    },
+    {
+      "bytes": 539,
+      "path": "decompiled/archive/release-0.3.19/Properties/AssemblyInfo.cs",
+      "sha256": "3B8C0A7CC78A134BE962F511C8D23973C5E9AEEB25F815A80ED74201222336F0"
+    },
+    {
+      "bytes": 319456,
+      "path": "decompiled/archive/release-0.3.20/CerberusNativeTabFix.cs",
+      "sha256": "5C3898ECFA5277AFCFEE2DBB6165712421D575A9529DAA492F47D44A5BE51E0C"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/archive/release-0.3.20/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1654,
+      "path": "decompiled/archive/release-0.3.20/OperatorModdedOperations.csproj",
+      "sha256": "5EC7527DF11B374559E1DE1A463ED19C2C6C144BF89FE2F3F8E3DD86AEE62832"
+    },
+    {
+      "bytes": 580,
+      "path": "decompiled/archive/release-0.3.20/Properties/AssemblyInfo.cs",
+      "sha256": "12F1CF5ABE2B553BD6B7FA66DED9257BD60B6A44DAF9CEC63711B9E8EEB016E6"
+    },
+    {
+      "bytes": 336688,
+      "path": "decompiled/release-0.3.22/CerberusNativeTabFix.cs",
+      "sha256": "190A37F105AFCE6410C50547870242853B9FC1B5225E3893AC6B5B3E35D99760"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/release-0.3.22/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1701,
+      "path": "decompiled/release-0.3.22/OperatorModdedOperations.csproj",
+      "sha256": "51F2BB38A999A2C4C046A8AD41E217D5CF6FD0242C11E75A64AC63A9FF29CDEA"
+    },
+    {
+      "bytes": 539,
+      "path": "decompiled/release-0.3.22/Properties/AssemblyInfo.cs",
+      "sha256": "3B8C0A7CC78A134BE962F511C8D23973C5E9AEEB25F815A80ED74201222336F0"
+    },
+    {
+      "bytes": 363617,
+      "path": "decompiled/release-0.3.26/CerberusNativeTabFix.cs",
+      "sha256": "E351C093113DAE7A27F9CCD23DCE9FBAAF6B2BC20D711FA623E242E6D365B76F"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/release-0.3.26/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1701,
+      "path": "decompiled/release-0.3.26/OperatorModdedOperations.csproj",
+      "sha256": "51F2BB38A999A2C4C046A8AD41E217D5CF6FD0242C11E75A64AC63A9FF29CDEA"
+    },
+    {
+      "bytes": 580,
+      "path": "decompiled/release-0.3.26/Properties/AssemblyInfo.cs",
+      "sha256": "3B631DFB4201A9373FAA152C25951D9E3301375F58DF2573570536D8CE2CE00A"
+    },
+    {
+      "bytes": 230,
+      "path": "decompiled/release-0.3.26/SceneVariantCandidate.cs",
+      "sha256": "A3C91910A8AECEDAC1732338BAF656DF6C62B364DCC13002AE3B4979BDDD4D6F"
+    },
+    {
+      "bytes": 355,
+      "path": "decompiled/release-0.3.26/SceneVariantSelection.cs",
+      "sha256": "A06A2D200150CE11A2989909E7BAEF08E727DF4DD508E54E06BAEB47CD7345EC"
+    },
+    {
+      "bytes": 18222,
+      "path": "decompiled/release-0.3.26/SceneVariantSelectionStore.cs",
+      "sha256": "433096A06A6DC828425996D85C2AC0E8036BBADBA3FE843D9E90829E98F2D3E5"
+    },
+    {
+      "bytes": 389502,
+      "path": "decompiled/release-0.3.27/CerberusNativeTabFix.cs",
+      "sha256": "993AD9C9ADA705777570C884014920BA224C10742BBDE90C4BF611B073901AF6"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/release-0.3.27/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1701,
+      "path": "decompiled/release-0.3.27/OperatorModdedOperations.csproj",
+      "sha256": "51F2BB38A999A2C4C046A8AD41E217D5CF6FD0242C11E75A64AC63A9FF29CDEA"
+    },
+    {
+      "bytes": 580,
+      "path": "decompiled/release-0.3.27/Properties/AssemblyInfo.cs",
+      "sha256": "3B631DFB4201A9373FAA152C25951D9E3301375F58DF2573570536D8CE2CE00A"
+    },
+    {
+      "bytes": 230,
+      "path": "decompiled/release-0.3.27/SceneVariantCandidate.cs",
+      "sha256": "A3C91910A8AECEDAC1732338BAF656DF6C62B364DCC13002AE3B4979BDDD4D6F"
+    },
+    {
+      "bytes": 355,
+      "path": "decompiled/release-0.3.27/SceneVariantSelection.cs",
+      "sha256": "A06A2D200150CE11A2989909E7BAEF08E727DF4DD508E54E06BAEB47CD7345EC"
+    },
+    {
+      "bytes": 18222,
+      "path": "decompiled/release-0.3.27/SceneVariantSelectionStore.cs",
+      "sha256": "433096A06A6DC828425996D85C2AC0E8036BBADBA3FE843D9E90829E98F2D3E5"
+    },
+    {
+      "bytes": 403012,
+      "path": "decompiled/release-0.3.28/CerberusNativeTabFix.cs",
+      "sha256": "FF57650B8A3A767FF9B00F442A9512FA4A5D180630AB34C45C1DBA0A0DB54E0D"
+    },
+    {
+      "bytes": 2939,
+      "path": "decompiled/release-0.3.28/NativeBundleAssetLoader.cs",
+      "sha256": "EC8468DB30A72965105AB20416FCF3F80FA1EAE292CED4277FA27B4949E53817"
+    },
+    {
+      "bytes": 1701,
+      "path": "decompiled/release-0.3.28/OperatorModdedOperations.csproj",
+      "sha256": "51F2BB38A999A2C4C046A8AD41E217D5CF6FD0242C11E75A64AC63A9FF29CDEA"
+    },
+    {
+      "bytes": 580,
+      "path": "decompiled/release-0.3.28/Properties/AssemblyInfo.cs",
+      "sha256": "3B631DFB4201A9373FAA152C25951D9E3301375F58DF2573570536D8CE2CE00A"
+    },
+    {
+      "bytes": 230,
+      "path": "decompiled/release-0.3.28/SceneVariantCandidate.cs",
+      "sha256": "A3C91910A8AECEDAC1732338BAF656DF6C62B364DCC13002AE3B4979BDDD4D6F"
+    },
+    {
+      "bytes": 355,
+      "path": "decompiled/release-0.3.28/SceneVariantSelection.cs",
+      "sha256": "A06A2D200150CE11A2989909E7BAEF08E727DF4DD508E54E06BAEB47CD7345EC"
+    },
+    {
+      "bytes": 18222,
+      "path": "decompiled/release-0.3.28/SceneVariantSelectionStore.cs",
+      "sha256": "433096A06A6DC828425996D85C2AC0E8036BBADBA3FE843D9E90829E98F2D3E5"
+    },
+    {
+      "bytes": 3608,
+      "path": "docs/architecture/cerberus-ui-and-presentation.md",
+      "sha256": "67ED07A6CF63EF4BFFD4BCBAC4BC81590F4D71439F53CC4DAA8C638DC7B51B32"
+    },
+    {
+      "bytes": 25959,
+      "path": "docs/architecture/full-operation-lifecycle.md",
+      "sha256": "280A53F5233FAD7A24D2AD6C134A3AA617F78E4E12DC7D072F611F8F0E0750BC"
+    },
+    {
+      "bytes": 5987,
+      "path": "docs/architecture/launch-game-modes-and-restart.md",
+      "sha256": "60FB90486AE2258F12BF81055B7067D486E77BD43EF8649BC13BD4A09DD7EEC4"
+    },
+    {
+      "bytes": 14072,
+      "path": "docs/architecture/native-pve-completion-exfil-and-atak.md",
+      "sha256": "A8A520FA47E34EC0595457F7CEB27871652EB382EFEF81FFF3289E48E8EFB0A1"
+    },
+    {
+      "bytes": 3210,
+      "path": "docs/architecture/ownership-and-load-order.md",
+      "sha256": "A268734C5B5DECD6B4AA97C67A4AA24E5416824EEAEF26B509546C115CE6A099"
+    },
+    {
+      "bytes": 24710,
+      "path": "docs/architecture/pve-ai-profile-and-forest-sight.md",
+      "sha256": "D525676AD5BDA9C166D518F761796221CE60B6D0AB11E6B5F369D64497D16C6B"
+    },
+    {
+      "bytes": 15524,
+      "path": "docs/evidence/current-status.md",
+      "sha256": "8BCB22324338CCA4932263903C75D9C3D9561F5F2BF299956A0B4E30FAA69264"
+    },
+    {
+      "bytes": 3990,
+      "path": "docs/guides/build-install-and-test.md",
+      "sha256": "CE82A8C76A4E15268B49734A41997DDC5C6BC4AEA3672710D7702DE0CA3FA19B"
+    },
+    {
+      "bytes": 15125,
+      "path": "docs/guides/create-a-map-package.md",
+      "sha256": "07E89626F1092BDF0BAA5A0DBEC9D776951D615E524689DC9DDACE4CC23E6CA7"
+    },
+    {
+      "bytes": 2039,
+      "path": "docs/reference/manifest-and-preview.md",
+      "sha256": "90DBD2835BC4B922DDD562841D2EC10791D536315CFA6C92E94982D810E4DB94"
+    },
+    {
+      "bytes": 2936,
+      "path": "docs/reference/source-and-native-contract.md",
+      "sha256": "5C3E60F1F097FCB9684BA8C54FA5BE0DFACCDDCD22951D7C291B8BDD553827A9"
+    },
+    {
+      "bytes": 8077,
+      "path": "docs/reference/source-publication-and-native-inspection.md",
+      "sha256": "6D0A4DF56C11319D63A9C0699836276CCF74A1231372C6F30602D964EE2C43CF"
+    },
+    {
+      "bytes": 3901,
+      "path": "docs/reference/troubleshooting.md",
+      "sha256": "9A3C08D00A901249332AFB1CD01D26AF863AF91420EFC268634E32B6782592A2"
+    },
+    {
+      "bytes": 18654,
+      "path": "eng/SceneVariantSelectionStore.Tests/Program.cs",
+      "sha256": "324DAC0143618500CBA8E18FC3DF13A509A310E6DE5AE356D4215887D86DB090"
+    },
+    {
+      "bytes": 600,
+      "path": "eng/SceneVariantSelectionStore.Tests/SceneVariantSelectionStore.Tests.csproj",
+      "sha256": "4FBF2F082651E649E8526032AC68BAF7994FFD06576CAF20C1904E3396262901"
+    },
+    {
+      "bytes": 16216,
+      "path": "eng/audit_repository.py",
+      "sha256": "6E215C8754E22367AA735F650336BECD97101E5C4362978B12EA8752FBD37F11"
+    },
+    {
+      "bytes": 9893,
+      "path": "eng/generate_publication_source_state.py",
+      "sha256": "737AA489B59158714D910000031FBBD1F57C81FF4E235F0655FA8684A1339BF2"
+    },
+    {
+      "bytes": 7815,
+      "path": "eng/test_map_bundle_cache_lifetime.py",
+      "sha256": "C920A757E23368FA2C0C3712FA1AE07A8E05B6838F7966CE9BA9668157ACD189"
+    },
+    {
+      "bytes": 23874,
+      "path": "eng/test_runtime_mirror_bootstrap.py",
+      "sha256": "52576DE68CA181D3D575E856F1722476F1446495E76FAFE37B7CBE094AAA9457"
+    },
+    {
+      "bytes": 6528,
+      "path": "eng/test_scene_variant_framework_integration.py",
+      "sha256": "D03FDCA2C37426A3C520B3B84384FF800D094A418D2DE87811322559AEAFFC62"
+    },
+    {
+      "bytes": 3879,
+      "path": "eng/test_verify_profiled_pve_runtime.py",
+      "sha256": "54CC22B4DD5EBD9F2ED800740A4E7F2F40CEE5B680AFBABE0F36477DDD41F0F0"
+    },
+    {
+      "bytes": 16980,
+      "path": "eng/verify_profiled_pve_runtime.py",
+      "sha256": "5B94A4EC7B7431BD16BAE4A85BAE4F69D1272DE96989A7DFF934F6AA8320CB6A"
+    },
+    {
+      "bytes": 3147,
+      "path": "examples/operator-map-package.example.json",
+      "sha256": "244E99F8E58E29F8553DF59CB01A65522E0ED66A45C0EB3CC7729CB4B4A359C9"
+    },
+    {
+      "bytes": 2478,
+      "path": "packaging/README-PACKAGE-PLACEHOLDER.md",
+      "sha256": "F71521EF80F9AD5B21F7801BBC70395AEFCA92E1B1494B6EAFBC0EC89AF4B832"
+    },
+    {
+      "bytes": 965,
+      "path": "publication/README.md",
+      "sha256": "BF67A546B8EBB4F065553D71E587148D8953EF380A3DC952D7271436C9BC1E75"
+    },
+    {
+      "bytes": 11126,
+      "path": "schemas/operator-map-package-v2.schema.json",
+      "sha256": "61FD5740F84D5DD2BA9B2620681F5A8504F62CCA2B73D794446E457EB4FD42A1"
+    },
+    {
+      "bytes": 9383,
+      "path": "schemas/operator-map-package.schema.json",
+      "sha256": "9B1DAB7DC6A618167B9F4B6AF05A630F8E46ECF41761B6A76F4E8158116C85BA"
+    },
+    {
+      "bytes": 422592,
+      "path": "src/OperatorModdedOperations/CerberusNativeTabFix.cs",
+      "sha256": "3A33AC1C1B97CA31E77F5198EE77BBCD24EFE3CD2DE9284758540AC94E9F4302"
+    },
+    {
+      "bytes": 3849,
+      "path": "src/OperatorModdedOperations/NativeBundleAssetLoader.cs",
+      "sha256": "7A5F0B78A102B581E69138938CCDB19626FE776D94ED83B2C13CA949FA0A6FFE"
+    },
+    {
+      "bytes": 5228,
+      "path": "src/OperatorModdedOperations/OperatorModdedOperations.csproj",
+      "sha256": "96029C0DA1DEF06594D59B31E5E413BE05BEFA9CDEE798C49C07E1B57BB1AE40"
+    },
+    {
+      "bytes": 25195,
+      "path": "src/OperatorModdedOperations/SceneVariantSelectionStore.cs",
+      "sha256": "3AEE7116CF4A7FE7F889A0FB4CF15CED17B5CBE5B0769FD72670B438094906E3"
+    }
+  ],
+  "inventorySha256": "64BA7827BF713C6C0169658ADFFA871A09D03DAFAAEC8E78D4E79553154146CF",
+  "releaseVersion": "0.3.28",
+  "repositories": [
+    {
+      "changes": [
+        {
+          "code": " M",
+          "path": "CHANGELOG.md"
+        },
+        {
+          "code": " M",
+          "path": "MODDED_OPERATIONS_TECHNICAL_BIBLE.md"
+        },
+        {
+          "code": " M",
+          "path": "README.md"
+        },
+        {
+          "code": " M",
+          "path": "decompiled/README.md"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.26/CerberusNativeTabFix.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.26/NativeBundleAssetLoader.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.26/OperatorModdedOperations.csproj"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.26/Properties/AssemblyInfo.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.26/SceneVariantCandidate.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.26/SceneVariantSelection.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.26/SceneVariantSelectionStore.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.27/CerberusNativeTabFix.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.27/NativeBundleAssetLoader.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.27/OperatorModdedOperations.csproj"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.27/Properties/AssemblyInfo.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.27/SceneVariantCandidate.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.27/SceneVariantSelection.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.27/SceneVariantSelectionStore.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.28/CerberusNativeTabFix.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.28/NativeBundleAssetLoader.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.28/OperatorModdedOperations.csproj"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.28/Properties/AssemblyInfo.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.28/SceneVariantCandidate.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.28/SceneVariantSelection.cs"
+        },
+        {
+          "code": "??",
+          "path": "decompiled/release-0.3.28/SceneVariantSelectionStore.cs"
+        },
+        {
+          "code": " M",
+          "path": "docs/architecture/full-operation-lifecycle.md"
+        },
+        {
+          "code": " M",
+          "path": "docs/architecture/launch-game-modes-and-restart.md"
+        },
+        {
+          "code": " M",
+          "path": "docs/architecture/native-pve-completion-exfil-and-atak.md"
+        },
+        {
+          "code": " M",
+          "path": "docs/architecture/pve-ai-profile-and-forest-sight.md"
+        },
+        {
+          "code": " M",
+          "path": "docs/evidence/current-status.md"
+        },
+        {
+          "code": " M",
+          "path": "docs/guides/build-install-and-test.md"
+        },
+        {
+          "code": " M",
+          "path": "docs/guides/create-a-map-package.md"
+        },
+        {
+          "code": " M",
+          "path": "docs/reference/source-publication-and-native-inspection.md"
+        },
+        {
+          "code": "??",
+          "path": "eng/SceneVariantSelectionStore.Tests/Program.cs"
+        },
+        {
+          "code": "??",
+          "path": "eng/SceneVariantSelectionStore.Tests/SceneVariantSelectionStore.Tests.csproj"
+        },
+        {
+          "code": " M",
+          "path": "eng/audit_repository.py"
+        },
+        {
+          "code": "??",
+          "path": "eng/generate_publication_source_state.py"
+        },
+        {
+          "code": "??",
+          "path": "eng/test_map_bundle_cache_lifetime.py"
+        },
+        {
+          "code": "??",
+          "path": "eng/test_runtime_mirror_bootstrap.py"
+        },
+        {
+          "code": "??",
+          "path": "eng/test_scene_variant_framework_integration.py"
+        },
+        {
+          "code": " M",
+          "path": "examples/operator-map-package.example.json"
+        },
+        {
+          "code": " M",
+          "path": "packaging/README-PACKAGE-PLACEHOLDER.md"
+        },
+        {
+          "code": "??",
+          "path": "publication/README.md"
+        },
+        {
+          "code": " M",
+          "path": "schemas/operator-map-package-v2.schema.json"
+        },
+        {
+          "code": " M",
+          "path": "src/OperatorModdedOperations/CerberusNativeTabFix.cs"
+        },
+        {
+          "code": " M",
+          "path": "src/OperatorModdedOperations/OperatorModdedOperations.csproj"
+        },
+        {
+          "code": "??",
+          "path": "src/OperatorModdedOperations/SceneVariantSelectionStore.cs"
+        }
+      ],
+      "dirty": true,
+      "head": "16e0c308b6020e2cd41fdf789a32094757a62485",
+      "path": "."
+    }
+  ],
+  "repository": "operator-modded-operations",
+  "repositoryStateSha256": "1DBAE192FFDE0389752B515A9AB2E39EEF42FF9EDEEA28AC54200C03323BEF5D",
+  "schemaVersion": 1,
+  "scope": {
+    "allowedNames": [
+      ".gitattributes",
+      ".gitignore",
+      "LICENSE"
+    ],
+    "allowedSuffixes": [
+      ".cs",
+      ".csproj",
+      ".editorconfig",
+      ".json",
+      ".md",
+      ".props",
+      ".ps1",
+      ".py",
+      ".slnx",
+      ".targets",
+      ".txt",
+      ".yaml",
+      ".yml"
+    ],
+    "excludedDirectoryNames": [
+      ".git",
+      ".idea",
+      ".local",
+      ".vs",
+      ".vscode",
+      "TestResults",
+      "__pycache__",
+      "artifacts",
+      "bin",
+      "obj",
+      "release"
+    ],
+    "excludedPaths": [
+      "publication/source-state-manifest.json",
+      "publication/source-state-manifest.sha256"
+    ],
+    "policy": "explicit-publication-source-v1"
+  }
+}
