@@ -7,18 +7,26 @@ this repository. It is written for a human maintainer and for an automated
 coding agent. Use the exact names in this document. Do not infer a game
 contract from a similar name.
 
-The current authored source candidate is `0.3.29`. The plugin identity is
-`operator.modded-operations`, the assembly is
-`OperatorModdedOperations.dll`, and the required bundled-only Core version is
-`0.2.0-alpha.6`. The frozen candidate binaries are
+The current authored source checkpoint is the `0.3.30` transition-lifecycle hotfix build. The plugin identity is
+`operator.modded-operations`, the selected assembly is
+`OperatorModdedOperations.dll` or
+`OperatorModdedOperations.MelonLoader.dll`, and the required bundled-only Core
+version is `0.2.0-alpha.7`. Shared source builds isolated BepInEx and
+MelonLoader products; install exactly one loader variant. Protocol v6 covers
+PVP and online PVE with exact selected-suite receipt/sidecar verification,
+loader-neutral runtime-pair identity, and a host-authoritative PVE enemy-count
+identity. This source state is `PROVEN-STATIC`; final release hashes and live
+two-process acceptance remain open.
+
+The historical frozen `0.3.29` candidate binaries are
 `OperatorModdedOperations.dll` at 279,552 bytes / SHA-256
 `95CEF59F62B2DF40ED69C066692953210CDC17A9C3D08DB95753DA7A9B4142CD`,
 `OperatorModAPI.dll` at 179,200 bytes / SHA-256
 `0C27854DFDD3C9F0946F5BCBC61CE37DAE3037215BB5FC11C3400BD50190EB77`, and
 `OperatorModAPI.BepInEx.dll` at 25,600 bytes / SHA-256
 `A58E1FA50CE345931104B9980AFBAF356B8EEAC0E7A735BEF7BD21FC93727AD9`.
-These identities and the current regression suite are `PROVEN-STATIC`, not
-host-plus-remote runtime evidence. The latest hash-pinned public publication
+These historical identities are `PROVEN-STATIC`, not host-plus-remote runtime
+evidence and not the current `0.3.30` hotfix build identity. The latest hash-pinned public publication
 remains the exact reviewed
 `0.3.28` Release build at 223,232
 bytes with SHA-256
@@ -27,9 +35,9 @@ Its publication closure does not by itself promote runtime evidence. The last
 complete runtime candidate remains `0.3.24`: 195,584 bytes with SHA-256
 `0B61F0C3CCEC667B5FD38BAD7884C8F7349479F61AE3682F4DD4BB08C8243992`.
 
-The current Git source-checkpoint verification snapshot is
-`decompiled/release-0.3.29`; it is `PROVEN-STATIC`, not a supported binary
-release. The last public runtime-release snapshot is
+The latest decompiled source-checkpoint verification snapshot is
+`decompiled/release-0.3.29`; it is historical `PROVEN-STATIC` evidence, not a
+supported current hotfix binary release. The last public runtime-release snapshot is
 `decompiled/release-0.3.28`. Every section that explicitly names a `0.3.27`,
 `0.3.26`, or `0.3.22`
 DLL, ZIP, decompiler output, Forest evidence, or render value remains an
@@ -44,7 +52,7 @@ as the active publication identity.
 | `<OPERATOR_INSTALL>` | The directory that contains `OPERATOR.exe`. |
 | `<OPERATOR_MOD_API_REPOSITORY>` | A local Operator Mod API checkout. |
 | `<PACKAGE_ROOT>` | One directory that contains `operator-map-package.json`. |
-| `<MAP_COMPANION_ROOT>` | One map-owned BepInEx plugin directory. |
+| `<MAP_COMPANION_ROOT>` | One map-owned selected-loader companion source/staging directory. |
 
 Never put a user name or a private drive path in reusable documentation.
 
@@ -63,17 +71,32 @@ The source enforces this boundary. Search
 [`CerberusNativeTabFix.cs`](src/OperatorModdedOperations/CerberusNativeTabFix.cs)
 for a map name. A release source must contain no map identity.
 
+The transactional suite installer owns only the exact executable payloads,
+manifest sidecar, and selected-loader receipt that it publishes. It does not
+install, update, remove, or rewrite data-only packages under
+`OPERATOR/OperatorMods`. Runtime agreement verifies the receipt-owned closure
+before advertising an identity.
+
+For each dual-loader product, the canonical `runtimeContentId` is the lowercase
+SHA-256 of the UTF-8 lines
+`operator-loader-neutral-runtime-pair-v1`, plugin GUID, plugin version,
+BepInEx DLL SHA-256, and MelonLoader DLL SHA-256, in that order with `\n`
+separators and no trailing newline. Generate it with
+`tools/operator_runtime_content_id.py`; do not invent a token by hand.
+
 ## 4. Startup and catalog flow
 
 The plugin attribute is the first closed gate:
 
 ```csharp
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.29")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.30")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 ```
 
-At `Load()`, the framework registers the two managed game-mode types through
+This is the BepInEx host metadata; the isolated MelonLoader build publishes
+equivalent product/process/dependency metadata without a BepInEx assembly
+reference. At load, the framework registers the managed game-mode types through
 Il2CppInterop. It attaches scene callbacks. It also creates one main-thread
 runner. The runner discovers live `MissionLaptop` owners and builds private UI
 state for each owner.
@@ -316,10 +339,23 @@ framework does not mutate global friendly fire or hand-edit native AI,
 enemy, or target lists.
 
 `ChooseStandalonePveEnemyCount` validates
-`1 <= minEnemies <= maxEnemies <= 64`. It selects one inclusive,
-deterministic host count. `TrySpawnStandalonePveEnemies` passes the valid
-prefabs and the package-valid markers to a scene-owned `RaidManager`. It calls
-`RaidManager.ServerSpawnAI(false)`. Do not use a one-argument manual
+`1 <= minEnemies <= maxEnemies <= 100`. The native briefing owns an
+integer enemy-count slider inside that range. Confirm captures the displayed
+value into the pending launch and the active operation, so native restart uses
+the same count. The loaded scene must expose at least that many enemy markers
+on the live navigation graph before the one-shot native population call is
+allowed. Utility markers may remain inactive because the native raid consumes
+their transforms directly; activation is telemetry, not eligibility.
+
+Current-build native inspection also proves that
+`RaidManager.GetValidSpawnPoint` removes a candidate before testing its A*
+node and `CanSpawn(position, 1f)`. The framework therefore supplies a stable,
+name-ordered subset whose accepted markers are at least 2m apart in the X/Z
+plane. `safeCapacity` is the size of that navigation-valid, pairwise-spaced
+set, not the raw authored or active count. Earlier releases selected one
+inclusive, deterministic host count. `TrySpawnStandalonePveEnemies` passes
+the valid prefabs and the safe package markers to a scene-owned `RaidManager`.
+It calls `RaidManager.ServerSpawnAI(false)`. Do not use a one-argument manual
 `NetworkServer.Spawn` as an AI replacement.
 
 ### Native completion, extraction, and ATAK
@@ -367,19 +403,22 @@ that shipped PVP methods read. It calls the shipped `OnStartClient` and
 `Server_AllPlayersLoaded` bodies. It keeps shipped round, freeze, score,
 death, respawn, and operation-end logic.
 
-The `0.3.29` source also owns a multi-stage, PVP-only peer agreement. Before the
-native board starts, the host freezes the exact authenticated remote
-connection IDs and every peer must agree on protocol plus exact SHA-256 values
-for the loaded framework, API Core, API host, and any declared map companion.
-The digest also binds API version/game build/capabilities, package
-ID/version/content hash, companion GUID/version/marker contract,
-map/operation/mode/spawn set, scene variant/path, time, and min/max players. A remote preloads the exact
-locally verified bundles and commits the matching operation before sending
-`ContentReady`. The package content hash covers the exact manifest and declared
-package files; a matching package version is insufficient when any byte
-differs. After transition, every peer creates and registers the native
-PVP template and passes the declared companion's unique exact-scene ready
-marker before sending `SceneReady`; a failure marker wins even after readiness.
+The `0.3.30` source owns a multi-stage protocol-v4 peer agreement for PVP and
+online PVE. Before the native board starts, the host freezes the exact
+authenticated remote connection objects and IDs. Every peer validates its
+selected-loader suite receipt, exact receipt-owned manifest sidecar and file
+records, and the loaded framework, API Core, API host, and declared companion
+paths. The digest then binds the loader-neutral suite/runtime-pair identity,
+API version, game build/capabilities, complete package content,
+map/operation/mode/spawn set, scene variant/path, time, and min/max players.
+PVE also binds its declared range and host-confirmed enemy count. A remote
+preloads its exact verified package and commits the matching operation before
+sending `ContentReady`; matching version text is insufficient when any byte
+differs. After transition, every peer creates and registers the native mode
+template and passes the declared companion's unique exact-scene ready marker
+before sending `SceneReady`; a failure marker wins even after readiness. PVE
+scene readiness also validates the agreed count against the navigation-valid,
+pairwise-spaced ordinary marker capacity.
 The host issues a nonzero scene-generation epoch before initial transition and
 increments it exactly once per retained-content Restart. `SceneReady(epoch)`
 is accepted only for the current session, exact connection object, current
@@ -388,17 +427,16 @@ local package-scene generation, so remote-first and host-first replacement
 loads cannot reuse the preceding generation's readiness. Requests retry within
 the existing bounded deadline; duplicates resend the current acknowledgement;
 zero, stale, out-of-phase, and overflowing epochs fail closed.
-Unchanged membership and the full
-scene-ready set gate the host's one `NetworkServer.Spawn` call. The remote
-adopts only the exact deterministic PVP asset and subtype while the agreement
-is live.
+Unchanged membership and the full scene-ready set gate the host's one
+`NetworkServer.Spawn` call. The remote adopts only the exact deterministic mode
+asset and subtype while the agreement is live.
 
 Marker discovery is mode-isolated. PVP never consumes `PVE_PlayerSpawn_`, and
 each side must expose at least `ceil(maximumPlayers / 2)` accepted markers.
 The pinned maximum declaration of 12 therefore requires at least six accepted
 markers for Team 1 and six for Team 2; fewer markers fail before launch.
-PVE never consumes the PVP-prefixed or Team 2 markers and never enters either
-agreement barrier. Same-operation Restart retains content agreement and
+PVE never consumes PVP-prefixed or Team 2 markers. Same-operation Restart
+retains content agreement and
 repeats scene and native-lifecycle readiness. Remote owner adoption/readiness
 and host owner publication/all-players-loaded are bounded. Mismatch,
 malformed/trailing envelope, private message-ID collision, membership change,
@@ -406,9 +444,9 @@ rejection, timeout, scene failure, or native lifecycle exception fails closed
 and triggers the shipped host return or remote disconnect before teardown.
 Membership is immutable for the session. Late join is unsupported, and a
 disconnect, new connection, or replacement connection aborts even if it reuses
-the same numeric connection ID. PVE co-op does not inherit this PVP agreement;
-remote PVE content/scene identity, AI equivalence, movement, and combat remain
-unproven online.
+the same numeric connection ID. The protocol-v4 PVE path remains
+`PROVEN-STATIC`: remote AI equivalence, movement, combat, completion,
+extraction, Restart on both peers, and teardown remain unproven online.
 
 Implementation-test note: the first focused run after replacing the
 unversioned readiness latch compiled cleanly but reported four test failures.
@@ -568,8 +606,9 @@ reciprocal firearm damage or a remote PVP peer.
 
 ## 15. Release layout
 
-The current Git source checkpoint is `0.3.29`; its exact frozen DLL is 279,552
-bytes with SHA-256
+The current Git source checkpoint is the `0.3.30` transition-lifecycle hotfix build; its final dual-loader binary
+identities and suite receipt remain pending the final frozen build. The
+historical `0.3.29` BepInEx DLL is 279,552 bytes with SHA-256
 `95CEF59F62B2DF40ED69C066692953210CDC17A9C3D08DB95753DA7A9B4142CD`.
 The last runtime-release publication source is `0.3.28`; its exact reviewed DLL
 is 223,232 bytes with SHA-256
@@ -577,7 +616,7 @@ is 223,232 bytes with SHA-256
 The last complete runtime candidate remains `0.3.24`: 195,584 bytes with
 SHA-256
 `0B61F0C3CCEC667B5FD38BAD7884C8F7349479F61AE3682F4DD4BB08C8243992`.
-The Git repository publishes the `0.3.29` compiler surface as the hash-pinned
+The Git repository preserves the `0.3.29` compiler surface as the hash-pinned
 `decompiled/release-0.3.29` source-checkpoint snapshot and preserves the final
 `0.3.28` runtime-release compiler surface at
 `decompiled/release-0.3.28`. The prior
@@ -626,8 +665,8 @@ Its archived drag-and-drop framework ZIP is
 It passed a full 7-Zip integrity test. All 54 entries in
 `CHECKSUMS_MODDED_OPERATIONS.sha256` match their staged files.
 
-`eng/audit_repository.py` verifies the current `0.3.29` authored and
-source-checkpoint decompiler seams plus the immutable `0.3.28` runtime-release
+The historical `eng/audit_repository.py` record verifies the `0.3.29` authored
+and source-checkpoint decompiler seams plus the immutable `0.3.28` runtime-release
 publication record. It binds exact DLL and
 decompiler identities, explicit placeholders, privacy rules, Markdown/JSON
 integrity, and the deterministic
@@ -645,10 +684,10 @@ DLLs, or extracted game assets.
 | UI | Physical click on `MODDED OPS`, row, Back, Execute, Cancel, and Confirm. |
 | First Confirm | One physical Confirm starts the scene. No second laptop interaction. |
 | Preview | Same verified image in preparation, fullscreen, and infiltration views. |
-| PVE | Package count range, in-bounds markers, armed AI, reciprocal bullet damage, all-AI-dead unlock, ATAK marker, physical 15-second extraction, native success screen. |
-| PVP agreement | Exact host/remote binary and package-content identity, declared companion identity/readiness/failure precedence, remote verified preload and operation commit, every content-ready ACK before native launch, host-issued scene epoch plus exact-generation scene-ready ACK before spawn, unchanged connection-object membership, explicit late-join rejection, restart-ordering races, and closed mismatch/timeout/overflow tests. |
+| PVE | Package-certified count range through the global hard cap of 100, navigation-valid ordinary markers at least 2 m apart after snapping, armed AI, reciprocal bullet damage, all-AI-dead unlock, ATAK marker, physical 15-second extraction, native success screen, and spawn/frame-time/Restart/teardown performance at the claimed maximum. |
+| Peer agreement | Exact selected-loader receipt/sidecar/files and complete package identity, declared companion runtime-pair identity/readiness/failure precedence, remote verified preload and operation commit, every content-ready ACK before native launch, host-issued scene epoch plus exact-generation scene-ready ACK before spawn, unchanged connection-object membership, explicit late-join rejection, restart-ordering races, and closed mismatch/timeout/overflow tests. PVE also binds the host-confirmed count. |
 | PVP gameplay | Host and remote client on different authored sides; synchronized first spawn and movement; firearm-specific hit registration and death; score, round respawn, Restart, and return. |
-| PVE online | Separate host/remote package, scene, AI-placement, movement, projectile, and damage equivalence. The PVP agreement does not satisfy this gate. |
+| PVE online | Two distinct processes start together, both leave loading and remain grounded, AI identity/placement/movement/health replicate, real projectiles and damage work, completion/extraction pass, Restart replaces both scenes, and failure/return/close tear down cleanly. Protocol-v4 static agreement does not satisfy this gate. |
 | Player | Player object, camera, input, movement, correct terrain spawn, repeat launch. |
 | Restart | Alive restart and KIA end-screen restart as separate gates. |
 | Scene variants | `SceneVariants.Count > 1` opt-in, single-scene bypass, different fresh selections, and the exact active scene retained across alive and KIA Restart. |
@@ -940,3 +979,34 @@ control files, and capture directory.
 Do not use this method to bypass the physical first-Confirm gate. The private
 driver invokes the live UI events, but a human physical-pointer pass remains a
 separate release gate when the UI interaction surface itself changed.
+
+## 25. Loader-neutral framework evidence
+
+Framework lifecycle evidence uses one stable, single-line schema under both
+supported hosts:
+
+```text
+MODDED_OPS_EVIDENCE|schema=1|event=<event>|loader=<loader>|operation=<id>|map=<id>|sceneHandle=<handle>|sceneGeneration=<generation>|<event payload>
+```
+
+Identity fields are URI-escaped and absent values are `none`. Payload keys are
+event-specific, concise, ordered, and restricted to one line. Schema and scene
+numbers use invariant formatting. Emission is a best-effort, exception-isolated
+observer: formatter or log-sink failure cannot change launch, population,
+transport, teardown, or loader-unload behavior. The marker stream covers PVE briefing
+count pending/active/restart retention; safe navigation capacity; synchronous
+`ServerSpawnAI(false)` return and deferred validation; native all-enemies-dead,
+extraction, timer, result, and Operation Room return observations; scene
+teardown; successful framework unload; and PVP transport registration/release,
+scene epochs, and final session close.
+
+Scene lifecycle and completion observations are edge-latched per exact scene
+generation. They read native state but do not authorize spawns, extraction,
+success, return, or PVP readiness. Restart markers retain the prior exact scene
+handle in either callback order. PVP epoch-issued markers identify the target
+scene generation and use a target handle when the replacement load is already
+observable. Every started evidence generation produces one post-cleanup
+teardown summary with a completed/exception outcome and remaining-ownership
+counts. Static tests and loader-specific compilation prove the instrumentation
+contract. Only captured game logs can promote any individual event to runtime
+evidence.

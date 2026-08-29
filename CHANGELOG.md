@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.3.30 transition-lifecycle hotfix build 2 candidate — 2026-08-28
+
+- Preserve the exact `0.3.30` plugin and peer-protocol identity required by the
+  existing LOT 12, Ukrainian Forest, Whiteout Pass, and Hypermarket companions.
+  The new bytes and SHA-256 values identify this hotfix build without making
+  those exact BepInEx dependency declarations incompatible.
+
+- Fix the exact post-mission lifecycle that could leave a completed solo-PVE
+  package operation owning `NativeTransitionStarted` after the native Operation
+  Room had returned. Every packaged PVE/PVP unload now defers the
+  return-versus-Restart decision until either the replacement package scene or
+  the exact native Operation Room is observable.
+- Retire the completed active-operation owner and solo-PVE membership freeze
+  only after exact Operation Room, Mirror scene-name, package-scene-absence,
+  and spawned-owner-absence checks pass. This releases cross-map cache
+  ownership without weakening alive/KIA Restart handling.
+- Refuse a fresh package Confirm before committing a durable scene-variant
+  shuffle-bag choice while a prior package transition still owns teardown.
+  The native-start path repeats the ownership check after asynchronous bundle
+  I/O.
+- Add regressions for solo-PVE return ownership and pre-selection transition
+  admission. The complete Python suite passes `106/106`; both BepInEx and
+  MelonLoader builds complete with zero warnings and zero errors.
+- Freeze the BepInEx framework at 640,000 bytes / SHA-256
+  `E77412F83C418EDDC5422F702382BEB75AFB6459430CD7B64B8EB0594549EBA8`
+  and the MelonLoader framework at 641,536 bytes / SHA-256
+  `2A6694E798A3AF2C3CF1565F50BF20556E83A48FD60CF7ED0EFBE754F3572903`.
+
+## 0.3.30 multiplayer-test candidate — 2026-08-20
+
+- Generalize the exact peer-session protocol to both standalone PVE and PVP.
+  Every frozen peer must validate the selected-loader receipt, suite manifest,
+  framework/API/companion binaries, package content, operation, variant, scene
+  generation, runtime owner, owner-local player placement, and Restart epoch
+  before gameplay commit. Late join and connection replacement remain
+  deliberately fail-closed.
+- Keep OPERATOR and Mirror authoritative for transform replication, weapons,
+  bullets, Health, damage, and death. Repair dynamic game-mode clones through
+  an exact custom Mirror spawn handler before client deserialization instead
+  of relying on `OnStartClient` to repair native `syncObjects`.
+- Add the PVE population barrier. The host alone calls the shipped
+  `RaidManager.ServerSpawnAI(false)` once, then every peer must observe the
+  same sorted server-authored AI netIds, team, initial quantized poses, Health,
+  WeaponsAI, animation, and native SmoothSync contract before gameplay begins.
+- Replace direct host writes to client-owned player transforms with an
+  owner-targeted placement request. Each owning process invokes the shipped
+  local movement path, proves root/controller/camera grounding on exact scene
+  support, and acknowledges its assignment before gameplay.
+- Expose the shipped briefing enemy-count slider only on the private modded-PVE
+  operation clone. Enforce the package range and a hard maximum of 100, retain
+  the chosen count across Restart, recapture it on a fresh Confirm, and validate
+  safe navigation-marker capacity before the one native population call. Do
+  not mutate Tier 1, vanilla operation arrays, vanilla enemy ranges, or PVP.
+- Build isolated BepInEx and MelonLoader adapters from shared framework/API/map
+  source. An install may contain both adapter payloads but must activate exactly
+  one loader. PVE and PVP remain separate live acceptance gates for each loader.
+- Pass `102/102` Python tests, `16/16` scene-variant selector tests, native
+  game-mode/policy/runtime-barrier tests, both zero-warning loader builds, and
+  clean staged/install/archive audits. This remains `PROVEN-STATIC` until paired
+  host/remote evidence proves PVE and PVP movement, combat, Restart, and return.
+- Freeze the BepInEx framework at 632,832 bytes / SHA-256
+  `772D9FC1470DCC115B22F8C232C4A3B90D0FC727C5B1D27A0F54ED95E5D1AE86`
+  and the MelonLoader framework at 634,368 bytes / SHA-256
+  `2C2D11C28BD2D470ABAC83F2FC558476384DA8D79302FA4B1ADD6F845A113F83`.
+
 ## 0.3.29 candidate — 2026-08-12
 
 - Isolate standalone player-marker discovery by operation mode. PVE accepts

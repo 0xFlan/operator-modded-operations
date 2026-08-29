@@ -28,15 +28,16 @@ Operator Mod API discovers package roots
 
 ## Why the package directory is data-only
 
-Core treats `BepInEx/OperatorMods/<package-id>` as untrusted structured input.
+Core treats `OPERATOR/OperatorMods/<package-id>` as untrusted structured input.
 It can bound JSON, canonicalize paths, reject reparse escapes, verify every
 declared file, and freeze identities before Unity loads data. A DLL in that
 directory would bypass the data contract.
 
-Put executable map code here instead:
+Put executable map code in exactly one selected-loader location instead:
 
 ```text
 <OPERATOR_INSTALL>/BepInEx/plugins/<map-plugin>/<map-plugin>.dll
+<OPERATOR_INSTALL>/Mods/<map-plugin>.MelonLoader.dll
 ```
 
 The companion must refuse activation unless package ID, map ID, scene path,

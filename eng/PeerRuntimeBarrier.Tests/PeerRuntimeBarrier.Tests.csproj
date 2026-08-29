@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>10.0</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>OperatorModdedOperations.PeerRuntimeBarrier.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerRuntimeBarriers.cs"
+             Link="PeerRuntimeBarriers.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerRuntimeOwnerCodec.cs"
+             Link="PeerRuntimeOwnerCodec.cs" />
+  </ItemGroup>
+</Project>

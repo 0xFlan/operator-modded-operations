@@ -26,8 +26,8 @@ Do not change an ID when you change a display name. Increase the package
 
 ## 2. Create the package directory
 
-The install target is one direct child of
-`<OPERATOR_INSTALL>/BepInEx/OperatorMods`:
+The canonical install target is one direct child of
+`<OPERATOR_INSTALL>/OperatorMods`:
 
 ```text
 <PACKAGE_ROOT>/
@@ -42,8 +42,9 @@ The install target is one direct child of
 ```
 
 The package root is data-only. Do not place a DLL under `<PACKAGE_ROOT>`. If
-the map needs executable reconstruction, install its companion separately at
-`<OPERATOR_INSTALL>/BepInEx/plugins/<MAP_COMPANION>/`.
+the map needs executable reconstruction, install only its selected-loader
+companion under `<OPERATOR_INSTALL>/BepInEx/plugins/<MAP_COMPANION>/` or
+`<OPERATOR_INSTALL>/Mods/`.
 
 ## 3. Use the supported Unity target
 
@@ -142,7 +143,14 @@ one.
 
 Use zero-padded suffixes, for example `PVE_EnemySpawn_00`. Keep every actor
 marker inside the playable collision boundary, above the live terrain, and on
-a valid navigation node. Author at least `minEnemies` enemy markers.
+a valid navigation node. Inactive utility marker objects are accepted because
+the native raid uses their transforms directly. Author at least `maxEnemies`
+ordinary enemy markers and keep them at least 2m apart in the X/Z plane after
+any companion navigation snap. The runtime deterministically removes
+off-navigation or too-close candidates and refuses the launch when the
+remaining safe capacity is below the confirmed briefing count. Extra
+candidates are useful only as navigation headroom; they do not justify a
+larger declared maximum until the loaded-scene capacity gate passes.
 
 The current PVP contract is one-based. Team ID `1` must use the Team 1 set.
 Team ID `2` must use the Team 2 set. Do not use zero and one. Each side must
@@ -449,7 +457,8 @@ physical Cerberus laptop:
 10. test alive restart and KIA Restart Operation separately.
 
 Do not label the package `SUPPORTED` until its documented live matrix passes.
-PVP static agreement tests do not prove transport or gameplay. PVE co-op
-bypasses the PVP peer agreement and requires its own online package/scene/AI/
-movement/projectile equivalence matrix. Late join is unsupported by the
-current PVP protocol.
+Protocol v6 gives networked PVE its own mode-bound content, scene, owner,
+player-placement, and AI-population barriers, but static agreement tests do not
+prove transport or gameplay. PVE still requires a real online package/scene/AI/
+movement/projectile equivalence matrix. PVP is fail-closed in the active
+BepInEx checkpoint pending its own physical matrix. Late join is unsupported.

@@ -96,6 +96,10 @@ def required_paths() -> tuple[str, ...]:
         return common + (
             "src/OperatorModdedOperations/CerberusNativeTabFix.cs",
             "src/OperatorModdedOperations/CerberusNativeTabFix.PvpPeerAgreement.cs",
+            "src/OperatorModdedOperations/CerberusNativeTabFix.PeerGameModeSpawn.cs",
+            "src/OperatorModdedOperations/CerberusNativeTabFix.PeerRuntimeBarriers.cs",
+            "src/OperatorModdedOperations/PveEnemyCountSelection.cs",
+            "src/OperatorModdedOperations/FrameworkEvidence.cs",
             "src/OperatorModdedOperations/NativeBundleAssetLoader.cs",
             "src/OperatorModdedOperations/SceneVariantSelectionStore.cs",
             "src/OperatorModdedOperations/OperatorModdedOperations.csproj",
@@ -176,8 +180,8 @@ def main() -> int:
             encoding="utf-8", errors="replace"
         )
         required_authored = (
-            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.29")]',
-            'internal const string RequiredApiVersion = "0.2.0-alpha.6";',
+            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.30")]',
+            'internal const string RequiredApiVersion = "0.2.0-alpha.7";',
             "operation.Operation.PveAiProfile",
             "details.WanderDistance = profile?.WanderDistanceMeters ?? 18;",
             "CaptureServerSpawnedNetIds",
@@ -256,12 +260,13 @@ def main() -> int:
             if fragment not in authored:
                 errors.append(f"current authored render contract is missing: {fragment}")
         required_authored_pvp = (
-            "private const ushort PvpAgreementProtocolVersion = 2;",
-            "runtime-binary-sha256-v1",
+            "private const ushort PvpAgreementProtocolVersion = 6;",
+            "suite-install-receipt-v1",
+            "operator-loader-neutral-runtime-pair-v1",
             "package-runtime-ready-v1",
-            "FrameworkSha256",
-            "ApiCoreSha256",
-            "ApiHostSha256",
+            "PveAgreementV6RuntimeContractComplete = true",
+            "PvpAgreementV6RuntimeContractComplete = true",
+            "SuiteManifestSha256",
             "CompanionSha256",
             "TryHashLoadedAssembly",
             "TryAdvancePvpPackageRuntimeReadiness",

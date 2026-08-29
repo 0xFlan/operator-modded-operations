@@ -21,6 +21,10 @@ SELECTOR_PATH = (
 
 
 def extract_method(source: str, name: str) -> str:
+    return extract_method_from_source(source, name)
+
+
+def extract_method_from_source(source: str, name: str) -> str:
     declaration = re.search(
         rf"\bprivate\s+(?:static\s+)?(?:bool|void)\s+{re.escape(name)}\s*\(",
         source,
@@ -129,6 +133,34 @@ class SceneVariantFrameworkIntegrationTests(unittest.TestCase):
             r"pending\.SceneSelection\s*==\s*null\s*&&\s*"
             r"!TrySelectFreshLaunchScene",
         )
+
+    def test_fresh_launch_ownership_is_proved_before_variant_commit(self) -> None:
+        launch = extract_method(self.framework, "BeginCatalogOperationLaunch")
+        ownership_position = launch.index(
+            "CanCommitFreshCatalogLaunchSelection()"
+        )
+        selection_position = launch.index("TrySelectFreshLaunchScene(")
+        self.assertLess(ownership_position, selection_position)
+
+        agreement = (
+            REPOSITORY_ROOT
+            / "src"
+            / "OperatorModdedOperations"
+            / "CerberusNativeTabFix.PvpPeerAgreement.cs"
+        ).read_text(encoding="utf-8")
+        guard = extract_method_from_source(
+            agreement,
+            "CanCommitFreshCatalogLaunchSelection",
+        )
+        predicate = extract_method_from_source(
+            agreement,
+            "CommittedPackageTransitionOwnsNativeTeardown",
+        )
+        self.assertIn("CommittedPackageTransitionOwnsNativeTeardown()", guard)
+        self.assertIn("activeOperation.NativeTransitionStarted", predicate)
+        self.assertIn("activeOperation.SceneHandle != 0", predicate)
+        self.assertIn("hostPvpAgreement?.NativeTransitionCommitted", predicate)
+        self.assertIn("remotePvpAgreement?.NativeTransitionCommittedEpoch", predicate)
 
     def test_scene_callbacks_never_select_and_match_the_active_selection(self) -> None:
         loaded = extract_method(self.framework, "OnSceneLoaded")

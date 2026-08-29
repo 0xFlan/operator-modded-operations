@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -20,6 +21,13 @@ namespace OperatorModdedOperations
             ("different maps keep independent histories", DifferentMapsKeepIndependentHistories),
             ("corrupt primary recovers from backup", CorruptPrimaryRecoversFromBackup),
             ("corrupt primary and backup fail closed", CorruptPrimaryAndBackupFailClosed),
+            ("PVE enemy selector accepts the absolute 100 cap", PveEnemySelectorAcceptsAbsoluteCap),
+            ("PVE enemy selector accepts every integer from 1 through 100", PveEnemySelectorAcceptsEverySupportedCount),
+            ("PVE enemy selector rejects unsafe or out-of-range counts", PveEnemySelectorRejectsUnsafeCounts),
+            ("framework evidence marker has one loader-neutral schema", FrameworkEvidenceUsesStableSchema),
+            ("framework evidence marker escapes identity values", FrameworkEvidenceEscapesIdentityValues),
+            ("framework evidence is invariant and single-line", FrameworkEvidenceIsInvariantAndSingleLine),
+            ("framework evidence sink failure is isolated", FrameworkEvidenceSinkFailureIsIsolated),
         };
 
         public static int Main()
@@ -312,6 +320,155 @@ namespace OperatorModdedOperations
                     "Scene variant selection state is corrupt and no valid backup is available:",
                     StringComparison.Ordinal),
                 "corrupt-state exception did not explain the fail-closed condition");
+        }
+
+        private static void PveEnemySelectorAcceptsAbsoluteCap()
+        {
+            Equal(100, PveEnemyCountSelection.GetBriefingMaximum(1, 100),
+                "absolute briefing maximum");
+            Equal(55, PveEnemyCountSelection.GetDefault(10, 100),
+                "bounded midpoint default");
+            Equal(55, PveEnemyCountSelection.NormalizeBriefingSelection(101, 10, 100),
+                "invalid persisted selection did not reset to the bounded default");
+            True(PveEnemyCountSelection.TryValidateConfirmedSelection(
+                    100, 1, 100, 100, out string error),
+                "100-enemy selection was rejected: " + error);
+        }
+
+        private static void PveEnemySelectorAcceptsEverySupportedCount()
+        {
+            for (int selected = 1; selected <= PveEnemyCountSelection.AbsoluteMaximum;
+                 selected++)
+            {
+                Equal(selected, PveEnemyCountSelection.NormalizeBriefingSelection(
+                        selected,
+                        1,
+                        PveEnemyCountSelection.AbsoluteMaximum),
+                    $"briefing selection {selected}");
+                True(PveEnemyCountSelection.TryValidateConfirmedSelection(
+                        selected,
+                        1,
+                        PveEnemyCountSelection.AbsoluteMaximum,
+                        PveEnemyCountSelection.AbsoluteMaximum,
+                        out string error),
+                    $"supported enemy count {selected} was rejected: {error}");
+            }
+        }
+
+        private static void PveEnemySelectorRejectsUnsafeCounts()
+        {
+            Throws<ArgumentOutOfRangeException>(() =>
+                PveEnemyCountSelection.GetBriefingMaximum(1, 101));
+            False(PveEnemyCountSelection.TryValidateConfirmedSelection(
+                    21, 10, 100, 20, out string capacityError),
+                "selection above safe marker capacity was accepted");
+            True(capacityError.Contains("safe-capacity", StringComparison.Ordinal),
+                "unsafe-selection error did not name safe capacity");
+            False(PveEnemyCountSelection.TryValidateConfirmedSelection(
+                    10, 10, 100, 9, out string minimumError),
+                "capacity below package minimum was accepted");
+            True(minimumError.Contains("below the package minimum", StringComparison.Ordinal),
+                "minimum-capacity error was not specific");
+        }
+
+        private static void FrameworkEvidenceUsesStableSchema()
+        {
+            string marker = FrameworkEvidence.Build(
+                "pve-count-active",
+                "melonloader",
+                "community.example.pve",
+                "community.example.map",
+                42,
+                3,
+                "selected=100");
+            Equal(
+                "MODDED_OPS_EVIDENCE|schema=1|event=pve-count-active" +
+                "|loader=melonloader|operation=community.example.pve" +
+                "|map=community.example.map|sceneHandle=42" +
+                "|sceneGeneration=3|selected=100",
+                marker,
+                "framework evidence schema");
+        }
+
+        private static void FrameworkEvidenceEscapesIdentityValues()
+        {
+            string marker = FrameworkEvidence.Build(
+                "pvp-session-close",
+                "bepinex",
+                "operation|line\nnext",
+                null,
+                0,
+                0);
+            True(
+                marker.Contains(
+                    "|operation=operation%7Cline%0Anext|map=none|",
+                    StringComparison.Ordinal),
+                "framework evidence did not escape a delimiter/newline identity");
+            Equal("none", FrameworkEvidence.Encode(null), "null evidence value");
+        }
+
+        private static void FrameworkEvidenceIsInvariantAndSingleLine()
+        {
+            CultureInfo previousCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                var customCulture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+                customCulture.NumberFormat.NegativeSign = "~";
+                CultureInfo.CurrentCulture = customCulture;
+                string marker = FrameworkEvidence.Build(
+                    "scene-teardown-summary",
+                    "bepinex",
+                    "operation",
+                    "map",
+                    -42,
+                    9);
+                True(
+                    marker.Contains("|sceneHandle=-42|sceneGeneration=9", StringComparison.Ordinal),
+                    "framework evidence used ambient numeric formatting");
+                Equal("-42", FrameworkEvidence.Number(-42),
+                    "signed payload number formatting");
+                Equal("42", FrameworkEvidence.Number(42U),
+                    "unsigned payload number formatting");
+                Equal("9", FrameworkEvidence.Number(9UL),
+                    "epoch payload number formatting");
+                string payloadMarker = FrameworkEvidence.Build(
+                    "pve-extraction-unlocked",
+                    "bepinex",
+                    "operation",
+                    "map",
+                    1,
+                    1,
+                    "rawAllAI=" + FrameworkEvidence.Number(-42));
+                True(
+                    payloadMarker.EndsWith("|rawAllAI=-42", StringComparison.Ordinal),
+                    "numeric evidence payload used ambient formatting");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = previousCulture;
+            }
+
+            Throws<ArgumentException>(() => FrameworkEvidence.Build(
+                "scene-teardown-summary",
+                "bepinex",
+                "operation",
+                "map",
+                1,
+                1,
+                "reason=line1\nline2"));
+        }
+
+        private static void FrameworkEvidenceSinkFailureIsIsolated()
+        {
+            bool written = FrameworkEvidence.TryWrite(
+                _ => throw new InvalidOperationException("injected sink failure"),
+                "framework-unload-success",
+                "melonloader",
+                null,
+                null,
+                0,
+                0);
+            False(written, "throwing evidence sink escaped its isolation boundary");
         }
 
         private static IReadOnlyList<SceneVariantCandidate> Variants(int count)

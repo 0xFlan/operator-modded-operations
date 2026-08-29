@@ -30,7 +30,7 @@ that Modded Operations owns. It must not unload or destroy that object.
 Core searches each direct child of:
 
 ```text
-<OPERATOR_INSTALL>/BepInEx/OperatorMods/
+<OPERATOR_INSTALL>/OperatorMods/
 ```
 
 A package root contains `operator-map-package.json`. Core validates every
@@ -414,11 +414,12 @@ Every agreed peer can register the same nonzero ID. A zero-ID runtime
 `NetworkIdentity` can work on a host client but gives a remote client no
 prefab or scene ID to instantiate.
 
-For PVP, `0.3.29` adds a protocol-v2 fail-closed agreement. Before native board
+For PVP, the `0.3.30` transition-lifecycle hotfix build uses the protocol-v6 fail-closed agreement. Before native board
 start, the host snapshots the exact authenticated remote connection objects and
 numeric IDs. Its private, collision-checked Mirror envelope carries a
 per-launch nonce and digest over
-the framework DLL, API Core DLL, API BepInEx host DLL, declared companion DLL,
+loader-neutral framework/API Core/API host identities, the exact selected-loader
+companion DLL and its loader-neutral runtime-pair identity,
 protocol/API version/game build/capabilities, package ID/version/content hash,
 companion GUID/version/marker contract, map/operation/mode/spawn set, scene variant/path,
 time, and min/max players. A remote resolves only that exact identity through
@@ -449,12 +450,18 @@ without allowing readiness from an earlier scene generation to cross Restart.
 Late join is unsupported. A join, disconnect, or replacement connection aborts
 instead of changing the frozen roster, even when a numeric ID is reused.
 
-PVE does not enter either PVP barrier. Its host activates and spawns the
-template after terrain and scene preparation pass, then runs the shipped
-initialization and all-players-loaded barrier. It does not spawn PVE actors
-before `AllPlayersLoaded`. This bypass means that PVP agreement evidence does
-not prove online PVE content/scene identity, AI placement, movement,
-projectiles, or damage.
+Protocol v6 applies the content and scene-generation barriers to networked PVE.
+After the exact injected owner is spawned, each remote must report owner
+adoption and native readiness. The host then assigns each client-owned player
+to an exact local marker; that owner invokes the shipped local
+`GameManager.MovePlayerToSpawn` path and reports a stable grounded root,
+controller, and camera. The host never writes a remote-owned player Transform.
+Only after every placement receipt may the host call the one native PVE AI
+spawn. It publishes the resulting server-owned AI netId/team/initial-pose
+manifest, and every remote must validate that exact population before the host
+commits gameplay. PVP uses the same session architecture but remains
+deliberately fail-closed in the active BepInEx checkpoint pending physical
+validation.
 
 ## 15. PVE creation and firearm ownership
 
@@ -465,10 +472,16 @@ operation-owned component.
 `TrySpawnStandalonePveEnemies` validates:
 
 ```text
-1 <= minEnemies <= maxEnemies <= 64
-marker count >= minEnemies
+1 <= minEnemies <= maxEnemies <= 100
+minEnemies <= confirmed count <= maxEnemies
+navigation-valid authored marker count >= confirmed count
 NetworkServer.active == true
 ```
+
+Marker active state is reported separately but is not an eligibility gate.
+Existing companions intentionally keep utility spawn-marker objects inactive;
+the native population path consumes their transforms directly. Every accepted
+marker must still pass `AstarPath.IsPointOnNavmesh(marker.position)`.
 
 It filters `GameManager.AllAITypes`. An accepted prefab has:
 
@@ -494,8 +507,10 @@ did not supply the owner. AI grenades worked because they were server-owned,
 but firearm damage did not complete. The shipped raid method is therefore a
 required contract.
 
-The host count is deterministic and inclusive. It uses the package identity
-and operation data. A client does not choose another count.
+The native briefing selector is host-owned and integer-valued. Confirm copies
+the displayed count into the pending launch and then the active operation.
+Restart retains it; a fresh operation selection starts from the bounded
+midpoint default. A client does not choose another count.
 
 ## 16. PVP teams, rounds, death, and respawn
 

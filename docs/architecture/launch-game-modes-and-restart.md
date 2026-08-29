@@ -54,11 +54,15 @@ same component. It calls the shipped initialization bodies.
 `ChooseStandalonePveEnemyCount` requires this range:
 
 ```text
-1 <= minEnemies <= maxEnemies <= 64
+1 <= minEnemies <= maxEnemies <= 100
 ```
 
-The host chooses one inclusive deterministic count. The package does not
-create AI prefabs. `TrySpawnStandalonePveEnemies` filters the installed
+The native briefing exposes an integer selector over this closed range.
+Confirm captures the displayed value into the pending launch and active
+operation; a native restart retains that value. After scene preparation, the
+host requires at least the selected number of active `PVE_EnemySpawn_`
+markers on the live navigation graph. The package does not create AI prefabs.
+`TrySpawnStandalonePveEnemies` filters the installed
 `GameManager.AllAITypes` list. Each accepted prefab has `BrainAI`,
 `NetworkIdentity`, and an armed `WeaponsAI` configuration. The framework then
 uses `RaidManager.ServerSpawnAI(false)`.
@@ -95,9 +99,9 @@ The framework supplies all fields that shipped round logic reads. These fields
 include audio sources, clip arrays, timers, score text, result roots, fade
 state names, round limits, and outcome text.
 
-### PVP peer agreement
+### Standalone peer agreement
 
-PVP Confirm does not call the native board immediately. The host first
+Networked standalone Confirm does not call the native board immediately. The host first
 requires an active native host with at least one authenticated, ready remote
 peer, snapshots the exact remote connection IDs, and checks the current
 population against the operation's declared min/max range. One private Mirror
@@ -141,18 +145,21 @@ rejected. The frozen membership also retains exact connection-object identity,
 so a replacement connection cannot inherit an acknowledgement by reusing its
 numeric ID.
 
-Content readiness has a 45-second bound. Scene/companion readiness, host owner
-publication, remote owner adoption/readiness, and host all-players-loaded each
-have bounded 90-second windows. A malformed/trailing envelope, collision,
+Content readiness has a 90-second bound. Scene/companion readiness, host owner
+publication, remote owner adoption/readiness, owner-local player placement, and
+host all-players-loaded have bounded windows. Networked PVE additionally waits
+for every remote to validate the exact server-authored AI population before its
+gameplay commit. A malformed/trailing envelope, collision,
 mismatch, rejection, disconnect/join, timeout, preparation failure, or native
 lifecycle exception stops the PVP path and enters the shipped host return or
 remote disconnect before exact local teardown. Alive and KIA Restart retain
 the already-proven content identity but clear and repeat the scene/native
 barriers. Late join is unsupported: membership is immutable, and any join,
 disconnect, or replacement connection aborts rather than extending or
-repairing the roster. PVE never enters this protocol. Consequently the PVP
-agreement is not evidence for online PVE package/scene equivalence, AI
-placement, movement, projectile registration, or damage.
+repairing the roster. Protocol v6 enables this architecture for the BepInEx
+networked-PVE candidate and leaves PVP fail-closed until its physical acceptance
+matrix passes. Static agreement still does not prove scene physics, replicated
+movement, projectile registration, damage, extraction, or restart behavior.
 
 The `0.3.29` implementation and regression suite are `PROVEN-STATIC` only.
 Before PVP is `SUPPORTED`, a real host and remote must prove exact content

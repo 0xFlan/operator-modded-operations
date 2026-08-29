@@ -120,6 +120,10 @@
     "runtimeCompanion": {
       "type": "object",
       "additionalProperties": false,
+      "dependentRequired": {
+        "melonLoaderSha256": ["runtimeContentId"],
+        "runtimeContentId": ["melonLoaderSha256"]
+      },
       "required": ["pluginGuid", "pluginVersion", "sha256", "readyMarkerName", "failureMarkerName"],
       "properties": {
         "pluginGuid": {
@@ -130,6 +134,8 @@
         },
         "pluginVersion": { "$ref": "#/$defs/semanticVersion" },
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "melonLoaderSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "runtimeContentId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "readyMarkerName": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^(?!\\s)(?!.*\\s$)[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+$" },
         "failureMarkerName": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^(?!\\s)(?!.*\\s$)[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+$" }
       }
@@ -243,8 +249,8 @@
         "sitrep": { "type": "string", "minLength": 1, "maxLength": 4000 },
         "minPlayers": { "type": "integer", "minimum": 1, "maximum": 64 },
         "maxPlayers": { "type": "integer", "minimum": 1, "maximum": 64 },
-        "minEnemies": { "type": "integer", "minimum": 1, "maximum": 64 },
-        "maxEnemies": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "minEnemies": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "maxEnemies": { "type": "integer", "minimum": 1, "maximum": 100 },
         "pveAiProfile": { "$ref": "#/$defs/pveAiProfile" },
         "spawnSet": { "$ref": "#/$defs/localId" },
         "infiltrations": {

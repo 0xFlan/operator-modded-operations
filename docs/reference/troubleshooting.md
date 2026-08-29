@@ -1,5 +1,18 @@
 # Troubleshooting
 
+## A second modded map will not start after completing a package PVE mission
+
+If the requested Whiteout, Forest, or other package bundles load and verify but
+Confirm logs `a committed peer transition still owns native teardown`, the
+framework has retained the previous package transition after the native
+Operation Room return. This was a `0.3.30` lifecycle defect, not evidence that
+the later map bundle is corrupt. Update every participant to the hash-pinned
+Modded Operations `0.3.30` transition-lifecycle hotfix build. Do not mix framework
+builds in multiplayer. A valid fix
+must prove the exact Operation Room return, retire the previous operation
+owner, and then complete a same-process cross-map launch; deleting and
+reinstalling the map package does not repair the stale in-memory owner.
+
 ## Confirm does nothing on the first attempt
 
 Check for one `PendingMapLaunch`. Confirm must join the same selected-map
@@ -100,7 +113,7 @@ game while replacing files, then confirm every recorded hash again.
 
 Check the current nonzero host scene epoch and the remote's monotonic local
 package-scene generation. `SceneReady(epoch)` is valid only for the exact
-generation after its scene, spawn, deterministic PVP template, and companion
+generation after its scene, spawn, deterministic mode template, and companion
 checks pass. A duplicate request can resend the current acknowledgement; a
 zero, stale, future, out-of-phase, or overflowing epoch fails closed.
 
@@ -109,16 +122,21 @@ declared name in the active generation scene. The declared failure marker wins
 even after readiness. Also confirm at least `ceil(maximumPlayers / 2)` accepted
 spawn markers per side; a 12-player operation needs six per team.
 
-## PVP aborts when another player joins
+## An agreed operation aborts when another player joins
 
-This is the intended fail-closed behavior. The current PVP protocol freezes
+This is the intended fail-closed behavior. Protocol v6 freezes
 the authenticated connection objects before agreement; late join is
 unsupported. A join, disconnect, or replacement connection aborts even when a
 numeric connection ID is reused. Start a new session with the intended roster.
 
 ## PVE works locally but differs for a remote player
 
-PVE co-op does not use the PVP peer agreement. A passing PVP identity test does
-not prove online PVE package/scene selection, enemy placement, movement,
-projectiles, or damage. Treat online PVE as unsupported until its separate
-host/remote matrix passes.
+Protocol v6 gives PVE a mode-bound content/scene agreement, binds the
+host-confirmed count, moves each client-owned player through its local shipped
+placement path, and requires an exact server-authored AI-population receipt
+before gameplay commit. The implementation remains `PROVEN-STATIC`. Check the
+selected-loader suite receipt/sidecar, complete package closure, count identity,
+scene capacity, remote owner adoption, player-ready receipt, and population
+receipt first. Passing barriers do not prove movement, projectiles/damage,
+completion, extraction, Restart, or teardown. Treat online PVE as unsupported
+until its two-process BepInEx matrix passes.

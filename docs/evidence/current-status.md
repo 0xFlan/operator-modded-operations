@@ -1,6 +1,61 @@
 # Current evidence status
 
-## Current source candidate: 0.3.29
+## Active offline source checkpoint: 0.3.30 transition-lifecycle hotfix build
+
+The Modded Operations `0.3.30` transition-lifecycle hotfix build and Operator Mod API `0.2.0-alpha.7` build isolated
+loader variants from shared source. Protocol v6 is active for both PVE and PVP
+multiplayer-test candidates. It verifies the selected-loader suite receipt, exact
+receipt-owned manifest sidecar/files and loaded runtime paths, then exchanges
+runtime framework/API/companion identities. PVE binds the host-confirmed enemy
+count and requires exact content, scene-generation, injected-owner, owner-local
+player-placement, and server-authored AI-population receipts before gameplay
+commit. The player receipt also requires one enabled native SmoothSync,
+the exact network animator and Health on the same Mirror identity, plus at
+least one locally owned network weapon. Each AI receipt requires BrainAI,
+team, Health, WeaponsAI, NetworkAnimatorSyncNPC, and both enabled native
+SmoothSync components on its server-authored identity. No framework hook
+replaces transform replication, bullet commands, damage, or death. Evidence
+is correlated with a process-run ID and monotonic event sequence. PVP uses the
+shipped native `PvpGameode`, mode-isolated 6+6 markers for a declared
+12-player operation, and zero PVE AI. BepInEx and MelonLoader adapters are
+both compiled and pinned; an installation may activate only one. The modded-PVE
+briefing uses the shipped enemy slider, captures the host's inclusive package
+selection on Confirm, retains it across Restart, and enforces the absolute
+100-enemy ceiling plus loaded-scene navigation-valid, pairwise-2-metre marker
+capacity before the one native raid population call. Inactive utility markers
+remain eligible; active count is telemetry only.
+
+Offline managed, source, loader-boundary, installer, and fail-closed evidence
+checks pass for this checkpoint. The Python suite passes `106/106`, the
+scene-variant selector `16/16`, the native game-mode/policy/runtime-barrier
+projects pass, and both loader builds complete with zero warnings and errors.
+No game deployment occurred. Live BepInEx regression, MelonLoader
+lifecycle, 100-AI performance/teardown, and real separate host/remote behavior
+remain open, so this checkpoint is `PROVEN-STATIC`, not `SUPPORTED`. Real PVP
+and PVE acceptance each requires two distinct processes starting together,
+both leaving loading and grounding, mode-specific combat/AI completion,
+Restart on both peers, failure/return cleanup, and bounded late-join refusal.
+
+Frozen runtime identities:
+
+```text
+OperatorModdedOperations.dll              640000  E77412F83C418EDDC5422F702382BEB75AFB6459430CD7B64B8EB0594549EBA8
+OperatorModdedOperations.MelonLoader.dll  641536  2A6694E798A3AF2C3CF1565F50BF20556E83A48FD60CF7ED0EFBE754F3572903
+OperatorModAPI.dll                        204800  5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
+OperatorModAPI.BepInEx.dll                 15872  6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
+OperatorModAPI.MelonLoader.dll             24576  1CC745AB57A18848F15A47C80FCE5399C4006FE3ADE2C94B449792CFBABFF7FA
+```
+
+The immediately preceding `0.3.30` BepInEx runtime log proved one solo-PVE
+LOT 12 mission could complete and return to the exact Operation Room while the
+framework retained `NativeTransitionStarted`. Every later Whiteout Pass,
+Ukrainian Forest, and LOT 12 Confirm was then refused by the committed-native-
+teardown guard even though each requested bundle loaded and hash-verified.
+The `0.3.30` transition-lifecycle hotfix build corrects that state transition and adds source regressions, but the
+new hashes still require a live same-process LOT 12 completion -> Whiteout ->
+Forest acceptance run before runtime promotion.
+
+## Historical source candidate: 0.3.29
 
 The authored plugin identity is Modded Operations `0.3.29`; it requires the
 bundled-only Operator Mod API `0.2.0-alpha.6` preview. Its standalone PVP path
@@ -415,7 +470,9 @@ placement and completion behavior.
   return lifecycle.
 - Deliberate PVP mismatch and membership-change live tests must fail closed.
   Late join is not a supported target for this protocol.
-- Online PVE package/scene identity, AI placement, movement, projectile, and
-  damage equivalence. This is separate because PVE bypasses PVP agreement.
+- Online PVE package/scene identity, grounded owner-local placement, identical
+  server-authored AI population, movement, projectile, damage, extraction, and
+  restart equivalence. Protocol v6 now gates these phases statically, but only a
+  paired two-PC BepInEx run can establish their live behavior.
 - A separate type-specific live probe for the generic verified dependency-
   asset borrower API. Ukrainian Forest does not depend on that open path.

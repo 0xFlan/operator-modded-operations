@@ -13,6 +13,7 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Michsky.DreamOS;
 using Mirror;
 using OperatorModAPI;
+using OperatorModdedOperations;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -23,12 +24,12 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.29")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.30")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed partial class CerberusNativeTabFix : BasePlugin
 {
-    internal const string RequiredApiVersion = "0.2.0-alpha.6";
+    internal const string RequiredApiVersion = "0.2.0-alpha.7";
     // These IDs identify the two runtime templates that every peer builds from
     // the same accepted package operation. They are collision-checked against
     // Mirror's current client registry before use.
@@ -38,6 +39,15 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     // Installed level16 RaidManager serialized value. GameManagerNetwork uses
     // this value for its shipped server-side extraction countdown.
     private const float StandalonePveExtractionSeconds = 15f;
+    // RaidManager.GetValidSpawnPoint consumes a candidate before its native
+    // CanSpawn(position, 1f) check. Feed that method only a deterministic
+    // pairwise-spaced set so a valid candidate cannot be discarded merely
+    // because an earlier native spawn occupied a neighboring marker.
+    private const float StandalonePveMinimumSpawnSeparationMeters = 2f;
+    private const float StandaloneGroundProbeOriginMeters = 0.50f;
+    private const float StandaloneGroundProbeMaximumDistanceMeters = 1.00f;
+    private const float StandaloneGroundMaximumGapMeters = 0.25f;
+    private const float StandaloneGroundMinimumNormalY = 0.50f;
     // RaidManager.ServerSpawnAI completes its Mirror spawn loop synchronously,
     // but each native BrainAI joins GameManager.allAI from its deferred Start.
     // The per-Update pending-state seam therefore observes native startup from
@@ -47,6 +57,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     {
         0f, 10f, 30f, 60f, 90f, 120f
     };
+    // Evidence correlation is process-local and observation-only. A random
+    // run identity prevents logs from two launches being combined, while the
+    // monotonic sequence proves callback/message order without comparing wall
+    // clocks across different PCs or regions.
+    private static readonly string FrameworkEvidenceProcessRunId =
+        Guid.NewGuid().ToString("N");
+    private static long frameworkEvidenceEventSequence;
     private static CerberusNativeTabFix instance;
     private ManualLogSource log;
     private FixRunner runner;
@@ -109,6 +126,9 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public TMP_Text SituationReport;
         public ModdedOperationDefinition SelectedOperation;
         public string SelectedTimeCode;
+        public int SelectedPveEnemyCount;
+        public bool EnemyCountControlReady;
+        public string EnemyCountControlError;
     }
 
     private sealed class LoadedMapBundles
@@ -126,6 +146,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public ModdedMapDefinition Map;
         public ModdedOperationDefinition Operation;
         public string TimeCode;
+        public int PveEnemyCount;
         public MissionLaptop LaunchLaptop;
         public PlayerNetworking LaunchPlayer;
         public SceneVariantSelection SceneSelection;
@@ -156,17 +177,46 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public SceneVariantSelection SceneSelection;
         public int SceneHandle;
         public bool NativeLaunchInvoked;
+        public bool NativeTransitionStarted;
         public bool BootstrapCreated;
         public GameObject BootstrapRoot;
         public NetworkIdentity BootstrapIdentity;
+        public uint BootstrapSpawnedNetId;
         public GameObject BootstrapPrefabRoot;
         public NetworkIdentity BootstrapPrefabIdentity;
         public uint BootstrapAssetId;
         public bool BootstrapPrefabRegistered;
+        public SpawnHandlerDelegate PeerGameModeSpawnHandler;
+        public SpawnDelegate PeerGameModeLegacySpawnHandler;
+        public UnSpawnDelegate PeerGameModeUnspawnHandler;
+        public Func<Vector3, uint, GameObject> PeerGameModeManagedSpawnHandler;
+        public Action<GameObject> PeerGameModeManagedUnspawnHandler;
+        public bool PeerGameModeHandlerRegistered;
+        public readonly Dictionary<int, OwnedPeerGameModeClone> PeerGameModeClones =
+            new Dictionary<int, OwnedPeerGameModeClone>();
         public global::GameMode GameModeComponent;
         public bool NetworkSpawnRequested;
         public bool NetworkSpawnFailed;
+        public bool PeerAgreementRequired;
+        public bool GameplayBeginCommitted;
+        public string PeerAgreementIdentityDigest;
+        public string PeerAgreementRole;
+        public ulong PeerAgreementLastResetTargetGeneration;
+        public PeerSceneContractSnapshot FrozenSceneContract;
+        public string FrozenSceneContractDigest;
+        public ulong FrozenSceneContractEpoch;
+        public readonly List<Transform> FrozenPveEnemyMarkers = new();
+        public readonly List<Transform> FrozenPveAuthoredEnemyMarkers = new();
+        public bool PeerSceneUnloadDispositionPending;
+        public bool PeerSceneDispositionFailureLogged;
+        public int PeerUnloadedSceneHandle;
+        public long PeerSceneDispositionDeadlineTimestamp;
         public bool PvpAbortReturnRequested;
+        public bool PvpAbortReturnAccepted;
+        public bool PvpAbortReturnConfirmed;
+        public int PvpAbortReturnAttemptCount;
+        public long PvpAbortReturnNextRetryTimestamp;
+        public long PvpAbortReturnDeadlineTimestamp;
         // ClassInjector constructs injected NetworkBehaviour subtypes through
         // their IntPtr wrapper constructor. That route does not invoke
         // Mirror.NetworkBehaviour's native parameterless constructor, so its
@@ -222,7 +272,18 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public readonly List<VolumeProfile> RuntimeRenderProfiles =
             new List<VolumeProfile>();
         public bool PveSpawnAttempted;
+        public int RequestedPveEnemyCount;
         public int PveEnemyCount;
+        public int PreviousBotAmount;
+        public int PreviousBotHvtAmount;
+        public int OwnedBotAmount;
+        public int OwnedBotHvtAmount;
+        public bool BotCountsCaptured;
+        public bool PveSoloMembershipFrozen;
+        public bool PveSoloLateJoinHandled;
+        public string PveSoloSessionDigest;
+        public NetworkConnectionToClient PveSoloFrozenServerLocalConnection;
+        public NetworkConnection PveSoloFrozenClientLocalConnection;
         public RaidManager PveRaidManager;
         public ExfilZone PveExfilZone;
         public BoxCollider PveExfilCollider;
@@ -247,6 +308,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         // sole ownership boundary for validation, diagnostics, and teardown.
         public readonly Dictionary<uint, NetworkIdentity> PveOwnedServerIdentities =
             new Dictionary<uint, NetworkIdentity>();
+        public readonly Dictionary<uint, Vector3> PveOwnedInitialPositions = new();
+        public readonly Dictionary<uint, float> PveOwnedInitialYaws = new();
+        public readonly Dictionary<uint, Vector3> PeerObservedPveInitialPositions = new();
+        public readonly Dictionary<uint, float> PeerObservedPveInitialYaws = new();
         public readonly HashSet<int> PveOwnedBrainInstanceIds =
             new HashSet<int>();
         // Operation-owned evidence for a schema-v2 PVE AI profile. The
@@ -278,6 +343,202 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public int ProfiledPveReactionTimeSkipped;
         public readonly List<Object> RuntimePveAssets = new List<Object>();
         public readonly List<Object> RuntimePvpAssets = new List<Object>();
+        // Evidence-only generation state. These fields never authorize or
+        // mutate gameplay; they make one-shot lifecycle transitions comparable
+        // across the BepInEx and MelonLoader hosts.
+        public ulong EvidenceSceneGeneration;
+        public int EvidenceLastSceneHandle;
+        public bool EvidenceTeardownLogged;
+        public bool EvidencePveAllEnemiesDeadLogged;
+        public bool EvidencePveExtractionUnlockedLogged;
+        public bool EvidencePveExtractionTimerLogged;
+        public bool EvidencePveSuccessfulOperationLogged;
+    }
+
+    private static void LogFrameworkEvidence(
+        string eventName,
+        ActiveMapOperation operation,
+        string payload = null)
+    {
+        int sceneHandle = operation?.SceneHandle ?? 0;
+        if (sceneHandle == 0)
+            sceneHandle = operation?.EvidenceLastSceneHandle ?? 0;
+        LogFrameworkEvidence(
+            eventName,
+            operation?.Operation?.Id,
+            operation?.Map?.Id,
+            sceneHandle,
+            operation?.EvidenceSceneGeneration ?? 0,
+            payload);
+    }
+
+    private static void LogFrameworkEvidence(
+        string eventName,
+        string operationId,
+        string mapId,
+        int sceneHandle,
+        ulong sceneGeneration,
+        string payload = null)
+    {
+        try
+        {
+            ManualLogSource logger = instance?.log;
+            if (logger == null)
+                return;
+            long eventSequence = System.Threading.Interlocked.Increment(
+                ref frameworkEvidenceEventSequence);
+            string correlatedPayload =
+                "processRunId=" + FrameworkEvidence.Encode(
+                    FrameworkEvidenceProcessRunId) +
+                "|eventSequence=" + eventSequence.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+            if (!string.IsNullOrWhiteSpace(payload))
+                correlatedPayload += "|" + payload.TrimStart('|');
+            FrameworkEvidence.TryWrite(
+                message => logger.LogInfo(message),
+                eventName,
+                OperatorApi.LoaderKind,
+                operationId,
+                mapId,
+                sceneHandle,
+                sceneGeneration,
+                correlatedPayload);
+        }
+        catch
+        {
+            // Evidence is strictly best effort. It must never change a launch,
+            // gameplay, teardown, transport, or loader-unload outcome.
+        }
+    }
+
+    private static void ResetFrameworkEvidenceGenerationState(
+        ActiveMapOperation operation)
+    {
+        if (operation == null)
+            return;
+        operation.EvidenceTeardownLogged = false;
+        operation.EvidencePveAllEnemiesDeadLogged = false;
+        operation.EvidencePveExtractionUnlockedLogged = false;
+        operation.EvidencePveExtractionTimerLogged = false;
+        operation.EvidencePveSuccessfulOperationLogged = false;
+    }
+
+    private sealed class StandaloneTeardownEvidenceSnapshot
+    {
+        public string Phase;
+        public int ActiveEnemies;
+        public int OwnedAiRoots;
+        public bool TeamValidated;
+        public bool NetworkSpawnRequested;
+        public bool CanExtract;
+        public bool IsExtracting;
+        public bool SuccessfulOperation;
+    }
+
+    private static StandaloneTeardownEvidenceSnapshot
+        CaptureStandaloneTeardownEvidence(ActiveMapOperation operation)
+    {
+        var snapshot = new StandaloneTeardownEvidenceSnapshot
+        {
+            Phase = operation?.ScenePreparationComplete == true
+                ? "ready"
+                : operation?.BootstrapCreated == true
+                    ? "bootstrap"
+                    : operation?.ScenePreparationStarted == true
+                        ? "preparing"
+                        : "loaded",
+            ActiveEnemies = operation?.PveEnemyCount ?? 0,
+            OwnedAiRoots = operation?.PveOwnedServerIdentities.Count ?? 0,
+            TeamValidated = operation?.PveTeamContractValidated == true,
+            NetworkSpawnRequested = operation?.NetworkSpawnRequested == true
+        };
+        try
+        {
+            GameManagerNetwork network = GameManagerNetwork.instance;
+            snapshot.SuccessfulOperation = network?.SuccessfulOperation == true;
+            snapshot.CanExtract = network?.NetworkcanExtract == true;
+            snapshot.IsExtracting = network?.NetworkisExtracting == true;
+        }
+        catch { }
+        return snapshot;
+    }
+
+    private static void LogStandaloneTeardownSummary(
+        ActiveMapOperation operation,
+        StandaloneTeardownEvidenceSnapshot snapshot,
+        bool cleanupCompleted)
+    {
+        if (operation == null || operation.EvidenceSceneGeneration == 0 ||
+            operation.EvidenceTeardownLogged)
+        {
+            return;
+        }
+        // Latch before formatting or logging so even a broken evidence sink
+        // cannot create repeat attempts on later teardown paths.
+        operation.EvidenceTeardownLogged = true;
+        try
+        {
+            snapshot ??= CaptureStandaloneTeardownEvidence(operation);
+            int runtimeAssetsRemaining = operation.RuntimePveAssets.Count +
+                operation.RuntimePvpAssets.Count;
+            bool bootstrapRemaining = operation.BootstrapRoot != null ||
+                operation.BootstrapPrefabRoot != null ||
+                operation.GameModeComponent != null;
+            string mode = operation.Operation?.Mode ==
+                ModdedOperationMode.PlayerVersusEnvironment ? "pve" : "pvp";
+            LogFrameworkEvidence(
+                "scene-teardown-summary",
+                operation,
+                "mode=" + mode +
+                "|phase=" + snapshot.Phase +
+                "|outcome=" + (cleanupCompleted ? "completed" : "exception") +
+                "|requestedEnemies=" + FrameworkEvidence.Number(
+                    operation.RequestedPveEnemyCount) +
+                "|activeEnemiesBefore=" + FrameworkEvidence.Number(
+                    snapshot.ActiveEnemies) +
+                "|ownedAiRootsBefore=" + FrameworkEvidence.Number(
+                    snapshot.OwnedAiRoots) +
+                "|ownedAiRootsAfter=" + FrameworkEvidence.Number(
+                    operation.PveOwnedServerIdentities.Count) +
+                "|teamValidatedBefore=" +
+                    snapshot.TeamValidated.ToString().ToLowerInvariant() +
+                "|networkSpawnRequestedBefore=" +
+                    snapshot.NetworkSpawnRequested.ToString().ToLowerInvariant() +
+                "|bootstrapRemaining=" +
+                    bootstrapRemaining.ToString().ToLowerInvariant() +
+                "|runtimeAssetsRemaining=" + FrameworkEvidence.Number(
+                    runtimeAssetsRemaining) +
+                "|canExtractBefore=" +
+                    snapshot.CanExtract.ToString().ToLowerInvariant() +
+                "|isExtractingBefore=" +
+                    snapshot.IsExtracting.ToString().ToLowerInvariant() +
+                "|successfulOperationBefore=" +
+                    snapshot.SuccessfulOperation.ToString().ToLowerInvariant());
+            if (operation.PeerAgreementRequired && mode == "pve")
+            {
+                bool zeroResidual = cleanupCompleted &&
+                    operation.PveOwnedServerIdentities.Count == 0 &&
+                    !bootstrapRemaining && runtimeAssetsRemaining == 0;
+                LogFrameworkEvidence(
+                    "pve-peer-teardown",
+                    operation,
+                    "role=" + FrameworkEvidence.Encode(
+                        operation.PeerAgreementRole) +
+                    "|identityDigest=" + FrameworkEvidence.Encode(
+                        operation.PeerAgreementIdentityDigest) +
+                    "|outcome=" + (zeroResidual
+                        ? "zero-residual"
+                        : "residual-or-exception") +
+                    "|zeroResidual=" + zeroResidual.ToString().ToLowerInvariant() +
+                    "|ownedAiRootsAfter=" + FrameworkEvidence.Number(
+                        operation.PveOwnedServerIdentities.Count) +
+                    "|bootstrapRemaining=" +
+                        bootstrapRemaining.ToString().ToLowerInvariant() +
+                    "|runtimeAssetsRemaining=" + FrameworkEvidence.Number(
+                        runtimeAssetsRemaining));
+            }
+        }
+        catch { }
     }
 
     private sealed class OwnedBootstrapSyncObjects
@@ -286,8 +547,29 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public Il2CppSystem.Collections.Generic.List<SyncObject> Value;
     }
 
+    private sealed class OwnedPeerGameModeClone
+    {
+        public GameObject Root;
+        public NetworkIdentity Identity;
+        public readonly List<OwnedBootstrapSyncObjects> SyncObjects =
+            new List<OwnedBootstrapSyncObjects>();
+    }
+
     public override void Load()
     {
+        string requiredLoader =
+#if MELONLOADER
+            "melonloader";
+#else
+            "bepinex";
+#endif
+        if (!string.Equals(OperatorApi.LoaderKind, requiredLoader, StringComparison.Ordinal))
+        {
+            Log.LogError("Modded Operations refused the duplicate or missing loader host; Core owner=" +
+                OperatorApi.LoaderKind + ", required=" + requiredLoader + ".");
+            return;
+        }
+
         if (!string.Equals(
                 OperatorApi.ApiVersion,
                 RequiredApiVersion,
@@ -312,9 +594,24 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         }
         instance = this;
         log = Log;
-        ClassInjector.RegisterTypeInIl2Cpp<FixRunner>();
-        ClassInjector.RegisterTypeInIl2Cpp<StandalonePvpGameMode>();
-        ClassInjector.RegisterTypeInIl2Cpp<StandalonePveGameMode>();
+        RuntimeTypeRegistrationResult fixRunnerRegistration =
+            OperatorApi.RegisterIl2CppType(typeof(FixRunner));
+        RuntimeTypeRegistrationResult pvpModeRegistration =
+            OperatorApi.RegisterIl2CppType(typeof(StandalonePvpGameMode));
+        RuntimeTypeRegistrationResult pveModeRegistration =
+            OperatorApi.RegisterIl2CppType(typeof(StandalonePveGameMode));
+        if (fixRunnerRegistration is not RuntimeTypeRegistrationResult.Registered and
+                not RuntimeTypeRegistrationResult.AlreadyRegistered ||
+            pvpModeRegistration is not RuntimeTypeRegistrationResult.Registered and
+                not RuntimeTypeRegistrationResult.AlreadyRegistered ||
+            pveModeRegistration is not RuntimeTypeRegistrationResult.Registered and
+                not RuntimeTypeRegistrationResult.AlreadyRegistered)
+        {
+            throw new InvalidOperationException(
+                "Modded Operations IL2CPP registration failed: runner=" +
+                fixRunnerRegistration + ", pvp=" + pvpModeRegistration +
+                ", pve=" + pveModeRegistration + ".");
+        }
         var runnerObject = new GameObject("Operator_Cerberus_Native_Tab_Fix_Runner");
         Object.DontDestroyOnLoad(runnerObject);
         runner = runnerObject.AddComponent<FixRunner>();
@@ -540,23 +837,36 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     {
         try
         {
-            ActiveMapOperation pvpUnloadOperation =
-                activeOperation?.Operation?.Mode ==
-                    ModdedOperationMode.PlayerVersusPlayer &&
-                (activeOperation.SceneHandle != 0 ||
-                 activeOperation.NativeLaunchInvoked ||
-                 remotePvpAgreement?.ContentCommitted == true ||
-                 hostPvpAgreement?.NativeLaunchInvoked == true)
-                    ? activeOperation
-                    : null;
-            ReleasePvpPeerAgreementTransport("plugin unload");
-            if (pvpUnloadOperation != null &&
-                !pvpUnloadOperation.PvpAbortReturnRequested)
+            ActiveMapOperation unloadOperation = activeOperation;
+            bool nativeOwnerLive = unloadOperation != null &&
+                (unloadOperation.NativeTransitionStarted ||
+                 unloadOperation.SceneHandle != 0 ||
+                 unloadOperation.NetworkSpawnRequested ||
+                 unloadOperation.GameModeComponent != null ||
+                 hostPvpAgreement?.NativeTransitionCommitted == true ||
+                 remotePvpAgreement?.NativeTransitionCommittedEpoch > 0);
+            if (nativeOwnerLive)
             {
-                // Enter the shipped return while its native mode/singletons are
-                // still intact. Local object teardown follows only after the
-                // synchronous native return request has been issued.
-                RequestNativePvpAbortReturn(pvpUnloadOperation);
+                unloadOperation.NetworkSpawnFailed = true;
+                RequestNativePvpAbortReturn(unloadOperation);
+                LogFrameworkEvidence(
+                    "framework-unload-deferred",
+                    unloadOperation,
+                    "reason=native-owner-live|abortAccepted=" +
+                        unloadOperation.PvpAbortReturnAccepted
+                            .ToString().ToLowerInvariant());
+                log.LogError("Modded Operations unload was deferred until the " +
+                    "active PVP/PVE native owner completes its verified return.");
+                return false;
+            }
+            ReleasePvpPeerAgreementTransport("plugin unload");
+            if (pvpClientHandlerRegistered || pvpServerHandlerRegistered ||
+                pvpClientHandler != null || pvpServerHandler != null ||
+                !string.IsNullOrEmpty(pvpAgreementTransportFailure))
+            {
+                log.LogError("Modded Operations unload was deferred because " +
+                    "peer transport delegate release was not verified.");
+                return false;
             }
             if (sceneLoadedCallback != null)
                 SceneManager.sceneLoaded -= sceneLoadedCallback;
@@ -614,6 +924,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             if (runner != null)
                 Object.Destroy(runner.gameObject);
             runner = null;
+            LogFrameworkEvidence(
+                "framework-unload-success",
+                operationId: null,
+                mapId: null,
+                sceneHandle: 0,
+                sceneGeneration: 0,
+                payload: "activeOperation=none|pendingLaunch=none|bundleCache=0|runner=destroyed");
             instance = null;
             return true;
         }
@@ -803,13 +1120,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                     }
                     else
                     {
-                    // DreamOS/localization refreshes cloned controls when the
-                    // laptop is reopened. Reassert the independent tab title on
-                    // the existing shipped control during the normal one-second
-                    // maintenance tick so it can never fall back to the source
-                    // ACTIVE OPERATIONS text.
-                    SetButtonText(existingNativeTab, "MODDED OPERATIONS");
-                    continue;
+                        // DreamOS/localization refreshes cloned controls when the
+                        // laptop is reopened. Reassert the independent tab title on
+                        // the existing shipped control during the normal one-second
+                        // maintenance tick so it can never fall back to the source
+                        // ACTIVE OPERATIONS text.
+                        SetButtonText(existingNativeTab, "MODDED OPERATIONS");
+                        continue;
                     }
                 }
                 attachedLaptops.Remove(id);
@@ -1298,11 +1615,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             Canvas.ForceUpdateCanvases();
             log.LogInfo("Modded Operations framework attached with an empty catalog; " +
                 "install one or more valid data-only map packages under " +
-                "BepInEx\\OperatorMods.");
+                "OPERATOR\\OperatorMods.");
             return true;
         }
         presentation.SelectedOperation = OperatorApi.ModdedOperations.Operations[0];
         presentation.SelectedTimeCode = presentation.SelectedOperation.DefaultTimeCode;
+        presentation.SelectedPveEnemyCount = GetDefaultPveEnemyCount(
+            presentation.SelectedOperation);
         var briefingShell = CreateCatalogOperationBoardShell(
             laptop,
             presentation);
@@ -1384,7 +1703,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             if (briefing.transform.parent != null)
                 DisableLocalizationComponent(briefing.transform.parent.gameObject);
             briefing.text = "NO MODDED OPERATIONS INSTALLED\n\n" +
-                "Install a valid map package in BepInEx\\OperatorMods, then restart OPERATOR.";
+                "Install a valid map package in OPERATOR\\OperatorMods, then restart OPERATOR.";
             briefing.enableWordWrapping = true;
         }
         foreach (var selectionUi in shell.GetComponentsInChildren<OperationSelectionUI>(true))
@@ -1496,6 +1815,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             return;
         presentation.SelectedOperation = operation;
         presentation.SelectedTimeCode = operation.DefaultTimeCode;
+        presentation.SelectedPveEnemyCount = GetDefaultPveEnemyCount(operation);
         if (presentation.HomeBriefing != null)
             presentation.HomeBriefing.text = FormatCatalogBriefing(operation);
         UpdateCatalogOperationBoard(presentation);
@@ -1972,10 +2292,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         data.TARGETPACKAGE = targets;
         data.AvailableInfils = available;
         data.MinAI = operation.Mode == ModdedOperationMode.PlayerVersusEnvironment
-            ? 8
+            ? presentation.SelectedPveEnemyCount
             : 0;
         data.MaxAI = operation.Mode == ModdedOperationMode.PlayerVersusEnvironment
-            ? 16
+            ? presentation.SelectedPveEnemyCount
             : 0;
         data.MapPrefab = presentation.NativeInfiltrationMapPrefab;
         data.isLocked = false;
@@ -2001,8 +2321,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             confirmation.useLocalization = false;
             confirmation.useCustomContent = true;
             confirmation.titleText = "Start Operation";
-            confirmation.descriptionText = "Start " + operation.DisplayName +
-                " at " + presentation.SelectedTimeCode + "?";
+            confirmation.descriptionText = FormatLaunchConfirmationDescription(
+                operation,
+                presentation.SelectedTimeCode,
+                presentation.SelectedPveEnemyCount);
             if (confirmation.windowTitle != null)
                 confirmation.windowTitle.text = confirmation.titleText;
             if (confirmation.windowDescription != null)
@@ -2022,14 +2344,132 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 data.INFILTRATION_TIME = presentation.SelectedTimeCode;
                 if (confirmation != null)
                 {
-                    confirmation.descriptionText = "Start " + operation.DisplayName +
-                        " at " + presentation.SelectedTimeCode + "?";
+                    confirmation.descriptionText = FormatLaunchConfirmationDescription(
+                        operation,
+                        presentation.SelectedTimeCode,
+                        presentation.SelectedPveEnemyCount);
                     if (confirmation.windowDescription != null)
                         confirmation.windowDescription.text = confirmation.descriptionText;
                     try { confirmation.UpdateUI(); } catch { }
                 }
             },
             selectedIndex);
+
+        bool isPve = operation.Mode ==
+            ModdedOperationMode.PlayerVersusEnvironment;
+        presentation.EnemyCountControlReady = false;
+        presentation.EnemyCountControlError = string.Empty;
+        bool enemyCountHierarchyReady = SetPrivateEnemyCountHierarchyActive(
+            presentation.Board,
+            isPve);
+        if (isPve)
+        {
+            int minimum = operation.MinimumEnemies;
+            int maximum = PveEnemyCountSelection.GetBriefingMaximum(
+                minimum,
+                operation.MaximumEnemies);
+            presentation.SelectedPveEnemyCount =
+                PveEnemyCountSelection.NormalizeBriefingSelection(
+                    presentation.SelectedPveEnemyCount,
+                    minimum,
+                    maximum);
+            data.MinAI = presentation.SelectedPveEnemyCount;
+            data.MaxAI = presentation.SelectedPveEnemyCount;
+            bool configured = enemyCountHierarchyReady && ConfigureNativeEnemyCountSlider(
+                presentation.Board.EnemyCountSlider,
+                minimum,
+                maximum,
+                presentation.SelectedPveEnemyCount,
+                count =>
+                {
+                    presentation.SelectedPveEnemyCount = count;
+                    data.MinAI = count;
+                    data.MaxAI = count;
+                    if (confirmation != null)
+                    {
+                        confirmation.descriptionText =
+                            FormatLaunchConfirmationDescription(
+                                operation,
+                                presentation.SelectedTimeCode,
+                                presentation.SelectedPveEnemyCount);
+                        if (confirmation.windowDescription != null)
+                        {
+                            confirmation.windowDescription.text =
+                                confirmation.descriptionText;
+                        }
+                        try { confirmation.UpdateUI(); } catch { }
+                    }
+                });
+            string controlError = string.Empty;
+            bool controlValidated = configured &&
+                TryValidateNativeEnemyCountControl(
+                    presentation,
+                    operation,
+                    requireVisibleInHierarchy: false,
+                    out _,
+                    out controlError);
+            if (!controlValidated)
+            {
+                presentation.EnemyCountControlError = configured
+                    ? controlError
+                    : "native EnemyCountSlider is absent or could not be configured";
+                log.LogError("Modded PVE briefing refused an unverified enemy-count " +
+                    "control: operation=" + operation.Id + ", reason=" +
+                    presentation.EnemyCountControlError + ".");
+            }
+            else
+            {
+                presentation.EnemyCountControlReady = true;
+            }
+        }
+        else
+        {
+            presentation.SelectedPveEnemyCount = 0;
+            data.MinAI = 0;
+            data.MaxAI = 0;
+            if (TryValidateNativeEnemyCountControl(
+                    presentation,
+                    operation,
+                    requireVisibleInHierarchy: false,
+                    out _,
+                    out string controlError))
+            {
+                presentation.EnemyCountControlReady = true;
+            }
+            else
+            {
+                presentation.EnemyCountControlError = controlError;
+                log.LogError("Modded PVP briefing refused a visible enemy-count " +
+                    "control: operation=" + operation.Id + ", reason=" +
+                    controlError + ".");
+            }
+        }
+        SetActiveSafe(
+            presentation.Board.ExecuteOperationButton,
+            presentation.EnemyCountControlReady);
+    }
+
+    private static int GetDefaultPveEnemyCount(
+        ModdedOperationDefinition operation)
+    {
+        return operation != null && operation.Mode ==
+            ModdedOperationMode.PlayerVersusEnvironment
+                ? PveEnemyCountSelection.GetDefault(
+                    operation.MinimumEnemies,
+                    operation.MaximumEnemies)
+                : 0;
+    }
+
+    private static string FormatLaunchConfirmationDescription(
+        ModdedOperationDefinition operation,
+        string timeCode,
+        int pveEnemyCount)
+    {
+        string description = "Start " + operation.DisplayName +
+            " at " + timeCode;
+        if (operation.Mode == ModdedOperationMode.PlayerVersusEnvironment)
+            description += " with " + pveEnemyCount + " enemies";
+        return description + "?";
     }
 
     private Sprite GetOrLoadPreviewSprite(ModdedMapDefinition map)
@@ -2281,20 +2721,44 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         ModdedMapDefinition map,
         string scenePath)
     {
-        if (map == null || string.IsNullOrWhiteSpace(scenePath))
+        if (map == null || !IsCanonicalPackageScenePath(scenePath))
             return false;
         if (!HasDeclaredSceneVariants(map))
         {
             return string.Equals(
                 scenePath,
                 map.ScenePath,
-                StringComparison.OrdinalIgnoreCase);
+                StringComparison.Ordinal);
         }
         return map.SceneVariants.Any(variant => variant != null &&
             string.Equals(
                 variant.ScenePath,
                 scenePath,
-                StringComparison.OrdinalIgnoreCase));
+                StringComparison.Ordinal));
+    }
+
+    private static bool IsCanonicalPackageScenePath(string scenePath)
+    {
+        if (string.IsNullOrWhiteSpace(scenePath) ||
+            !scenePath.StartsWith("Assets/", StringComparison.Ordinal) ||
+            !scenePath.EndsWith(".unity", StringComparison.Ordinal) ||
+            scenePath.IndexOf('\\') >= 0)
+        {
+            return false;
+        }
+        string[] segments = scenePath.Split('/');
+        if (segments.Length < 3)
+            return false;
+        foreach (string segment in segments)
+        {
+            if (string.IsNullOrEmpty(segment) ||
+                string.Equals(segment, ".", StringComparison.Ordinal) ||
+                string.Equals(segment, "..", StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static bool SelectionBelongsToMap(
@@ -2311,14 +2775,14 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             return string.Equals(
                 selection.ScenePath,
                 map.ScenePath,
-                StringComparison.OrdinalIgnoreCase);
+                StringComparison.Ordinal);
         }
         return map.SceneVariants.Any(variant => variant != null &&
             string.Equals(variant.Id, selection.Id, StringComparison.Ordinal) &&
             string.Equals(
                 variant.ScenePath,
                 selection.ScenePath,
-                StringComparison.OrdinalIgnoreCase));
+                StringComparison.Ordinal));
     }
 
     private void BeginCatalogOperationLaunch(CatalogPresentation presentation)
@@ -2344,13 +2808,52 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             return;
         }
 
+        bool isPve = operation.Mode ==
+            ModdedOperationMode.PlayerVersusEnvironment;
+        string controlError = string.Empty;
+        int capturedPveEnemyCount = 0;
+        bool controlValidated = presentation.EnemyCountControlReady &&
+            TryValidateNativeEnemyCountControl(
+                presentation,
+                operation,
+                requireVisibleInHierarchy: isPve,
+                out capturedPveEnemyCount,
+                out controlError);
+        if (!controlValidated)
+        {
+            log.LogError("Modded Operations launch rejected because the native " +
+                "briefing enemy-count control is not closed: operation=" +
+                operation.Id + ", reason=" +
+                (string.IsNullOrEmpty(controlError)
+                    ? presentation.EnemyCountControlError
+                    : controlError) + ".");
+            return;
+        }
+        if (isPve)
+        {
+            if (!PveEnemyCountSelection.TryValidateConfirmedSelection(
+                    capturedPveEnemyCount,
+                    operation.MinimumEnemies,
+                    operation.MaximumEnemies,
+                    operation.MaximumEnemies,
+                    out string selectionError))
+            {
+                log.LogError("Modded Operations launch rejected because the " +
+                    "briefing enemy selection is invalid: operation=" +
+                    operation.Id + ", selected=" + capturedPveEnemyCount +
+                    ", reason=" + selectionError + ".");
+                return;
+            }
+        }
+
         TrimCompletedMapBundleCacheAtSafeBoundary(
             map.Id,
             "catalog Confirm ownership");
 
         log.LogInfo("Modded Operations launch request captured: operation=" +
             operation.Id + ", laptopId=" + presentation.Laptop.GetInstanceID() +
-            ", time=" + presentation.SelectedTimeCode + ".");
+            ", time=" + presentation.SelectedTimeCode +
+            ", pveEnemyCount=" + capturedPveEnemyCount + ".");
 
         // A retail operation starts in the same frame as Confirm. A package can
         // first require asynchronous bundle I/O, so preserve the exact
@@ -2364,6 +2867,30 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             log.LogError("Modded Operations launch rejected before package loading " +
                 "because no player-owned mission laptop was available.");
             return;
+        }
+        // A scene variant is a committed, durable shuffle-bag choice. Refuse
+        // a fresh Confirm before touching that state while any prior package
+        // scene/transition still owns native teardown. The later launch path
+        // repeats the ownership check before native start to close the async
+        // bundle-loading race.
+        if (!CanCommitFreshCatalogLaunchSelection())
+            return;
+        if (operation.Mode == ModdedOperationMode.PlayerVersusEnvironment)
+        {
+            LogFrameworkEvidence(
+                "pve-count-pending",
+                operation.Id,
+                map.Id,
+                sceneHandle: 0,
+                sceneGeneration: 0,
+                payload: "selected=" + FrameworkEvidence.Number(
+                        capturedPveEnemyCount) +
+                    "|minimum=" + FrameworkEvidence.Number(
+                        operation.MinimumEnemies) +
+                    "|maximum=" + FrameworkEvidence.Number(
+                        operation.MaximumEnemies) +
+                    "|time=" + FrameworkEvidence.Encode(
+                        presentation.SelectedTimeCode));
         }
         SetNativeConfirmationLoadingState(presentation, true);
         if (loadedMapBundles.TryGetValue(map.Id, out var loaded) &&
@@ -2385,7 +2912,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 presentation.SelectedTimeCode,
                 launchLaptop,
                 launchPlayer,
-                selection);
+                selection,
+                capturedPveEnemyCount);
             return;
         }
 
@@ -2404,11 +2932,44 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 return;
             }
 
+            if (pendingLaunch.LaunchRequested)
+            {
+                bool exactDuplicate =
+                    ReferenceEquals(pendingLaunch.Presentation, presentation) &&
+                    ReferenceEquals(pendingLaunch.Operation, operation) &&
+                    string.Equals(
+                        pendingLaunch.TimeCode,
+                        presentation.SelectedTimeCode,
+                        StringComparison.Ordinal) &&
+                    pendingLaunch.PveEnemyCount == capturedPveEnemyCount &&
+                    pendingLaunch.LaunchLaptop == launchLaptop &&
+                    pendingLaunch.LaunchPlayer == launchPlayer &&
+                    SelectionBelongsToMap(map, pendingLaunch.SceneSelection);
+                if (!exactDuplicate)
+                {
+                    log.LogWarning("Modded Operations refused to mutate an immutable " +
+                        "Confirm while bundle I/O is active: map=" + map.Id + ".");
+                    return;
+                }
+                log.LogInfo("Modded Operations treated an exact duplicate Confirm as " +
+                    "idempotent while its frozen package load remains active: map=" +
+                    map.Id + ".");
+                return;
+            }
+            if (!TrySelectFreshLaunchScene(
+                    map,
+                    out SceneVariantSelection frozenSelection))
+            {
+                SetNativeConfirmationLoadingState(presentation, false);
+                return;
+            }
             pendingLaunch.Presentation = presentation;
             pendingLaunch.Operation = operation;
             pendingLaunch.TimeCode = presentation.SelectedTimeCode;
+            pendingLaunch.PveEnemyCount = capturedPveEnemyCount;
             pendingLaunch.LaunchLaptop = launchLaptop;
             pendingLaunch.LaunchPlayer = launchPlayer;
+            pendingLaunch.SceneSelection = frozenSelection;
             pendingLaunch.LaunchRequested = true;
             pendingLaunch.LaunchRequestedTimestamp =
                 System.Diagnostics.Stopwatch.GetTimestamp();
@@ -2430,6 +2991,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             }
         }
 
+        if (!TrySelectFreshLaunchScene(
+                map,
+                out SceneVariantSelection initialSelection))
+        {
+            SetNativeConfirmationLoadingState(presentation, false);
+            return;
+        }
         var loading = new LoadedMapBundles { Map = map };
         var pending = new PendingMapLaunch
         {
@@ -2437,8 +3005,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             Map = map,
             Operation = operation,
             TimeCode = presentation.SelectedTimeCode,
+            PveEnemyCount = capturedPveEnemyCount,
             LaunchLaptop = launchLaptop,
             LaunchPlayer = launchPlayer,
+            SceneSelection = initialSelection,
             LoadingBundles = loading,
             LaunchRequested = true,
             LoadStartedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp(),
@@ -2513,7 +3083,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                             pending.TimeCode,
                             pending.LaunchLaptop,
                             pending.LaunchPlayer,
-                            pending.SceneSelection);
+                            pending.SceneSelection,
+                            pending.PveEnemyCount);
                     }
                     return;
                 }
@@ -2537,8 +3108,12 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 return;
             }
             long bundleBytes = 0;
-            try { bundleBytes = new FileInfo(
-                pending.BundlePaths[pending.RequestIndex]).Length; } catch { }
+            try
+            {
+                bundleBytes = new FileInfo(
+                    pending.BundlePaths[pending.RequestIndex]).Length;
+            }
+            catch { }
             log.LogInfo("Modded Operations loaded verified bundle " +
                 (pending.RequestIndex + 1) + "/" + pending.BundlePaths.Count +
                 ": file=" + Path.GetFileName(
@@ -2624,20 +3199,24 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 // single-scene map sharing this bundle still bypasses all RNG
                 // and selection-state code when it launches.
                 var declaredScenes = new HashSet<string>(
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.Ordinal);
                 foreach (ModdedMapDefinition candidate in mapsSharingBundle)
                 {
                     if (candidate.SceneVariants != null &&
                         candidate.SceneVariants.Count > 0)
                     {
                         foreach (ModdedSceneVariantDefinition variant in
-                                 candidate.SceneVariants)
+                            candidate.SceneVariants)
                         {
+                            if (!IsCanonicalPackageScenePath(variant.ScenePath))
+                                return false;
                             declaredScenes.Add(variant.ScenePath);
                         }
                     }
                     else
                     {
+                        if (!IsCanonicalPackageScenePath(candidate.ScenePath))
+                            return false;
                         declaredScenes.Add(candidate.ScenePath);
                     }
                 }
@@ -2646,10 +3225,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 if (bundledScenePaths == null)
                     return false;
                 var bundledScenes = new HashSet<string>(
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.Ordinal);
                 foreach (string scenePath in bundledScenePaths)
                 {
-                    if (string.IsNullOrWhiteSpace(scenePath) ||
+                    if (!IsCanonicalPackageScenePath(scenePath) ||
                         !bundledScenes.Add(scenePath))
                     {
                         return false;
@@ -2662,7 +3241,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             // They do not opt into exact variant-set ownership.
             var allowedScenes = new HashSet<string>(
                 mapsSharingBundle.Select(candidate => candidate.ScenePath),
-                StringComparer.OrdinalIgnoreCase);
+                StringComparer.Ordinal);
+            if (allowedScenes.Any(scenePath =>
+                    !IsCanonicalPackageScenePath(scenePath)))
+                return false;
             if (!allowedScenes.Contains(map.ScenePath))
                 return false;
             bool declaredSceneFound = false;
@@ -2673,7 +3255,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 if (string.Equals(
                         scenePath,
                         map.ScenePath,
-                        StringComparison.OrdinalIgnoreCase))
+                        StringComparison.Ordinal))
                 {
                     declaredSceneFound = true;
                 }
@@ -2712,6 +3294,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         MissionLaptop launchLaptop,
         PlayerNetworking launchPlayer,
         SceneVariantSelection sceneSelection,
+        int pveEnemyCount,
         bool pvpPeerAgreementSatisfied = false)
     {
         if (presentation == null || presentation.NativeBoardData == null ||
@@ -2719,10 +3302,21 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         {
             return;
         }
-        if (operation.Mode != ModdedOperationMode.PlayerVersusPlayer)
-            ClearPvpPeerAgreementForNonPvpLaunch();
-        if (!pvpPeerAgreementSatisfied && operation.Mode ==
-                ModdedOperationMode.PlayerVersusPlayer)
+        bool requiresPvePeerAgreement =
+            operation.Mode == ModdedOperationMode.PlayerVersusEnvironment &&
+            ShouldBeginPvePeerAgreement();
+        if (operation.Mode != ModdedOperationMode.PlayerVersusPlayer &&
+            !requiresPvePeerAgreement)
+        {
+            if (!ClearPvpPeerAgreementForNonPvpLaunch())
+            {
+                SetNativeConfirmationLoadingState(presentation, false);
+                return;
+            }
+        }
+        if (!pvpPeerAgreementSatisfied &&
+            (operation.Mode == ModdedOperationMode.PlayerVersusPlayer ||
+             requiresPvePeerAgreement))
         {
             BeginPvpPeerAgreementOrFail(
                 presentation,
@@ -2731,7 +3325,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 timeCode,
                 launchLaptop,
                 launchPlayer,
-                sceneSelection);
+                sceneSelection,
+                pveEnemyCount);
             return;
         }
         try
@@ -2748,14 +3343,58 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 !operation.SupportedTimeCodes.Contains(timeCode, StringComparer.Ordinal))
                 throw new InvalidOperationException(
                     "the requested operation/time pair does not belong to the selected map");
+            if (operation.Mode == ModdedOperationMode.PlayerVersusEnvironment &&
+                !PveEnemyCountSelection.TryValidateConfirmedSelection(
+                    pveEnemyCount,
+                    operation.MinimumEnemies,
+                    operation.MaximumEnemies,
+                    operation.MaximumEnemies,
+                    out string selectionError))
+            {
+                throw new InvalidOperationException(
+                    "the captured PVE enemy selection is invalid: " +
+                    selectionError);
+            }
             activeOperation = new ActiveMapOperation
             {
                 Map = map,
                 Operation = operation,
                 TimeCode = timeCode,
                 SceneSelection = sceneSelection,
+                RequestedPveEnemyCount = pveEnemyCount,
+                PeerAgreementRequired = pvpPeerAgreementSatisfied,
+                PeerAgreementIdentityDigest = pvpPeerAgreementSatisfied
+                    ? hostPvpAgreement?.Identity?.Digest ?? string.Empty
+                    : string.Empty,
+                PeerAgreementRole = pvpPeerAgreementSatisfied
+                    ? "host"
+                    : string.Empty,
+                PveSoloMembershipFrozen = operation.Mode ==
+                    ModdedOperationMode.PlayerVersusEnvironment &&
+                    !pvpPeerAgreementSatisfied,
+                PveSoloSessionDigest = operation.Mode ==
+                    ModdedOperationMode.PlayerVersusEnvironment &&
+                    !pvpPeerAgreementSatisfied
+                    ? CreateSoloPveSessionDigest(
+                        map,
+                        operation,
+                        timeCode,
+                        sceneSelection,
+                        pveEnemyCount)
+                    : string.Empty,
                 SceneHandle = 0
             };
+            if (operation.Mode == ModdedOperationMode.PlayerVersusEnvironment)
+            {
+                LogFrameworkEvidence(
+                    "pve-count-active",
+                    activeOperation,
+                    "selected=" + FrameworkEvidence.Number(pveEnemyCount) +
+                    "|minimum=" + FrameworkEvidence.Number(
+                        operation.MinimumEnemies) +
+                    "|maximum=" + FrameworkEvidence.Number(
+                        operation.MaximumEnemies));
+            }
             TrimCompletedMapBundleCacheAtSafeBoundary(
                 map.Id,
                 "fresh operation ownership transfer");
@@ -2763,7 +3402,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 "operation=" + operation.Id + ", map=" + map.Id +
                 ", content=" + map.PackageContentId + ", scene=" +
                 sceneSelection.ScenePath +
-                ", time=" + timeCode + ".");
+                ", time=" + timeCode +
+                ", pveEnemyCount=" + pveEnemyCount + ".");
             LogNativeLaunchContract(presentation.NativeBoardData);
             InvokeNativeBoardStart(
                 presentation,
@@ -2865,6 +3505,23 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             throw new InvalidOperationException(
                 "active package operation ownership changed before native start");
         }
+        if (activeOperation.PveSoloMembershipFrozen && NetworkServer.active)
+        {
+            EnforceSoloPveMembershipFreeze(activeOperation);
+            if (!TryValidateSoloPveNetworkOwnership(
+                    activeOperation,
+                    out string soloOwnershipError))
+            {
+                throw new InvalidOperationException(
+                    "solo PVE membership changed before native start: " +
+                    soloOwnershipError);
+            }
+        }
+        // This is the last fallible peer preflight. Once the reliable commit is
+        // published, the next owned action is the shipped Start_Operation call;
+        // remote peers may therefore classify a later Cancel as committed.
+        CommitPvpNativeTransition(activeOperation);
+        activeOperation.NativeTransitionStarted = true;
         activeOperation.NativeLaunchInvoked = true;
         NotifyPvpNativeLaunchInvoked(activeOperation);
         board.Start_Operation();
@@ -3046,12 +3703,51 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         }
 
         int previousSceneHandle = operation.SceneHandle;
-        if (previousSceneHandle != 0 && previousSceneHandle != scene.handle)
+        int priorEvidenceSceneHandle = operation.EvidenceLastSceneHandle;
+        if (IsNativeAbortReturnPending(operation))
+        {
+            // The shipped failed-load path can race EndOperation by issuing a
+            // same-package auto-restart before Operation Room becomes active.
+            // That replacement is not a legitimate player-requested Restart:
+            // retain ownership of its exact handle for cleanup, but never
+            // rebuild terrain, spawn globals, a Mirror owner, players, or AI.
+            // Operation Room observation is the only event allowed to clear
+            // this failed-generation latch.
+            operation.SceneHandle = 0;
+            ReleaseStandaloneSceneContracts(operation);
+            ReleaseRuntimeTerrain(operation);
+            operation.NetworkSpawnFailed = true;
+            operation.SceneHandle = scene.handle;
+            operation.ScenePreparationComplete = false;
+            operation.ScenePreparationStarted = true;
+            operation.ScenePreparationEarliestFrame = -1;
+            operation.PeerSceneUnloadDispositionPending = false;
+            operation.PeerSceneDispositionFailureLogged = false;
+            operation.PeerSceneDispositionDeadlineTimestamp = 0;
+            ShowNativeLoadingScreenForPackageScene(operation);
+            NotifyNativeAbortReturnPackageReloaded(
+                operation,
+                previousSceneHandle,
+                scene.handle);
+            return;
+        }
+        if (operation.PeerSceneUnloadDispositionPending)
+        {
+            ResetPvpSceneAgreementForReload(operation, scene.handle);
+            operation.PeerSceneUnloadDispositionPending = false;
+            operation.PeerSceneDispositionFailureLogged = false;
+            operation.PeerSceneDispositionDeadlineTimestamp = 0;
+            log.LogInfo("Standalone package restart proved its replacement " +
+                "scene after the prior exact unload: unloadedHandle=" +
+                operation.PeerUnloadedSceneHandle + ", replacementHandle=" +
+                scene.handle + ".");
+        }
+        else if (previousSceneHandle != 0 && previousSceneHandle != scene.handle)
         {
             // Restart can report the replacement load before the prior scene's
             // unload callback. Reset agreement readiness here; the later stale
             // unload must not release or clear this replacement generation.
-            ResetPvpSceneAgreementForReload(operation);
+            ResetPvpSceneAgreementForReload(operation, scene.handle);
             log.LogInfo("Standalone package restart adopted replacement scene " +
                 "before prior unload: previousHandle=" + previousSceneHandle +
                 ", replacementHandle=" + scene.handle + ".");
@@ -3061,14 +3757,31 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.SceneHandle = 0;
         ReleaseStandaloneSceneContracts(operation);
         ReleaseRuntimeTerrain(operation);
+        bool retainedRestartCount = operation.EvidenceSceneGeneration > 0;
+        operation.EvidenceSceneGeneration++;
+        operation.EvidenceLastSceneHandle = scene.handle;
+        ResetFrameworkEvidenceGenerationState(operation);
         operation.SceneHandle = scene.handle;
         operation.BootstrapRoot = null;
         operation.BootstrapIdentity = null;
+        operation.BootstrapSpawnedNetId = 0;
         operation.BootstrapPrefabRoot = null;
         operation.BootstrapPrefabIdentity = null;
         operation.BootstrapAssetId = 0;
         operation.BootstrapPrefabRegistered = false;
+        operation.PeerGameModeSpawnHandler = null;
+        operation.PeerGameModeLegacySpawnHandler = null;
+        operation.PeerGameModeUnspawnHandler = null;
+        operation.PeerGameModeManagedSpawnHandler = null;
+        operation.PeerGameModeManagedUnspawnHandler = null;
+        operation.PeerGameModeHandlerRegistered = false;
+        operation.PeerGameModeClones.Clear();
         operation.GameModeComponent = null;
+        operation.FrozenSceneContract = null;
+        operation.FrozenSceneContractDigest = null;
+        operation.FrozenSceneContractEpoch = 0;
+        operation.FrozenPveEnemyMarkers.Clear();
+        operation.FrozenPveAuthoredEnemyMarkers.Clear();
         operation.BootstrapCreated = false;
         operation.NetworkSpawnRequested = false;
         operation.NetworkSpawnFailed = false;
@@ -3099,6 +3812,26 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.PveExfilZone = null;
         operation.PveExfilCollider = null;
         ResetProfiledPveGenerationState(operation);
+
+        if (operation.Operation.Mode ==
+            ModdedOperationMode.PlayerVersusEnvironment)
+        {
+            LogFrameworkEvidence(
+                retainedRestartCount
+                    ? "pve-count-restart-retained"
+                    : "pve-count-scene-active",
+                operation,
+                "selected=" + FrameworkEvidence.Number(
+                    operation.RequestedPveEnemyCount) +
+                "|minimum=" + FrameworkEvidence.Number(
+                    operation.Operation.MinimumEnemies) +
+                "|maximum=" + FrameworkEvidence.Number(
+                    operation.Operation.MaximumEnemies) +
+                "|priorSceneHandle=" + FrameworkEvidence.Number(
+                    priorEvidenceSceneHandle) +
+                "|replacementBeforeUnload=" +
+                    (previousSceneHandle != 0).ToString().ToLowerInvariant());
+        }
 
         NotifyPvpSceneLoading(operation);
         if (!ValidateStandaloneSceneContract(scene, operation, out string contractError))
@@ -3160,11 +3893,40 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         var operation = activeOperation;
         if (operation == null || scene.handle != operation.SceneHandle)
             return;
+        // Do not infer a native return from NetworkManager.networkSceneName at
+        // this callback. The peer lifecycle proves the exact loaded/active
+        // Operation Room, package-scene absence, and Mirror owner removal before
+        // publishing return/success evidence.
         // Clear ownership before teardown so a re-entrant or delayed stale
         // callback cannot be mistaken for the current scene generation.
+        bool protocolLifecycle = IsPeerAgreementMode(operation.Operation?.Mode);
+        bool abortReturnPending = IsNativeAbortReturnPending(operation);
+        int unloadedSceneHandle = operation.SceneHandle;
         operation.SceneHandle = 0;
-        if (!CompletePvpPeerAgreementOnNativeReturn(operation))
-            ResetPvpSceneAgreementForReload(operation);
+        bool nativeReturnCompleted =
+            CompletePvpPeerAgreementOnNativeReturn(operation);
+        if (!nativeReturnCompleted)
+        {
+            if (protocolLifecycle || abortReturnPending)
+            {
+                operation.PeerSceneUnloadDispositionPending = true;
+                operation.PeerUnloadedSceneHandle = unloadedSceneHandle;
+                operation.PeerSceneDispositionDeadlineTimestamp = DeadlineAfter(
+                    PvpNativeLifecycleTimeoutSeconds);
+                operation.PeerSceneDispositionFailureLogged = false;
+                log.LogInfo(abortReturnPending
+                    ? "Rejected package scene unload is awaiting the exact " +
+                        "Operation Room return; replacement package scenes " +
+                        "remain failed closed."
+                    : "Package scene unload is awaiting a proved replacement " +
+                        "scene or Operation Room return before choosing " +
+                        "restart/close.");
+            }
+            else
+            {
+                ResetPvpSceneAgreementForReload(operation);
+            }
+        }
         ReleaseStandaloneSceneContracts(operation);
         operation.BootstrapRoot = null;
         operation.BootstrapIdentity = null;
@@ -3175,7 +3937,11 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.GameModeComponent = null;
         operation.BootstrapCreated = false;
         operation.NetworkSpawnRequested = false;
-        operation.NetworkSpawnFailed = false;
+        // ReleaseStandaloneGameMode clears its per-generation failure bit.
+        // Restore it while a native abort return is outstanding so a racing
+        // same-package auto-reload cannot be interpreted as a clean Restart.
+        operation.NetworkSpawnFailed =
+            abortReturnPending && !nativeReturnCompleted;
         operation.BootstrapSyncObjects.Clear();
         operation.ReadinessInitializationClaimed = false;
         operation.ReadinessInitialized = false;
@@ -3236,13 +4002,12 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             scene,
             operation,
             out string spawnContractError);
-        if (!spawnContractReady && operation.Operation.Mode ==
-                ModdedOperationMode.PlayerVersusPlayer)
+        if (!spawnContractReady)
         {
             operation.TerrainReady = false;
             operation.ScenePreparationComplete = false;
             NotifyPvpScenePreparationFailed(operation, spawnContractError);
-            log.LogError("Standalone PVP player-spawn contract failed closed: map=" +
+            log.LogError("Standalone player-spawn contract failed closed: map=" +
                 operation.Map.Id + ", reason=" + spawnContractError + ".");
             ReleaseRuntimeTerrain(operation);
             return;
@@ -3273,18 +4038,9 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             return false;
         }
         string selectedScenePath = operation.SceneSelection.ScenePath;
-        if (!string.IsNullOrEmpty(scene.path) &&
-            string.Equals(
-                scene.path,
-                selectedScenePath,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-        return string.Equals(
-            scene.name,
-            Path.GetFileNameWithoutExtension(selectedScenePath),
-            StringComparison.OrdinalIgnoreCase);
+        return IsCanonicalPackageScenePath(selectedScenePath) &&
+            !string.IsNullOrEmpty(scene.path) &&
+            string.Equals(scene.path, selectedScenePath, StringComparison.Ordinal);
     }
 
     private bool TryPrepareRuntimeTerrain(
@@ -3590,9 +4346,11 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         List<Transform> markers = FindStandalonePlayerMarkers(
             scene,
             operation.Operation.Mode);
+        if (operation.Operation.Mode == ModdedOperationMode.PlayerVersusEnvironment)
+            markers.AddRange(FindSceneMarkers(scene, "PVE_EnemySpawn_"));
         if (markers.Count == 0)
         {
-            error = "no compatible player markers were available for ground checks";
+            error = "no safety-consumed spawn markers were available for ground checks";
             return false;
         }
 
@@ -3631,18 +4389,19 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         int grounded = 0;
         foreach (Transform marker in markers)
         {
-            var ray = new Ray(marker.position + Vector3.up * 64f, Vector3.down);
-            bool hitGround = false;
-            foreach (Collider collider in colliders)
+            if (!TryResolveTightPackageGround(
+                    scene,
+                    marker,
+                    colliders,
+                    out _,
+                    out _,
+                    out string markerError))
             {
-                if (collider.Raycast(ray, out RaycastHit hit, 256f))
-                {
-                    hitGround = true;
-                    break;
-                }
+                error = "marker '" + (marker?.name ?? "<null>") +
+                    "' failed the tight package-ground contract: " + markerError;
+                return false;
             }
-            if (hitGround)
-                grounded++;
+            grounded++;
         }
         if (grounded != markers.Count)
         {
@@ -3651,6 +4410,113 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             return false;
         }
         return true;
+    }
+
+    private static bool TryResolveTightPackageGround(
+        Scene scene,
+        Transform marker,
+        IReadOnlyList<Collider> colliders,
+        out Collider support,
+        out RaycastHit acceptedHit,
+        out string error)
+    {
+        support = null;
+        acceptedHit = default;
+        error = string.Empty;
+        if (marker == null || marker.gameObject == null ||
+            marker.gameObject.scene.handle != scene.handle ||
+            colliders == null || colliders.Count == 0)
+        {
+            error = "marker/scene/collider ownership is incomplete";
+            return false;
+        }
+
+        var ray = new Ray(
+            marker.position + Vector3.up * StandaloneGroundProbeOriginMeters,
+            Vector3.down);
+        float nearestDistance = float.PositiveInfinity;
+        string nearestKey = null;
+        bool ambiguous = false;
+        foreach (Collider collider in colliders)
+        {
+            if (collider == null || collider.gameObject == null ||
+                !collider.enabled || collider.isTrigger ||
+                !collider.gameObject.activeInHierarchy ||
+                collider.gameObject.scene.handle != scene.handle ||
+                !collider.Raycast(
+                    ray,
+                    out RaycastHit hit,
+                    StandaloneGroundProbeMaximumDistanceMeters))
+            {
+                continue;
+            }
+            string key = GetPackageColliderDeterministicKey(collider);
+            if (string.IsNullOrEmpty(key))
+            {
+                error = "support collider has no deterministic semantic key";
+                return false;
+            }
+            const float tieEpsilon = 0.00001f;
+            if (hit.distance + tieEpsilon < nearestDistance)
+            {
+                nearestDistance = hit.distance;
+                nearestKey = key;
+                support = collider;
+                acceptedHit = hit;
+                ambiguous = false;
+            }
+            else if (Mathf.Abs(hit.distance - nearestDistance) <= tieEpsilon)
+            {
+                int keyOrder = string.CompareOrdinal(key, nearestKey);
+                if (keyOrder == 0 && collider != support)
+                {
+                    ambiguous = true;
+                }
+                else if (keyOrder < 0)
+                {
+                    nearestKey = key;
+                    support = collider;
+                    acceptedHit = hit;
+                    ambiguous = false;
+                }
+            }
+        }
+        if (support == null)
+        {
+            error = "no exact-scene support was hit within the 1.00 m probe";
+            return false;
+        }
+        if (ambiguous)
+        {
+            error = "nearest support collider key was ambiguous";
+            return false;
+        }
+        float gap = Mathf.Abs(marker.position.y - acceptedHit.point.y);
+        if (float.IsNaN(gap) || float.IsInfinity(gap) ||
+            gap > StandaloneGroundMaximumGapMeters ||
+            float.IsNaN(acceptedHit.normal.y) ||
+            float.IsInfinity(acceptedHit.normal.y) ||
+            acceptedHit.normal.y < StandaloneGroundMinimumNormalY)
+        {
+            error = "support gap/normal is unsafe (gap=" +
+                gap.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) +
+                "m, normalY=" + acceptedHit.normal.y.ToString(
+                    "F3",
+                    System.Globalization.CultureInfo.InvariantCulture) + ")";
+            return false;
+        }
+        if (!support.enabled || support.isTrigger ||
+            support.gameObject.scene.handle != scene.handle)
+        {
+            error = "support collider ownership changed during the probe";
+            return false;
+        }
+        return true;
+    }
+
+    private static string GetPackageColliderDeterministicKey(Collider collider)
+    {
+        return GetPeerSemanticComponentKey(collider);
     }
 
     private static void ReleaseRuntimeTerrain(ActiveMapOperation operation)
@@ -4283,6 +5149,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         bootstrapRoot.transform.SetPositionAndRotation(
             marker.position,
             marker.rotation);
+        bootstrapRoot.transform.localScale = marker.lossyScale;
 
         var trigger = bootstrapRoot.AddComponent<BoxCollider>();
         trigger.isTrigger = true;
@@ -4616,8 +5483,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         }
 
         var prefabs = NetworkClient.prefabs;
-        if (prefabs != null &&
-            prefabs.TryGetValue(operation.BootstrapAssetId, out GameObject existing))
+        if (prefabs == null || NetworkClient.spawnHandlers == null ||
+            NetworkClient.unspawnHandlers == null)
+        {
+            throw new InvalidOperationException(
+                "Mirror client spawn registries are unavailable");
+        }
+        if (prefabs.TryGetValue(operation.BootstrapAssetId, out GameObject existing))
         {
             // Unity's destroyed-object wrapper compares equal to null but is
             // still a managed dictionary value. Mirror dereferences that stale
@@ -4628,16 +5500,9 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             if (existing == null)
             {
                 prefabs.Remove(operation.BootstrapAssetId);
-                NetworkClient.UnregisterSpawnHandler(operation.BootstrapAssetId);
                 instance?.log?.LogInfo(
-                    "Removed destroyed standalone game-mode Mirror prefab before repeat registration: " +
+                    "Removed destroyed standalone game-mode Mirror prefab before handler-only registration: " +
                     "assetId=0x" + operation.BootstrapAssetId.ToString("X8") + ".");
-            }
-            else if (existing == operation.BootstrapPrefabRoot)
-            {
-                operation.BootstrapPrefabRegistered = true;
-                operation.BootstrapPrefabIdentity.assetId = operation.BootstrapAssetId;
-                return;
             }
             else
             {
@@ -4648,14 +5513,72 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             }
         }
 
-        NetworkClient.RegisterPrefab(
-            operation.BootstrapPrefabRoot,
-            operation.BootstrapAssetId);
+        SpawnHandlerDelegate existingSpawn = null;
+        UnSpawnDelegate existingUnspawn = null;
+        bool hasExistingSpawn = NetworkClient.spawnHandlers.TryGetValue(
+            operation.BootstrapAssetId,
+            out existingSpawn);
+        bool hasExistingUnspawn = NetworkClient.unspawnHandlers.TryGetValue(
+            operation.BootstrapAssetId,
+            out existingUnspawn);
+        if (hasExistingSpawn || hasExistingUnspawn)
+        {
+            bool exactOwned = operation.PeerGameModeHandlerRegistered &&
+                existingSpawn != null && existingUnspawn != null &&
+                SamePeerSpawnHandler(
+                    existingSpawn,
+                    operation.PeerGameModeSpawnHandler) &&
+                SamePeerUnspawnHandler(
+                    existingUnspawn,
+                    operation.PeerGameModeUnspawnHandler);
+            if (!exactOwned)
+            {
+                throw new InvalidOperationException(
+                    "Mirror spawn-handler asset ID collision for standalone game mode 0x" +
+                    operation.BootstrapAssetId.ToString("X8") + ".");
+            }
+            operation.BootstrapPrefabRegistered = true;
+            operation.BootstrapPrefabIdentity.assetId = operation.BootstrapAssetId;
+            return;
+        }
+
+        if (!TryPreflightStandalonePeerGameModeClone(
+                operation,
+                out string cloneError))
+        {
+            throw new InvalidOperationException(
+                "Mirror pre-deserialization clone preflight failed: " + cloneError);
+        }
+
+        operation.PeerGameModeManagedSpawnHandler = (position, assetId) =>
+            SpawnStandalonePeerGameModeClone(operation, position, assetId);
+        operation.PeerGameModeManagedUnspawnHandler = spawned =>
+            UnspawnStandalonePeerGameModeClone(operation, spawned);
+        operation.PeerGameModeLegacySpawnHandler =
+            operation.PeerGameModeManagedSpawnHandler;
+        operation.PeerGameModeUnspawnHandler =
+            operation.PeerGameModeManagedUnspawnHandler;
+        NetworkClient.RegisterSpawnHandler(
+            operation.BootstrapAssetId,
+            operation.PeerGameModeLegacySpawnHandler,
+            operation.PeerGameModeUnspawnHandler);
+        if (!NetworkClient.spawnHandlers.TryGetValue(
+                operation.BootstrapAssetId,
+                out SpawnHandlerDelegate registeredSpawnHandler) ||
+            registeredSpawnHandler == null)
+        {
+            NetworkClient.UnregisterSpawnHandler(operation.BootstrapAssetId);
+            throw new InvalidOperationException(
+                "Mirror did not publish the legacy-handler compatibility wrapper");
+        }
+        operation.PeerGameModeSpawnHandler = registeredSpawnHandler;
+        operation.PeerGameModeHandlerRegistered = true;
         operation.BootstrapPrefabIdentity.assetId = operation.BootstrapAssetId;
         operation.BootstrapPrefabRegistered = true;
-        log.LogInfo("Standalone game-mode Mirror prefab registered on this peer: " +
+        log.LogInfo("Standalone game-mode Mirror custom spawn handler registered on this peer: " +
             "assetId=0x" + operation.BootstrapAssetId.ToString("X8") +
-            ", mode=" + operation.Operation.Mode + ".");
+            ", mode=" + operation.Operation.Mode +
+            ", preDeserializeClonePreflight=true, prefabEntry=false.");
     }
 
     private void ConfigureStandalonePvpController(
@@ -5341,14 +6264,21 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             : gameMode is StandalonePvpGameMode;
         if (!expectedMode)
             return false;
-        if (operation.Operation.Mode == ModdedOperationMode.PlayerVersusPlayer &&
-            !IsPvpNetworkSpawnExpected(operation))
+        if (!IsPvpNetworkSpawnExpected(operation))
         {
             return false;
         }
 
+        if (identity.netId == 0)
+            return false;
+        if (operation.BootstrapSpawnedNetId != 0 &&
+            operation.BootstrapSpawnedNetId != identity.netId)
+        {
+            return false;
+        }
         operation.BootstrapRoot = gameMode.gameObject;
         operation.BootstrapIdentity = identity;
+        operation.BootstrapSpawnedNetId = identity.netId;
         operation.GameModeComponent = gameMode;
         global::GameMode.singleton = gameMode;
         if (gameMode is StandalonePveGameMode pve)
@@ -5438,6 +6368,28 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         var operation = activeOperation;
         if (operation == null)
             return;
+        if (operation.Operation?.Mode ==
+                ModdedOperationMode.PlayerVersusEnvironment &&
+            operation.PveSoloMembershipFrozen &&
+            !operation.PeerAgreementRequired)
+        {
+            if (!TryValidateSoloPveRuntimeCompanion(
+                    operation,
+                    out bool runtimeReady,
+                    out string runtimeError) || !runtimeReady)
+            {
+                string reason = !string.IsNullOrEmpty(runtimeError)
+                    ? runtimeError
+                    : "package runtime companion had not completed its scene gate";
+                log.LogError("Standalone PVE all-players-loaded callback was rejected " +
+                    "before the package runtime contract: " + reason + ".");
+                FailActivePvpNativeLifecycle(
+                    operation,
+                    "solo PVE all-players-loaded arrived before runtime readiness: " +
+                    reason);
+                return;
+            }
+        }
         operation.AllPlayersLoaded = true;
         operation.NativePvpLifecycleActive = nativePvpLifecycle;
         operation.AllPlayersLoadedFrame = Time.frameCount;
@@ -5473,13 +6425,100 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         FailActivePvpNativeLifecycle(operation, reason);
     }
 
+    private void ObserveStandalonePveLifecycleEvidence(
+        ActiveMapOperation operation)
+    {
+        if (operation?.Operation?.Mode !=
+            ModdedOperationMode.PlayerVersusEnvironment)
+        {
+            return;
+        }
+
+        int rawAllAi = -1;
+        GameManagerNetwork network = null;
+        ExfilZone exfil = operation.PveExfilZone;
+        try
+        {
+            rawAllAi = GameManager.instance?.allAI == null
+                ? -1
+                : GameManager.instance.allAI.Count;
+            network = GameManagerNetwork.instance;
+        }
+        catch { }
+
+        if (!operation.EvidencePveAllEnemiesDeadLogged &&
+            operation.PveTeamContractValidated &&
+            !operation.PveTeamContractFailed &&
+            operation.PveEnemyCount > 0 && rawAllAi == 0)
+        {
+            operation.EvidencePveAllEnemiesDeadLogged = true;
+            LogFrameworkEvidence(
+                "pve-all-enemies-dead",
+                operation,
+                "activeCount=" + FrameworkEvidence.Number(
+                    operation.PveEnemyCount) +
+                "|rawAllAI=0|completionOwner=native");
+        }
+
+        bool zoneUnlocked = false;
+        bool globalUnlocked = false;
+        bool extracting = false;
+        bool successful = false;
+        int zoneOccupants = 0;
+        int globalOccupants = 0;
+        try
+        {
+            zoneUnlocked = exfil?.NetworkcanExtract == true;
+            globalUnlocked = network?.NetworkcanExtract == true;
+            extracting = network?.NetworkisExtracting == true;
+            successful = network?.SuccessfulOperation == true;
+            zoneOccupants = exfil?.NetworkPlayersInExfil ?? 0;
+            globalOccupants = network?.NetworkPlayersInAnyExfil ?? 0;
+        }
+        catch { }
+
+        if (!operation.EvidencePveExtractionUnlockedLogged &&
+            zoneUnlocked && globalUnlocked)
+        {
+            operation.EvidencePveExtractionUnlockedLogged = true;
+            LogFrameworkEvidence(
+                "pve-extraction-unlocked",
+                operation,
+                "zoneUnlocked=true|globalUnlocked=true|rawAllAI=" +
+                    FrameworkEvidence.Number(rawAllAi) +
+                "|unlockOwner=native");
+        }
+        if (!operation.EvidencePveExtractionTimerLogged && extracting)
+        {
+            operation.EvidencePveExtractionTimerLogged = true;
+            LogFrameworkEvidence(
+                "pve-extraction-timer-started",
+                operation,
+                "timerSeconds=" + FrameworkEvidence.Number(
+                    (int)StandalonePveExtractionSeconds) +
+                "|zoneOccupants=" + FrameworkEvidence.Number(zoneOccupants) +
+                "|globalOccupants=" + FrameworkEvidence.Number(globalOccupants) +
+                "|timerOwner=native");
+        }
+        if (!operation.EvidencePveSuccessfulOperationLogged && successful)
+        {
+            operation.EvidencePveSuccessfulOperationLogged = true;
+            LogFrameworkEvidence(
+                "pve-successful-operation",
+                operation,
+                "successfulOperation=true|resultOwner=native");
+        }
+    }
+
     private void MaintainStandaloneGameplay()
     {
         var operation = activeOperation;
         if (operation == null || operation.SceneHandle == 0)
             return;
 
-        // A post-transition PVP agreement failure can occur after every peer
+        EnforceSoloPveMembershipFreeze(operation);
+
+        // A post-transition peer agreement failure can occur after every peer
         // has built its inactive template, or after the host has published the
         // native owner (for example, a frozen-member disconnect or late join).
         // Tear down that exact host-owned generation on the main-thread runner
@@ -5487,20 +6526,23 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         // the agreement that authorized it.
         if ((NetworkServer.active ||
              (!NetworkServer.active && !NetworkClient.active)) &&
-            operation.Operation.Mode ==
-                ModdedOperationMode.PlayerVersusPlayer &&
-            operation.NetworkSpawnFailed && !operation.PvpAbortReturnRequested)
+            (operation.PeerAgreementRequired ||
+             operation.PveSoloMembershipFrozen) &&
+            operation.NetworkSpawnFailed)
         {
-            bool wasSpawned = operation.NetworkSpawnRequested;
-            // EndOperation owns the native-mode shutdown and must run before
-            // local singleton/template cleanup can invalidate that owner.
+            bool firstAttempt = !operation.PvpAbortReturnRequested;
+            // EndOperation/Disconnect owns asynchronous native shutdown. Keep
+            // the exact game-mode, singleton, prefab, and spawn contracts alive
+            // until the matching scene-unload/Operation Room disposition proves
+            // it is safe to release them.
             RequestNativePvpAbortReturn(operation);
-            ReleaseStandaloneSceneContracts(operation);
-            operation.ScenePreparationComplete = false;
-            operation.ScenePreparationStarted = true;
-            operation.NetworkSpawnFailed = true;
-            log.LogError("Standalone PVP generation was torn down after its " +
-                "peer agreement failed: previouslySpawned=" + wasSpawned + ".");
+            if (firstAttempt)
+            {
+                log.LogError("Standalone " + operation.Operation.Mode +
+                    " generation entered fail-closed native return after its " +
+                    "frozen peer membership failed: previouslySpawned=" +
+                    operation.NetworkSpawnRequested + ".");
+            }
             return;
         }
 
@@ -5508,7 +6550,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         // field. Its normal InfiltrationManager.Update cannot run safely in a
         // standalone package scene, so Cerberus advances only the required timer.
         var pveGameMode = operation.GameModeComponent as StandalonePveGameMode;
-        if (NetworkServer.active && operation.AllPlayersLoaded && pveGameMode != null)
+        if (NetworkServer.active && operation.AllPlayersLoaded && pveGameMode != null &&
+            (!operation.PeerAgreementRequired || operation.GameplayBeginCommitted))
             pveGameMode.NetworkRaidTimer += Time.deltaTime;
 
         if (!operation.ScenePreparationComplete &&
@@ -5525,7 +6568,29 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         {
             return;
         }
+        if (operation.Operation?.Mode ==
+                ModdedOperationMode.PlayerVersusEnvironment &&
+            operation.PveSoloMembershipFrozen &&
+            !operation.PeerAgreementRequired)
+        {
+            if (!TryValidateSoloPveRuntimeCompanion(
+                    operation,
+                    out bool runtimeReady,
+                    out string runtimeError))
+            {
+                operation.NetworkSpawnFailed = true;
+                FailActivePvpNativeLifecycle(
+                    operation,
+                    "solo PVE runtime companion failed during scene generation: " +
+                    runtimeError);
+                return;
+            }
+            if (!runtimeReady)
+                return;
+        }
         ProcessPendingStandalonePveTeamValidation(operation);
+        ProcessPeerRuntimeBarriers(operation);
+        ObserveStandalonePveLifecycleEvidence(operation);
         if (Time.frameCount < operation.LastMaintenanceFrame + 15)
             return;
         operation.LastMaintenanceFrame = Time.frameCount;
@@ -5536,13 +6601,14 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         }
         catch (Exception ex)
         {
-            bool fatalPvpRegistrationFailure = operation.Operation.Mode ==
-                ModdedOperationMode.PlayerVersusPlayer;
-            if (fatalPvpRegistrationFailure)
+            bool fatalPeerRegistrationFailure =
+                operation.PeerAgreementRequired ||
+                operation.PveSoloMembershipFrozen;
+            if (fatalPeerRegistrationFailure)
                 operation.NetworkSpawnFailed = true;
             log.LogError("Standalone game-mode Mirror prefab registration failed " +
                 "closed: " + ex.GetType().Name + ": " + ex.Message);
-            if (fatalPvpRegistrationFailure)
+            if (fatalPeerRegistrationFailure)
             {
                 FailActivePvpNativeLifecycle(
                     operation,
@@ -5558,6 +6624,20 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             operation.BootstrapIdentity != null &&
             operation.BootstrapAssetId != 0)
         {
+            if (operation.BootstrapRoot.activeSelf)
+            {
+                operation.NetworkSpawnFailed = true;
+                log.LogError("Standalone game mode network spawn refused an active " +
+                    "runtime template before native Mirror ownership.");
+                if (operation.PeerAgreementRequired ||
+                    operation.PveSoloMembershipFrozen)
+                {
+                    FailActivePvpNativeLifecycle(
+                        operation,
+                        "Mirror owner template was active before NetworkServer.Spawn");
+                }
+                return;
+            }
             if (!ValidateStandaloneBootstrapSyncObjects(
                     operation.BootstrapRoot,
                     out string syncObjectError))
@@ -5565,8 +6645,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 operation.NetworkSpawnFailed = true;
                 log.LogError("Standalone game mode network spawn failed closed before " +
                     "NetworkServer.Spawn: " + syncObjectError + ".");
-                if (operation.Operation.Mode ==
-                    ModdedOperationMode.PlayerVersusPlayer)
+                if (operation.PeerAgreementRequired ||
+                    operation.PveSoloMembershipFrozen)
                 {
                     FailActivePvpNativeLifecycle(
                         operation,
@@ -5575,9 +6655,25 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 }
                 return;
             }
+            if (!TryValidatePeerOwnerSpawnBoundary(
+                    operation,
+                    out string ownerBoundaryError))
+            {
+                operation.NetworkSpawnFailed = true;
+                log.LogError("Standalone game mode network spawn failed closed at " +
+                    "the final owner boundary: " + ownerBoundaryError + ".");
+                if (operation.PeerAgreementRequired ||
+                    operation.PveSoloMembershipFrozen)
+                {
+                    FailActivePvpNativeLifecycle(
+                        operation,
+                        "final Mirror owner boundary failed: " +
+                        ownerBoundaryError);
+                }
+                return;
+            }
             try
             {
-                operation.BootstrapRoot.SetActive(true);
                 // Record the single operation-owned attempt before entering
                 // native Mirror code because a host spawn can synchronously
                 // re-enter the client readiness callback.
@@ -5586,6 +6682,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                     operation.BootstrapRoot,
                     operation.BootstrapAssetId,
                     (NetworkConnection)null);
+                if (operation.BootstrapIdentity == null ||
+                    operation.BootstrapIdentity.netId == 0)
+                {
+                    throw new InvalidOperationException(
+                        "Mirror did not assign the standalone game-mode owner a netId");
+                }
+                operation.BootstrapSpawnedNetId = operation.BootstrapIdentity.netId;
                 NotifyPvpNetworkOwnerSpawned(operation);
                 log.LogInfo("Standalone game mode network identity spawned by the host: " +
                     "assetId=0x" + operation.BootstrapAssetId.ToString("X8") + ".");
@@ -5593,11 +6696,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             catch (Exception ex)
             {
                 operation.NetworkSpawnFailed = true;
-                operation.BootstrapRoot.SetActive(false);
                 log.LogError("Standalone game mode network spawn failed closed on its " +
                     "single native attempt: " + ex.GetType().Name + ": " + ex.Message);
-                if (operation.Operation.Mode ==
-                    ModdedOperationMode.PlayerVersusPlayer)
+                if (operation.PeerAgreementRequired ||
+                    operation.PveSoloMembershipFrozen)
                 {
                     FailActivePvpNativeLifecycle(
                         operation,
@@ -5608,7 +6710,11 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         }
 
         if (!NetworkServer.active)
+        {
+            ProcessPeerRuntimeBarriers(operation);
+            MaintainOwnedStandaloneWeaponAuthority(operation);
             return;
+        }
         if (!operation.ReadinessInitialized && operation.NetworkSpawnRequested &&
             !operation.NetworkSpawnFailed &&
             NetworkClient.active && operation.GameModeComponent != null &&
@@ -5627,6 +6733,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         if (operation.Operation.Mode ==
                 ModdedOperationMode.PlayerVersusEnvironment &&
             !operation.PveSpawnAttempted &&
+            (!operation.PeerAgreementRequired ||
+             (hostPvpAgreement != null && hostPvpAgreement.PlayerBarrierPassed)) &&
             operation.AllPlayersLoadedFrame >= 0 &&
             Time.frameCount >= operation.AllPlayersLoadedFrame + 180)
         {
@@ -5653,12 +6761,33 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     {
         if (operation == null)
             return;
-        DestroyOwnedStandalonePvePopulation(
-            operation,
-            "standalone scene-contract release");
-        RestoreStandalonePlayerSpawnContract(operation);
-        ReleaseStandaloneRenderContract(operation);
-        ReleaseStandaloneGameMode(operation);
+        StandaloneTeardownEvidenceSnapshot evidenceSnapshot =
+            CaptureStandaloneTeardownEvidence(operation);
+        bool cleanupCompleted = false;
+        try
+        {
+            DestroyOwnedStandalonePvePopulation(
+                operation,
+                "standalone scene-contract release");
+            RestoreStandalonePveBotCountContract(operation);
+            RestoreStandalonePlayerSpawnContract(operation);
+            ReleaseStandaloneRenderContract(operation);
+            ReleaseStandaloneGameMode(operation);
+            operation.FrozenSceneContract = null;
+            operation.FrozenSceneContractDigest = null;
+            operation.FrozenSceneContractEpoch = 0;
+            operation.GameplayBeginCommitted = false;
+            operation.FrozenPveEnemyMarkers.Clear();
+            operation.FrozenPveAuthoredEnemyMarkers.Clear();
+            cleanupCompleted = true;
+        }
+        finally
+        {
+            LogStandaloneTeardownSummary(
+                operation,
+                evidenceSnapshot,
+                cleanupCompleted);
+        }
     }
 
     private static void ReleaseStandaloneRenderContract(ActiveMapOperation operation)
@@ -5683,6 +6812,33 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 Object.Destroy(profile);
         }
         operation.RuntimeRenderProfiles.Clear();
+    }
+
+    private static void RestoreStandalonePveBotCountContract(
+        ActiveMapOperation operation)
+    {
+        if (operation == null || !operation.BotCountsCaptured)
+            return;
+        try
+        {
+            GameManager gameManager = GameManager.instance;
+            if (gameManager != null)
+            {
+                if (gameManager.botAmount == operation.OwnedBotAmount)
+                    gameManager.botAmount = operation.PreviousBotAmount;
+                if (gameManager.botHVTAmount == operation.OwnedBotHvtAmount)
+                    gameManager.botHVTAmount = operation.PreviousBotHvtAmount;
+            }
+        }
+        catch { }
+        finally
+        {
+            operation.PreviousBotAmount = 0;
+            operation.PreviousBotHvtAmount = 0;
+            operation.OwnedBotAmount = 0;
+            operation.OwnedBotHvtAmount = 0;
+            operation.BotCountsCaptured = false;
+        }
     }
 
     private static void ReleaseStandaloneGameMode(ActiveMapOperation operation)
@@ -5717,31 +6873,20 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                     ex.GetType().Name + ": " + ex.Message);
             }
         }
-        if (bootstrapPrefabRoot != null)
-        {
-            try
-            {
-                NetworkClient.UnregisterPrefab(bootstrapPrefabRoot);
-            }
-            catch { }
-        }
-        // Always remove by asset ID as well. The scene unload callback can run
-        // after Unity destroyed BootstrapPrefabRoot; in that state the wrapper
-        // is a fake null and UnregisterPrefab(GameObject) cannot recover its
-        // assetId. Leaving the dictionary entry causes every later operation
-        // to loop at the native MAP LOADED !BUG! readiness gate.
-        if (bootstrapAssetId != 0)
-        {
-            try
-            {
-                var prefabs = NetworkClient.prefabs;
-                if (prefabs != null)
-                    prefabs.Remove(bootstrapAssetId);
-                NetworkClient.UnregisterSpawnHandler(bootstrapAssetId);
-            }
-            catch { }
-        }
+        ReleaseStandalonePeerGameModeSpawnHandler(operation);
+        // ReleaseStandalonePeerGameModeSpawnHandler removes the registration
+        // only while both registry delegates still match this operation's exact
+        // owned delegates. Never perform a second blind asset-ID unregister:
+        // another package generation or mod may have claimed that ID after our
+        // ownership was lost, and deleting its handler would corrupt the next
+        // Mirror spawn boundary.
         operation.BootstrapPrefabRegistered = false;
+        operation.PeerGameModeHandlerRegistered = false;
+        operation.PeerGameModeSpawnHandler = null;
+        operation.PeerGameModeLegacySpawnHandler = null;
+        operation.PeerGameModeUnspawnHandler = null;
+        operation.PeerGameModeManagedSpawnHandler = null;
+        operation.PeerGameModeManagedUnspawnHandler = null;
         operation.BootstrapAssetId = 0;
         operation.BootstrapPrefabIdentity = null;
         operation.BootstrapPrefabRoot = null;
@@ -5822,8 +6967,42 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 "native NetworkTeamID before hostile cohort selection.");
             return;
         }
-        var markers = FindSceneMarkers(scene, "PVE_EnemySpawn_");
-        if (markers.Count == 0)
+        List<Transform> authoredMarkers;
+        List<Transform> markers;
+        int activeMarkerCount;
+        int navigationMarkerCount;
+        if (operation.PeerAgreementRequired)
+        {
+            authoredMarkers = operation.FrozenPveAuthoredEnemyMarkers.ToList();
+            markers = operation.FrozenPveEnemyMarkers.ToList();
+            activeMarkerCount = authoredMarkers.Count(marker =>
+                marker != null && marker.gameObject != null &&
+                marker.gameObject.activeInHierarchy);
+            navigationMarkerCount = operation.FrozenSceneContract?.PveCapacity?
+                .NavigationCount ?? 0;
+            if (operation.FrozenSceneContract == null ||
+                operation.FrozenSceneContractEpoch == 0 ||
+                operation.FrozenPveEnemyMarkers.Count !=
+                    operation.FrozenSceneContract.PveCapacity.SafeMarkerKeys.Count)
+            {
+                log.LogError("Standalone peer PVE refused to rediscover an absent or " +
+                    "inconsistent frozen enemy-marker contract.");
+                operation.NetworkSpawnFailed = true;
+                FailActivePvpNativeLifecycle(
+                    operation,
+                    "frozen peer PVE enemy-marker contract is unavailable");
+                return;
+            }
+        }
+        else
+        {
+            authoredMarkers = FindSceneMarkers(scene, "PVE_EnemySpawn_");
+            markers = FindSafeStandalonePveEnemyMarkers(
+                authoredMarkers,
+                out activeMarkerCount,
+                out navigationMarkerCount);
+        }
+        if (authoredMarkers.Count == 0)
         {
             log.LogError("Standalone PVE package has no PVE_EnemySpawn_ markers.");
             return;
@@ -5837,13 +7016,39 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 maximumEnemies + ".");
             return;
         }
-        if (markers.Count < minimumEnemies)
+        int requestedCount = ChooseStandalonePveEnemyCount(operation);
+        if (!PveEnemyCountSelection.TryValidateConfirmedSelection(
+                requestedCount,
+                minimumEnemies,
+                maximumEnemies,
+                markers.Count,
+                out string capacityError))
         {
-            log.LogError("Standalone PVE package does not author enough enemy markers for its declared minimum: operation=" +
+            log.LogError("Standalone PVE briefing selection failed the loaded " +
+                "scene marker/navigation capacity gate: operation=" +
                 operation.Operation.Id + ", requestedRange=" + minimumEnemies + "-" +
-                maximumEnemies + ", markers=" + markers.Count + ".");
+                maximumEnemies + ", selected=" + requestedCount +
+                ", authoredMarkers=" + authoredMarkers.Count +
+                ", activeMarkers=" + activeMarkerCount +
+                ", navigationMarkers=" + navigationMarkerCount +
+                ", safeCapacity=" + markers.Count + ", reason=" +
+                capacityError + ".");
             return;
         }
+        LogFrameworkEvidence(
+            "pve-safe-navigation-capacity-passed",
+            operation,
+            "selected=" + FrameworkEvidence.Number(requestedCount) +
+            "|minimum=" + FrameworkEvidence.Number(minimumEnemies) +
+            "|maximum=" + FrameworkEvidence.Number(maximumEnemies) +
+            "|authoredMarkers=" + FrameworkEvidence.Number(authoredMarkers.Count) +
+            "|activeMarkers=" + FrameworkEvidence.Number(activeMarkerCount) +
+            "|navigationMarkers=" + FrameworkEvidence.Number(
+                navigationMarkerCount) +
+            "|safeCapacity=" + FrameworkEvidence.Number(markers.Count) +
+            "|minimumPlanarSeparationMillimeters=" +
+                FrameworkEvidence.Number(
+                    (int)(StandalonePveMinimumSpawnSeparationMeters * 1000f)));
         if (!TrySelectStandalonePvePrefabCohort(
                 gameManager,
                 playerTeamId,
@@ -5891,8 +7096,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 "population call: rawEntries=0.");
             RaidManager.singleton = raid;
 
-            int requestedCount = ChooseStandalonePveEnemyCount(operation);
-            int targetCount = Math.Min(requestedCount, markers.Count);
+            int targetCount = requestedCount;
             raid.infiltrationManager =
                 operation.GameModeComponent as InfiltrationManager;
             raid.spawnVehicleAI = false;
@@ -5924,8 +7128,16 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             // that order and omitted the native owner argument, which left the
             // firearm lifecycle incomplete even though server-side grenades
             // could still work.
-            gameManager.botAmount = targetCount;
-            gameManager.botHVTAmount = 0;
+            if (!operation.BotCountsCaptured)
+            {
+                operation.PreviousBotAmount = gameManager.botAmount;
+                operation.PreviousBotHvtAmount = gameManager.botHVTAmount;
+                operation.BotCountsCaptured = true;
+            }
+            operation.OwnedBotAmount = targetCount;
+            operation.OwnedBotHvtAmount = 0;
+            gameManager.botAmount = operation.OwnedBotAmount;
+            gameManager.botHVTAmount = operation.OwnedBotHvtAmount;
             // Current-build native inspection proves ServerSpawnAI(bool) is a
             // synchronous loop over RaidManager.botSpawnPoints. It does not
             // read GameManager.RandomSpawns. Do not mutate that process-global
@@ -5947,6 +7159,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 for (int index = 0; index < prefabs.Count; index++)
                     raid.standardAI[index] = prefabs[index];
                 raid.ServerSpawnAI(false);
+                LogFrameworkEvidence(
+                    "pve-server-spawn-returned",
+                    operation,
+                    "argument=false|requested=" + FrameworkEvidence.Number(
+                        targetCount) +
+                    "|issuedFrame=" + FrameworkEvidence.Number(
+                        operation.PveTeamValidationIssuedFrame));
             }
             finally
             {
@@ -5991,12 +7210,25 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             // owns bounded full-contract validation from issuedFrame + 1.
             operation.PveTeamValidationPending = true;
             SuppressStandalonePveExtraction(operation);
+            LogFrameworkEvidence(
+                "pve-deferred-validation-pending",
+                operation,
+                "expected=" + FrameworkEvidence.Number(targetCount) +
+                "|ownedNetIds=" + FrameworkEvidence.Number(
+                    operation.PveOwnedServerIdentities.Count) +
+                "|earliestFrame=" + FrameworkEvidence.Number(
+                    operation.PveTeamValidationEarliestFrame) +
+                "|deadlineFrame=" + FrameworkEvidence.Number(
+                    operation.PveTeamValidationDeadlineFrame));
             log.LogInfo("Standalone PVE issued an exact server-owned AI population " +
                 "through shipped RaidManager.ServerSpawnAI; native BrainAI.Start " +
                 "validation is pending: count=" +
                 targetCount + ", requestedRange=" + minimumEnemies + "-" +
-                maximumEnemies + ", chosen=" + requestedCount + ", markers=" +
-                markers.Count + ", firearmCapablePrefabs=" +
+                maximumEnemies + ", chosen=" + requestedCount +
+                ", authoredMarkers=" + authoredMarkers.Count +
+                ", activeMarkers=" + activeMarkerCount +
+                ", navigationMarkers=" + navigationMarkerCount +
+                ", safeCapacity=" + markers.Count + ", firearmCapablePrefabs=" +
                 firearmCapablePrefabs + ", selectedCohortPrefabs=" +
                 prefabs.Count + ", playerTeam=" + playerTeamId +
                 ", hostileTeam=" + selectedCohort.TeamId +
@@ -6017,6 +7249,12 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             operation.PveTeamContractValidated = false;
             operation.PveTeamContractFailed = true;
             SuppressStandalonePveExtraction(operation);
+            LogFrameworkEvidence(
+                "pve-population-failed",
+                operation,
+                "ownedRoots=" + FrameworkEvidence.Number(ownedRoots) +
+                "|reason=" + FrameworkEvidence.Encode(
+                    ex.GetType().Name + ": " + ex.Message));
             DestroyOwnedStandalonePvePopulation(operation, "spawn failure");
             log.LogError("Standalone PVE spawn failed closed after capturing " +
                 ownedRoots + " exact server roots: " +
@@ -6296,6 +7534,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
 
         operation.PveOwnedServerIdentities.Clear();
         operation.PveOwnedBrainInstanceIds.Clear();
+        operation.PveOwnedInitialPositions.Clear();
+        operation.PveOwnedInitialYaws.Clear();
         var enumerator = NetworkServer.spawned.GetEnumerator();
         try
         {
@@ -6321,6 +7561,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 {
                     continue;
                 }
+                operation.PveOwnedInitialPositions[netId] = root.transform.position;
+                operation.PveOwnedInitialYaws[netId] = root.transform.eulerAngles.y;
                 operation.PveOwnedBrainInstanceIds.Add(brain.GetInstanceID());
             }
         }
@@ -6437,7 +7679,16 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.PveTeamValidationPending = false;
         operation.PveTeamContractValidated = true;
         operation.PveEnemyCount = expectedCount;
+        NotifyPvePeerPopulationValidated(operation);
         StartProfiledPveAiDiagnostics(operation, gameManager);
+        LogFrameworkEvidence(
+            "pve-deferred-validation-passed",
+            operation,
+            "activeCount=" + FrameworkEvidence.Number(expectedCount) +
+            "|rawAllAI=" + FrameworkEvidence.Number(rawRegisteredCount) +
+            "|issuedFrame=" + FrameworkEvidence.Number(
+                operation.PveTeamValidationIssuedFrame) +
+            "|validationFrame=" + FrameworkEvidence.Number(Time.frameCount));
         log.LogInfo("Standalone PVE released its exact server-owned AI " +
             "population after deferred native startup validation: count=" +
             expectedCount + ", validationFrame=" + Time.frameCount +
@@ -6456,6 +7707,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.PveTeamContractValidated = false;
         operation.PveTeamContractFailed = true;
         SuppressStandalonePveExtraction(operation);
+        LogFrameworkEvidence(
+            "pve-deferred-validation-failed",
+            operation,
+            "reason=" + FrameworkEvidence.Encode(summary));
         log.LogError("Standalone PVE validation failed closed: " + summary + ".");
         DestroyOwnedStandalonePvePopulation(
             operation,
@@ -6883,6 +8138,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         }
         operation.PveOwnedServerIdentities.Clear();
         operation.PveOwnedBrainInstanceIds.Clear();
+        operation.PveOwnedInitialPositions.Clear();
+        operation.PveOwnedInitialYaws.Clear();
+        operation.PeerObservedPveInitialPositions.Clear();
+        operation.PeerObservedPveInitialYaws.Clear();
         operation.PveTeamValidationPending = false;
         operation.PveTeamValidationIssuedFrame = -1;
         operation.PveTeamValidationEarliestFrame = -1;
@@ -7841,18 +9100,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
 
     private static int ChooseStandalonePveEnemyCount(ActiveMapOperation operation)
     {
-        int minimum = operation.Operation.MinimumEnemies;
-        int maximum = operation.Operation.MaximumEnemies;
-        if (maximum <= minimum)
-            return minimum;
-
-        // Only the server executes this path. FNV-1a over immutable launch
-        // identity produces a bounded, reproducible population without
-        // mutating UnityEngine.Random's global state.
-        string identity = operation.Operation.Id + "|" + operation.TimeCode + "|" +
-            operation.SceneHandle;
-        uint hash = ComputeStableFnv1a(identity);
-        return minimum + (int)(hash % (uint)(maximum - minimum + 1));
+        return operation.RequestedPveEnemyCount;
     }
 
     private static uint ComputeStableFnv1a(string value)
@@ -7980,12 +9228,71 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         return markers;
     }
 
+    private static List<Transform> FindSafeStandalonePveEnemyMarkers(
+        IReadOnlyList<Transform> authoredMarkers,
+        out int activeMarkerCount,
+        out int navigationMarkerCount)
+    {
+        activeMarkerCount = 0;
+        navigationMarkerCount = 0;
+        var safeMarkers = new List<Transform>();
+        global::AstarPath astar = global::AstarPath.active;
+        if (authoredMarkers == null || astar == null)
+            return safeMarkers;
+
+        foreach (Transform marker in authoredMarkers)
+        {
+            if (marker == null || marker.gameObject == null)
+                continue;
+            // Existing package companions intentionally keep utility spawn
+            // markers inactive. Native ServerSpawnAI consumes their transforms
+            // directly, so active state is telemetry rather than eligibility.
+            if (marker.gameObject.activeInHierarchy)
+                activeMarkerCount++;
+            bool isOnNavigation;
+            try { isOnNavigation = astar.IsPointOnNavmesh(marker.position); }
+            catch { isOnNavigation = false; }
+            if (!isOnNavigation)
+                continue;
+            navigationMarkerCount++;
+            Vector3 position = marker.position;
+            bool separated = true;
+            float minimumSquared =
+                StandalonePveMinimumSpawnSeparationMeters *
+                StandalonePveMinimumSpawnSeparationMeters;
+            foreach (Transform accepted in safeMarkers)
+            {
+                Vector3 acceptedPosition = accepted.position;
+                float deltaX = position.x - acceptedPosition.x;
+                float deltaZ = position.z - acceptedPosition.z;
+                if (deltaX * deltaX + deltaZ * deltaZ < minimumSquared)
+                {
+                    separated = false;
+                    break;
+                }
+            }
+            if (!separated)
+                continue;
+            safeMarkers.Add(marker);
+        }
+
+        return safeMarkers;
+    }
+
     private void SpawnAndPositionStandalonePlayers(
         ActiveMapOperation operation,
         bool allowSpawnRequest)
     {
         if (operation == null || operation.SceneHandle == 0)
             return;
+        if (!NetworkServer.active)
+        {
+            if (operation.PeerAgreementRequired && remotePvpAgreement != null)
+                ProcessRemotePeerPlayerPlacement(operation, remotePvpAgreement);
+            else
+                AlignOwnedStandalonePlayerToReplicatedRoot(operation);
+            return;
+        }
         Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
         if (!scene.IsValid() || !scene.isLoaded)
             return;
@@ -8000,11 +9307,15 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         PlayerMaster[] players;
         try { players = Resources.FindObjectsOfTypeAll<PlayerMaster>(); }
         catch { return; }
-        foreach (var player in players)
+        foreach (PlayerMaster player in players
+                     .Where(candidate => candidate != null)
+                     .OrderBy(GetStableStandalonePlayerKey))
         {
             if (player == null || !player.gameObject.scene.IsValid())
                 continue;
-            int playerId = player.GetInstanceID();
+            int playerId = GetStableStandalonePlayerKey(player);
+            if (playerId == 0)
+                continue;
             Transform marker = SelectPlayerMarker(operation, player, markers);
             if (marker == null)
                 continue;
@@ -8100,7 +9411,12 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             }
             catch { }
             Vector3 target = marker.position + Vector3.up * 0.25f;
-            if (IsPlayerAtPackageSpawn(spawned, target, owned, out string positionState))
+            if (IsPlayerAtPackageSpawn(
+                    spawned,
+                    target,
+                    operation.SceneHandle,
+                    owned,
+                    out string positionState))
             {
                 operation.PositionedPlayerObjects[playerId] = spawnedObjectId;
                 log.LogInfo("Standalone player reached package marker through the " +
@@ -8133,14 +9449,125 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                     ", playerMaster=" + playerId + ", priorState=" +
                     positionState + ".");
             }
-            else
+            else if (operation.PeerAgreementRequired)
             {
-                MoveRemotePlayerRoot(spawned.gameObject, target, marker.rotation);
+                if (!TryIssueRemotePeerPlayerPlacement(
+                        operation,
+                        player,
+                        spawned,
+                        marker,
+                        out string placementError))
+                {
+                    operation.NetworkSpawnFailed = true;
+                    FailActivePvpNativeLifecycle(
+                        operation,
+                        "owner-side remote player placement failed: " + placementError);
+                    return;
+                }
                 operation.PlayerMoveRequestFrames[playerId] = Time.frameCount;
-                log.LogInfo("Standalone moved server-owned remote player root to " +
-                    "package marker=" + marker.name + ", playerMaster=" +
+                log.LogInfo("Standalone sent an owner-side player placement " +
+                    "assignment: marker=" + marker.name + ", playerMaster=" +
                     playerId + ".");
             }
+            else
+            {
+                // SmoothSyncMirror owns this remote avatar. A raw server
+                // Transform write is immediately eligible to be overwritten by
+                // the owning client's state, which is the proven under-map/fall
+                // failure. Networked package sessions must use the exact
+                // owner-targeted assignment above.
+                log.LogError("Standalone refused a non-owned player move outside " +
+                    "an exact peer session: playerMaster=" + playerId + ".");
+            }
+        }
+    }
+
+    private static int GetStableStandalonePlayerKey(PlayerMaster player)
+    {
+        if (player == null)
+            return 0;
+        try
+        {
+            NetworkIdentity identity = player.GetComponent<NetworkIdentity>();
+            return identity == null || identity.netId == 0
+                ? 0
+                : unchecked((int)identity.netId);
+        }
+        catch { return 0; }
+    }
+
+    private void AlignOwnedStandalonePlayerToReplicatedRoot(
+        ActiveMapOperation operation)
+    {
+        if (operation == null || !NetworkClient.active || NetworkServer.active ||
+            GameManager.instance == null)
+        {
+            return;
+        }
+        Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
+        if (!scene.IsValid() || !scene.isLoaded)
+            return;
+        List<Transform> markers = FindStandalonePlayerMarkers(
+            scene,
+            operation.Operation.Mode);
+        if (markers.Count == 0)
+            return;
+        PlayerNetworking[] players;
+        try { players = Resources.FindObjectsOfTypeAll<PlayerNetworking>(); }
+        catch { return; }
+        foreach (PlayerNetworking spawned in players)
+        {
+            if (spawned == null || spawned.gameObject == null)
+                continue;
+            bool owned;
+            try { owned = spawned.isOwned || spawned.isLocalPlayer; }
+            catch { continue; }
+            if (!owned)
+                continue;
+            PlayerMaster master;
+            try { master = spawned.playerMaster; }
+            catch { continue; }
+            int stablePlayerId = GetStableStandalonePlayerKey(master);
+            if (stablePlayerId == 0)
+                continue;
+            NetworkIdentity spawnedIdentity =
+                spawned.GetComponent<NetworkIdentity>();
+            if (spawnedIdentity == null || spawnedIdentity.netId == 0)
+                continue;
+            int spawnedObjectId = unchecked((int)spawnedIdentity.netId);
+            if (operation.PositionedPlayerObjects.TryGetValue(
+                    stablePlayerId,
+                    out int alignedObjectId) &&
+                alignedObjectId == spawnedObjectId)
+            {
+                continue;
+            }
+            Vector3 replicatedTarget = spawned.transform.position;
+            if (!float.IsFinite(replicatedTarget.x) ||
+                !float.IsFinite(replicatedTarget.y) ||
+                !float.IsFinite(replicatedTarget.z))
+            {
+                continue;
+            }
+            Transform nearest = markers
+                .OrderBy(marker => Vector3.Distance(
+                    marker.position,
+                    replicatedTarget))
+                .FirstOrDefault();
+            if (nearest == null ||
+                Vector3.Distance(nearest.position, replicatedTarget) > 3f)
+            {
+                continue;
+            }
+            GameManager.instance.StartCoroutine(
+                GameManager.instance.MovePlayerToSpawn(
+                    replicatedTarget,
+                    spawned.transform.rotation));
+            operation.PositionedPlayerObjects[stablePlayerId] = spawnedObjectId;
+            log.LogInfo("Standalone remote aligned only its owned controller to " +
+                "the host-replicated player root: playerNetId=" +
+                spawnedIdentity.netId + ", authoritativeMarker=" + nearest.name +
+                ", remoteMarkerSelection=false.");
         }
     }
 
@@ -8385,7 +9812,9 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     {
         if (operation == null || markers == null || markers.Count == 0)
             return null;
-        int playerId = player.GetInstanceID();
+        int playerId = GetStableStandalonePlayerKey(player);
+        if (playerId == 0)
+            return null;
         int pvpTeamId = 0;
         if (operation.Operation.Mode == ModdedOperationMode.PlayerVersusPlayer)
         {
@@ -8441,6 +9870,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     private static bool IsPlayerAtPackageSpawn(
         PlayerNetworking player,
         Vector3 target,
+        int packageSceneHandle,
         bool owned,
         out string state)
     {
@@ -8450,9 +9880,23 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             return false;
         }
         float networkDistance = Vector3.Distance(player.transform.position, target);
+        if (!TryValidatePlayerGroundSupport(
+                player,
+                packageSceneHandle,
+                out int groundDeltaMillimetres,
+                out int verticalVelocityMillimetresPerSecond,
+                out string groundState))
+        {
+            state = "network=" + networkDistance.ToString("F2") +
+                ", ground=" + groundState;
+            return false;
+        }
         if (!owned)
         {
-            state = "network=" + networkDistance.ToString("F2");
+            state = "network=" + networkDistance.ToString("F2") +
+                ", groundDeltaMm=" + groundDeltaMillimetres +
+                ", verticalVelocityMmPerSecond=" +
+                verticalVelocityMillimetresPerSecond;
             return networkDistance <= 3f;
         }
 
@@ -8484,36 +9928,82 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             ", managerPlayer=" + DescribeDistance(managerDistance) +
             ", controller=" + DescribeDistance(controllerDistance) +
             ", camera=" + DescribeDistance(cameraDistance) +
-            ", sameOwner=" + sameOwner;
+            ", sameOwner=" + sameOwner +
+            ", groundDeltaMm=" + groundDeltaMillimetres +
+            ", verticalVelocityMmPerSecond=" +
+            verticalVelocityMillimetresPerSecond;
         return networkDistance <= 3f && sameOwner && localRootReady && cameraReady;
+    }
+
+    private static bool TryValidatePlayerGroundSupport(
+        PlayerNetworking player,
+        int packageSceneHandle,
+        out int groundDeltaMillimetres,
+        out int verticalVelocityMillimetresPerSecond,
+        out string state)
+    {
+        groundDeltaMillimetres = 0;
+        verticalVelocityMillimetresPerSecond = 0;
+        state = string.Empty;
+        if (player == null || packageSceneHandle == 0)
+        {
+            state = "player-or-package-scene-unavailable";
+            return false;
+        }
+
+        Collider[] colliders = player.GetComponentsInChildren<Collider>()
+            .Where(collider => collider != null && !collider.isTrigger)
+            .OrderByDescending(collider => collider.bounds.size.y)
+            .ToArray();
+        if (colliders.Length == 0)
+        {
+            state = "no-nontrigger-player-collider";
+            return false;
+        }
+
+        Vector3 position = player.transform.position;
+        float feetY = colliders[0].bounds.min.y;
+        var ray = new Ray(
+            new Vector3(position.x, feetY + 0.2f, position.z),
+            Vector3.down);
+        if (!Physics.Raycast(
+                ray,
+                out RaycastHit hit,
+                0.7f,
+                ~0,
+                QueryTriggerInteraction.Ignore) ||
+            hit.collider == null ||
+            hit.collider.gameObject.scene.handle != packageSceneHandle)
+        {
+            state = "no-package-owned-ground-hit";
+            return false;
+        }
+
+        float groundDelta = feetY - hit.point.y;
+        Rigidbody body = player.GetComponent<Rigidbody>();
+        CharacterController controller =
+            player.GetComponentInChildren<CharacterController>();
+        float verticalVelocity = controller == null
+            ? body == null ? 0f : body.linearVelocity.y
+            : controller.velocity.y;
+        if (!float.IsFinite(groundDelta) || groundDelta < -0.05f ||
+            groundDelta > 0.45f || !float.IsFinite(verticalVelocity) ||
+            Math.Abs(verticalVelocity) > 0.5f)
+        {
+            state = "unsupported-or-vertically-unstable";
+            return false;
+        }
+
+        groundDeltaMillimetres = (int)Math.Round(groundDelta * 1000f);
+        verticalVelocityMillimetresPerSecond =
+            (int)Math.Round(verticalVelocity * 1000f);
+        state = "supported";
+        return true;
     }
 
     private static string DescribeDistance(float distance)
     {
         return distance == float.MaxValue ? "null" : distance.ToString("F2");
-    }
-
-    private static void MoveRemotePlayerRoot(
-        GameObject player,
-        Vector3 target,
-        Quaternion rotation)
-    {
-        if (player == null)
-            return;
-        var controller = player.GetComponent<CharacterController>() ??
-            player.GetComponentInChildren<CharacterController>(true);
-        bool controllerWasEnabled = controller != null && controller.enabled;
-        if (controllerWasEnabled)
-            controller.enabled = false;
-        player.transform.SetPositionAndRotation(target, rotation);
-        foreach (var body in player.GetComponentsInChildren<Rigidbody>(true))
-        {
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-        }
-        if (controllerWasEnabled)
-            controller.enabled = true;
-        Physics.SyncTransforms();
     }
 
     private static void ReplaceNativeMapPreview(Transform parent, Sprite previewSprite, string name)
@@ -8657,6 +10147,210 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         {
             try { selector.UpdateUI(); } catch { }
         }
+    }
+
+    private static bool TryValidateNativeEnemyCountControl(
+        CatalogPresentation presentation,
+        ModdedOperationDefinition operation,
+        bool requireVisibleInHierarchy,
+        out int selected,
+        out string error)
+    {
+        selected = 0;
+        error = string.Empty;
+        if (presentation?.Board == null ||
+            presentation.NativeBoardData == null || operation == null ||
+            presentation.NativeBoardData.OperationBoardUI != presentation.Board)
+        {
+            error = "native operation-board enemy control ownership is incomplete";
+            return false;
+        }
+
+        SliderManager manager = presentation.Board.EnemyCountSlider;
+        if (operation.Mode != ModdedOperationMode.PlayerVersusEnvironment)
+        {
+            bool hidden = manager == null ||
+                (!manager.gameObject.activeSelf &&
+                 !manager.gameObject.activeInHierarchy &&
+                 (manager.mainSlider == null ||
+                  !manager.mainSlider.gameObject.activeInHierarchy));
+            if (!hidden || presentation.SelectedPveEnemyCount != 0 ||
+                presentation.NativeBoardData.MinAI != 0 ||
+                presentation.NativeBoardData.MaxAI != 0)
+            {
+                error = "non-PVE briefing retained a visible or nonzero enemy control";
+                return false;
+            }
+            return true;
+        }
+
+        int minimum = operation.MinimumEnemies;
+        int maximum;
+        try
+        {
+            maximum = PveEnemyCountSelection.GetBriefingMaximum(
+                minimum,
+                operation.MaximumEnemies);
+        }
+        catch (Exception ex)
+        {
+            error = "PVE package enemy bounds are invalid: " + ex.Message;
+            return false;
+        }
+        if (manager == null || manager.mainSlider == null)
+        {
+            error = "native EnemyCountSlider/mainSlider is unavailable";
+            return false;
+        }
+        Slider slider = manager.mainSlider;
+        if (!manager.gameObject.activeSelf || !slider.gameObject.activeSelf ||
+            (requireVisibleInHierarchy &&
+             (!manager.gameObject.activeInHierarchy ||
+              !slider.gameObject.activeInHierarchy)))
+        {
+            error = "native EnemyCountSlider is not visible";
+            return false;
+        }
+        if (!manager.enabled || !slider.enabled || !manager.isInteractable ||
+            !slider.interactable || !slider.wholeNumbers)
+        {
+            error = "native EnemyCountSlider is not interactable whole-number input";
+            return false;
+        }
+        if (maximum > PveEnemyCountSelection.AbsoluteMaximum ||
+            slider.minValue != minimum || slider.maxValue != maximum ||
+            !float.IsFinite(slider.value))
+        {
+            error = "native EnemyCountSlider bounds do not exactly match 1..100-safe package bounds";
+            return false;
+        }
+        selected = Mathf.RoundToInt(slider.value);
+        bool selectionValid = PveEnemyCountSelection.TryValidateConfirmedSelection(
+            selected,
+            minimum,
+            maximum,
+            maximum,
+            out string selectionError);
+        if (slider.value != selected ||
+            selected != presentation.SelectedPveEnemyCount ||
+            presentation.NativeBoardData.MinAI != selected ||
+            presentation.NativeBoardData.MaxAI != selected ||
+            !selectionValid)
+        {
+            error = "native EnemyCountSlider/data selection disagrees: " +
+                (selectionValid ? "value/board fields differ" : selectionError);
+            return false;
+        }
+        return true;
+    }
+
+    private static bool ConfigureNativeEnemyCountSlider(
+        SliderManager manager,
+        int minimum,
+        int maximum,
+        int selected,
+        Action<int> onChanged)
+    {
+        if (manager == null || manager.mainSlider == null)
+            return false;
+
+        selected = Mathf.Clamp(selected, minimum, maximum);
+        manager.saveValue = false;
+        manager.invokeOnAwake = false;
+        manager.isInteractable = true;
+        manager.usePercent = false;
+        manager.showValue = true;
+        manager.showPopupValue = true;
+        manager.useRoundValue = true;
+        manager.onValueChanged = new SliderManager.SliderEvent();
+        manager.mainSlider.minValue = minimum;
+        manager.mainSlider.maxValue = maximum;
+        manager.mainSlider.wholeNumbers = true;
+        manager.mainSlider.onValueChanged = new Slider.SliderEvent();
+        manager.mainSlider.onValueChanged.AddListener(
+            (UnityAction<float>)(value =>
+            {
+                int count = Mathf.Clamp(
+                    Mathf.RoundToInt(value),
+                    minimum,
+                    maximum);
+                try { manager.UpdateUI(); } catch { }
+                if (manager.valueText != null)
+                {
+                    manager.valueText.text = count == 1
+                        ? "1 ENEMY"
+                        : count + " ENEMIES";
+                }
+                manager.onValueChanged?.Invoke(count);
+                onChanged?.Invoke(count);
+            }));
+        manager.mainSlider.SetValueWithoutNotify(selected);
+        try { manager.UpdateUI(); } catch { }
+        if (manager.valueText != null)
+        {
+            manager.valueText.text = selected == 1
+                ? "1 ENEMY"
+                : selected + " ENEMIES";
+        }
+        try { manager.Interactable(true); } catch { }
+        return manager.gameObject.activeSelf && manager.enabled &&
+            manager.mainSlider.gameObject.activeSelf &&
+            manager.mainSlider.enabled && manager.isInteractable &&
+            manager.mainSlider.interactable &&
+            manager.mainSlider.wholeNumbers &&
+            manager.mainSlider.minValue == minimum &&
+            manager.mainSlider.maxValue == maximum &&
+            manager.mainSlider.value == selected;
+    }
+
+    private static bool SetPrivateEnemyCountHierarchyActive(
+        OperationBoardUI board,
+        bool active)
+    {
+        SliderManager manager = board == null ? null : board.EnemyCountSlider;
+        if (manager == null)
+            return !active;
+
+        if (!active)
+        {
+            manager.gameObject.SetActive(false);
+            return true;
+        }
+
+        // EnemyCountSlider is nested below a shipped SimulationParameters
+        // container. The private board hides that container with the other
+        // retail simulation controls, so enabling only the slider leaves an
+        // invisible child. Reopen only this exact ancestry; sibling OPFOR,
+        // difficulty, and HVT controls remain inactive and official boards
+        // and operation objects are never mutated.
+        Transform boardRoot = board.transform;
+        Transform cursor = manager.transform;
+        bool reachedBoard = false;
+        while (cursor != null)
+        {
+            if (cursor == boardRoot)
+            {
+                reachedBoard = true;
+                break;
+            }
+            cursor.gameObject.SetActive(true);
+            cursor = cursor.parent;
+        }
+        if (!reachedBoard)
+        {
+            manager.gameObject.SetActive(false);
+            return false;
+        }
+
+        cursor = manager.transform;
+        while (cursor != null && cursor != boardRoot)
+        {
+            if (!cursor.gameObject.activeSelf)
+                return false;
+            cursor = cursor.parent;
+        }
+        return manager.gameObject.activeSelf && manager.enabled &&
+            manager.mainSlider != null && manager.mainSlider.gameObject.activeSelf;
     }
 
     private static bool ReplaceNativeButtonAction(Object controlObject, Action action)

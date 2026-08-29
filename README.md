@@ -18,7 +18,75 @@ graph size. It can own named, map-neutral process contracts such as
 NVG state. A map package selects the contract and owns its verified LUT. An
 optional map companion owns exact-scene reconstruction.
 
-## Current status
+## Current implementation checkpoint
+
+The active source checkpoint is the Modded Operations `0.3.30` transition-lifecycle hotfix build with bundled
+Operator Mod API `0.2.0-alpha.7`. The same framework source builds an isolated
+BepInEx DLL and an isolated MelonLoader DLL; install exactly one loader variant.
+Map packages remain shared data under `OPERATOR/OperatorMods`.
+
+Modded PVE now exposes OPERATOR's shipped briefing enemy slider. The package's
+inclusive `minEnemies`/`maxEnemies` range is available up to an absolute limit
+of 100. Confirm captures the host's value atomically, Restart retains it, and a
+new Operation Room Confirm captures a new value. PVP is unchanged and does not
+show the control. Before the one native raid spawn, the selected value is
+revalidated against the package and safe navigation-marker capacity. Existing
+companions may keep utility spawn markers inactive; active-marker count remains
+telemetry. Eligibility requires live navigation plus a stable name-ordered
+subset whose accepted X/Z positions remain at least 2 m apart after snapping.
+
+Peer agreement protocol v6 is active for both the PVE and PVP multiplayer-test
+paths. Each
+peer validates the selected-loader suite receipt, its exact receipt-owned
+manifest sidecar and files, and the loaded Core/host/framework/declared-
+companion paths before the native scene transition. PVE also binds the declared
+range and host-confirmed enemy count. Scene, injected-owner, owner-local player
+placement, and, for PVE, server-authored AI-population receipts must all pass
+before the host commits gameplay. PVP uses the shipped native `PvpGameode`,
+requires six markers per team for a declared 12-player operation, and requires
+zero PVE AI. BepInEx and MelonLoader variants are both built and byte-pinned;
+only one loader may be active in an OPERATOR install. Live separate host/remote
+proof remains pending for each PVE/PVP and loader pairing;
+offline builds, tests, and binary audits do not substitute for that matrix.
+
+The PVE runtime barrier additionally verifies the shipped player
+`NetworkIdentity`, `SmoothSyncMirror`, `NetworkAnimatorSmooth`, `Health`, and
+locally owned weapon identities. Every server-authored AI must expose its exact
+`BrainAI`, team, `Health`, `WeaponsAI`, `NetworkAnimatorSyncNPC`, and two native
+`SmoothSyncMirror` behaviours on the same Mirror identity. The framework does
+not replace player/AI transform replication, bullet commands, damage, or death;
+those remain owned by OPERATOR and Mirror. Every evidence line carries one
+process-run ID and a monotonic event sequence so a future host/client verifier
+cannot combine different launches or rely on cross-region wall clocks.
+
+For companions, `runtimeContentId` is the lowercase SHA-256 of the UTF-8 lines
+`operator-loader-neutral-runtime-pair-v1`, plugin GUID, plugin version,
+BepInEx DLL SHA-256, and MelonLoader DLL SHA-256, in that order with `\n`
+separators and no trailing newline. Generate it with
+`tools/operator_runtime_content_id.py`; runtime resolution recomputes it and
+fails closed on any mismatch.
+
+The frozen `0.3.30` transition-lifecycle hotfix test-candidate identities are:
+
+```text
+OperatorModdedOperations.dll                     bytes=640000
+sha256=E77412F83C418EDDC5422F702382BEB75AFB6459430CD7B64B8EB0594549EBA8
+OperatorModdedOperations.MelonLoader.dll         bytes=641536
+sha256=2A6694E798A3AF2C3CF1565F50BF20556E83A48FD60CF7ED0EFBE754F3572903
+OperatorModAPI.dll                               bytes=204800
+sha256=5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
+OperatorModAPI.BepInEx.dll                       bytes=15872
+sha256=6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
+OperatorModAPI.MelonLoader.dll                   bytes=24576
+sha256=1CC745AB57A18848F15A47C80FCE5399C4006FE3ADE2C94B449792CFBABFF7FA
+```
+
+The complete Python suite passes `106/106`; the scene-variant selector passes
+`16/16`; the native game-mode, native-policy, and runtime-barrier test projects
+pass; and both loader builds complete with zero warnings and zero errors. This
+is `PROVEN-STATIC`, not `SUPPORTED` multiplayer evidence.
+
+## Historical checkpoint record (0.3.29 and earlier)
 
 The end-user distribution keeps the established framework-plus-map workflow.
 When `0.3.29` is promoted, one Modded Operations archive will include the exact
@@ -160,7 +228,7 @@ matrix remains a separate release gate. Read
 
 | Path | Purpose |
 | --- | --- |
-| `src/OperatorModdedOperations` | Exact BepInEx IL2CPP framework source. |
+| `src/OperatorModdedOperations` | Shared source for isolated BepInEx and MelonLoader framework assemblies. |
 | `decompiled` | Hash-pinned decompiler snapshots of release DLLs. |
 | `publication` | Deterministic source-state manifest and SHA-256 sidecar. |
 | `packaging` | Drag-and-drop release-layout placeholders. |
@@ -182,9 +250,9 @@ Building this repository requires these local inputs. This is a maintainer
 build list, not an end-user download list:
 
 - OPERATOR with Unity `6000.3.8f1` for the pinned source state;
-- BepInEx IL2CPP;
+- either the supported BepInEx IL2CPP or MelonLoader toolchain;
 - generated interop assemblies under `<OPERATOR_INSTALL>/BepInEx/interop`;
-- Operator Mod API `0.2.0-alpha.6` source or exact prebuilt binaries.
+- Operator Mod API `0.2.0-alpha.7` source or exact prebuilt binaries.
 
 A promoted Modded Operations archive supplies its pinned preview API runtime
 to end users. The separately labeled `0.3.29` multiplayer test transfer does
@@ -196,19 +264,25 @@ interop assemblies are not redistributed by this repository.
 ```powershell
 dotnet build .\src\OperatorModdedOperations\OperatorModdedOperations.csproj `
   -c Release `
+  -p:OperatorLoader=BepInEx `
+  -p:OperatorGameDir='<OPERATOR_INSTALL>' `
+  -p:OperatorModApiProject='<OPERATOR_MOD_API_REPOSITORY>\src\OperatorModAPI\OperatorModAPI.csproj'
+
+dotnet build .\src\OperatorModdedOperations\OperatorModdedOperations.csproj `
+  -c Release `
+  -p:OperatorLoader=MelonLoader `
   -p:OperatorGameDir='<OPERATOR_INSTALL>' `
   -p:OperatorModApiProject='<OPERATOR_MOD_API_REPOSITORY>\src\OperatorModAPI\OperatorModAPI.csproj'
 ```
 
-The output is
-`src/OperatorModdedOperations/bin/Release/OperatorModdedOperations.dll`.
+The outputs are `src/OperatorModdedOperations/bin/Release/OperatorModdedOperations.dll`
+and `src/OperatorModdedOperations/bin/Release/MelonLoader/OperatorModdedOperations.MelonLoader.dll`.
 
 ## Install
 
-Install one matching Modded Operations archive. A `0.3.29` candidate archive
-is for controlled multiplayer testing only until the live matrix passes and a
-public promotion is recorded. The archive installs Core and the framework into
-these separately owned runtime folders:
+Install one matching suite for one loader. Never place both host variants in
+the same game tree. Core and the framework use these separately owned runtime
+layouts:
 
 ```text
 <OPERATOR_INSTALL>/
@@ -221,16 +295,31 @@ these separately owned runtime folders:
         OperatorModAPI.BepInEx.dll
       OperatorModdedOperations/
         OperatorModdedOperations.dll
-    OperatorMods/
-      <package-id>/
-        operator-map-package.json
-        content/...
-        media/...
+  Mods/
+    OperatorModAPI.dll
+    OperatorModAPI.MelonLoader.dll
+    OperatorModdedOperations.MelonLoader.dll
+  OperatorMods/
+    <package-id>/
+      operator-map-package.json
+      content/...
+      media/...
 ```
 
-Do not put a map companion in `BepInEx/OperatorMods`. Put the companion in its
-own directory under `BepInEx/plugins`. Install each map as its own download;
-do not download or install a separate preview Operator Mod API archive.
+The `BepInEx` and `Mods` portions above are alternatives, not a combined
+installation. Do not put a map companion in `OperatorMods`; put its selected
+binary under `BepInEx/plugins` or `Mods`. Install each map as its own download.
+The transactional runtime-suite installer owns only receipt-listed executable
+payloads and its sidecar/receipt. It does not install, update, remove, or
+rewrite `OperatorMods` packages.
+
+Online support requires two distinct OPERATOR processes starting together.
+Both must pass exact suite/package agreement, leave loading, remain grounded,
+complete the mode-specific combat flow, Restart, and return/close cleanly while
+late join and membership changes fail within their bound. PVE additionally
+requires the host-selected count, AI replication, completion, extraction, and
+capacity/performance/teardown at the map's claimed maximum. Solo, host-only,
+and join-in-progress success are insufficient.
 
 ## Documentation start points
 

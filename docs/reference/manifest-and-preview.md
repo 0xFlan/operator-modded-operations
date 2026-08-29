@@ -35,7 +35,7 @@
 | `spawnSet` | Exact scene marker-set name. |
 | `timeCodes` | Allowed display and lighting choices. |
 | `defaultTimeCode` | Member of `timeCodes`. |
-| `minEnemies`/`maxEnemies` | PVE only; closed range from 1 through 64. |
+| `minEnemies`/`maxEnemies` | PVE only; closed range from 1 through 100. The briefing selector cannot exceed `maxEnemies`. |
 | `pveAiProfile` | Optional in schema v2 and PVE only; fixed map-owned native AI values. |
 | `infiltrations` | UI marker records, not world transforms. |
 

@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <AssemblyName>OperatorModdedOperations</AssemblyName>
+    <OperatorLoader Condition="'$(OperatorLoader)' == ''">BepInEx</OperatorLoader>
+    <AssemblyName Condition="'$(OperatorLoader)' != 'MelonLoader'">OperatorModdedOperations</AssemblyName>
+    <AssemblyName Condition="'$(OperatorLoader)' == 'MelonLoader'">OperatorModdedOperations.MelonLoader</AssemblyName>
     <TargetFramework>net6.0</TargetFramework>
+    <Version>0.3.30</Version>
     <LangVersion>10.0</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
@@ -12,6 +15,10 @@
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
     <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
     <OperatorGameDir Condition="'$(OperatorGameDir)' == ''">$(OPERATOR_GAME_DIR)</OperatorGameDir>
+    <MelonLoaderDir Condition="'$(MelonLoaderDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\_dependencies\MelonLoader\v0.7.3\MelonLoader\net6</MelonLoaderDir>
+    <DefineConstants Condition="'$(OperatorLoader)' == 'MelonLoader'">$(DefineConstants);MELONLOADER</DefineConstants>
+    <IntermediateOutputPath>obj\$(OperatorLoader)\$(Configuration)\</IntermediateOutputPath>
+    <OutputPath Condition="'$(OperatorLoader)' == 'MelonLoader'">bin\$(Configuration)\MelonLoader\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup Condition="Exists('$(OperatorModApiProject)')">
@@ -27,9 +34,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="BepInEx.Core"><HintPath>$(OperatorGameDir)\BepInEx\core\BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>$(OperatorGameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(OperatorGameDir)\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <ProjectReference Include="../../../operator-mod-api/src/OperatorModAPI.MelonLoader/OperatorModAPI.MelonLoader.csproj" Condition="'$(OperatorLoader)' == 'MelonLoader'"><Private>false</Private></ProjectReference>
+    <Reference Include="MelonLoader" Condition="'$(OperatorLoader)' == 'MelonLoader'"><HintPath>$(MelonLoaderDir)\MelonLoader.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx.Core" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorGameDir)\BepInEx\core\BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity.IL2CPP" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorGameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorGameDir)\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime" Condition="'$(OperatorLoader)' == 'MelonLoader'"><HintPath>$(MelonLoaderDir)\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2Cppmscorlib"><HintPath>$(OperatorGameDir)\BepInEx\interop\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2CppSystem.Core"><HintPath>$(OperatorGameDir)\BepInEx\interop\Il2CppSystem.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp"><HintPath>$(OperatorGameDir)\BepInEx\interop\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>

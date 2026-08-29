@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>10.0</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>OperatorModdedOperations.PeerNativePolicy.SourceBuild</AssemblyName>
+    <RootNamespace>OperatorModdedOperations.NativePatching</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <BuildProjectReferences>false</BuildProjectReferences>
+    <UseSharedCompilation>false</UseSharedCompilation>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <OperatorLoader Condition="'$(OperatorLoader)' == ''">BepInEx</OperatorLoader>
+    <DefineConstants Condition="'$(OperatorLoader)' == 'BepInEx'">$(DefineConstants);OPERATOR_LOADER_BEPINEX</DefineConstants>
+    <DefineConstants Condition="'$(OperatorLoader)' == 'MelonLoader'">$(DefineConstants);OPERATOR_LOADER_MELONLOADER</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Contracts.cs" Link="PeerNativePolicy.Contracts.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Models.cs" Link="PeerNativePolicy.Models.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Receipts.cs" Link="PeerNativePolicy.Receipts.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Manifest.cs" Link="PeerNativePolicy.Manifest.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Codec.cs" Link="PeerNativePolicy.Codec.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Construction.cs" Link="PeerNativePolicy.Construction.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Capability.cs" Link="PeerNativePolicy.Capability.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\CerberusNativeTabFix.PeerNativePolicy.Operational.cs" Link="PeerNativePolicy.Operational.cs" />
+  </ItemGroup>
+
+  <Target Name="ValidatePinnedLoaderInputs" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(OperatorLoader)' != 'BepInEx' and '$(OperatorLoader)' != 'MelonLoader'"
+           Text="OperatorLoader must be BepInEx or MelonLoader." />
+    <Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(DefineConstants)', '(^|[;,\s])PEER_NATIVE_POLICY_TESTS($|[;,\s])'))"
+           Text="PEER_NATIVE_POLICY_TESTS is forbidden in loader and release builds." />
+  </Target>
+</Project>

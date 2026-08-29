@@ -103,10 +103,8 @@ class PvpPeerAgreementTests(unittest.TestCase):
         digest = extract_method(self.agreement, "ComputePvpIdentityDigest")
         for token in (
             "PvpAgreementFrameworkVersion",
-            "runtime.FrameworkSha256",
             "OperatorApi.ApiVersion",
-            "runtime.ApiCoreSha256",
-            "runtime.ApiHostSha256",
+            "runtime.SuiteManifestSha256",
             "OperatorApi.Compatibility.DetectedGameBuildId",
             "PvpAgreementCapabilities",
             "map.PackageId",
@@ -121,6 +119,9 @@ class PvpPeerAgreementTests(unittest.TestCase):
             "timeCode",
             "operation.MinimumPlayers",
             "operation.MaximumPlayers",
+            "operation.MinimumEnemies",
+            "operation.MaximumEnemies",
+            "pveEnemyCount",
             "runtime.CompanionPluginGuid",
             "runtime.CompanionPluginVersion",
             "runtime.CompanionSha256",
@@ -131,7 +132,8 @@ class PvpPeerAgreementTests(unittest.TestCase):
         self.assertIn("identity.Nonce", digest)
         self.assertIn("PvpAgreementProtocolVersion", digest)
         self.assertIn("SHA256.Create()", digest)
-        self.assertIn("private const ushort PvpAgreementProtocolVersion = 2", self.agreement)
+        self.assertIn("private const ushort PvpAgreementProtocolVersion = 6", self.agreement)
+        self.assertIn("suite-install-receipt-v1", self.agreement)
 
     def test_remote_offer_accepts_single_scene_synthetic_default_identity(self) -> None:
         resolve = extract_method(self.agreement, "TryResolveExactLocalPvpOffer")
@@ -209,20 +211,16 @@ class PvpPeerAgreementTests(unittest.TestCase):
     def test_post_transition_agreement_failure_tears_down_host_generation(self) -> None:
         maintain = extract_method(self.framework, "MaintainStandaloneGameplay")
         failure_gate = maintain.index("operation.NetworkSpawnFailed")
-        pvp_gate = maintain.rfind(
-            "ModdedOperationMode.PlayerVersusPlayer", 0, failure_gate
-        )
-        release = maintain.index("ReleaseStandaloneSceneContracts(operation)", failure_gate)
         abort_request = maintain.index("RequestNativePvpAbortReturn(operation)", failure_gate)
-        normal_spawn = maintain.index("NetworkServer.Spawn(", release)
-        self.assertLess(pvp_gate, failure_gate)
-        self.assertLess(abort_request, release)
-        self.assertLess(failure_gate, release)
-        self.assertLess(release, normal_spawn)
-        self.assertIn("operation.ScenePreparationStarted = true", maintain[release:])
-        self.assertIn("operation.NetworkSpawnFailed = true", maintain[release:])
-        self.assertIn("!operation.PvpAbortReturnRequested", maintain)
-        self.assertNotIn("operation.BootstrapRoot != null", maintain[:release])
+        first_return = maintain.index("return;", abort_request)
+        normal_spawn = maintain.index("NetworkServer.Spawn(", first_return)
+        self.assertLess(failure_gate, abort_request)
+        self.assertLess(abort_request, first_return)
+        self.assertLess(first_return, normal_spawn)
+        self.assertNotIn(
+            "ReleaseStandaloneSceneContracts(operation)",
+            maintain[failure_gate:first_return],
+        )
 
         abort = extract_method(self.agreement, "RequestNativePvpAbortReturn")
         one_shot = abort.index("operation.PvpAbortReturnRequested = true")
@@ -234,7 +232,7 @@ class PvpPeerAgreementTests(unittest.TestCase):
     def test_remote_post_transition_failure_disconnects_then_local_cleanup_can_run(self) -> None:
         clear = extract_method(self.agreement, "ClearRemotePvpAgreement")
         self.assertIn("activeOperation.NetworkSpawnFailed = true", clear)
-        self.assertIn("remote.ContentCommitted", clear)
+        self.assertIn("remote.NativeTransitionCommittedEpoch", clear)
         self.assertIn("RequestNativePvpAbortReturn(activeOperation)", clear)
         abort = extract_method(self.agreement, "RequestNativePvpAbortReturn")
         self.assertIn("!NetworkServer.active && NetworkClient.active", abort)
@@ -250,10 +248,81 @@ class PvpPeerAgreementTests(unittest.TestCase):
         self.assertIn("NetworkClient.handlers.Remove", release)
         self.assertIn("NetworkServer.handlers.Remove", release)
 
+    def test_transport_epoch_and_session_close_emit_stable_evidence(self) -> None:
+        maintain = extract_method(self.agreement, "MaintainPvpPeerAgreementTransport")
+        client_add = maintain.index("NetworkClient.handlers.Add(")
+        client_marker = maintain.index('"pvp-transport-registered"', client_add)
+        server_add = maintain.index("NetworkServer.handlers.Add(")
+        server_marker = maintain.index('"pvp-transport-registered"', server_add)
+        self.assertLess(client_add, client_marker)
+        self.assertLess(server_add, server_marker)
+        self.assertIn('"role=client|messageId=0x"', maintain)
+        self.assertIn('"role=server|messageId=0x"', maintain)
+
+        release = extract_method(self.agreement, "ReleasePvpPeerAgreementTransport")
+        client_remove = release.index("NetworkClient.handlers.Remove")
+        server_remove = release.index("NetworkServer.handlers.Remove")
+        release_marker = release.index('"pvp-transport-released"', server_remove)
+        clear_host = release.index("hostPvpAgreement = null", release_marker)
+        clear_remote = release.index("remotePvpAgreement = null", clear_host)
+        self.assertLess(client_remove, release_marker)
+        self.assertLess(server_remove, release_marker)
+        self.assertLess(release_marker, clear_host)
+        self.assertLess(clear_host, clear_remote)
+        self.assertIn("hostFinalEpoch=", release)
+        self.assertIn("remoteFinalEpoch=", release)
+
+        begin = extract_method(self.agreement, "TryBeginHostPvpSceneGeneration")
+        issue = begin.index("host.SceneGenerationEpoch++")
+        send = begin.index("BroadcastHostPvpSceneReadyRequest", issue)
+        issue_marker = begin.index('"pvp-scene-epoch-issued"', send)
+        self.assertLess(issue, send)
+        self.assertLess(send, issue_marker)
+        self.assertIn("evidenceTargetSceneHandle", begin)
+        self.assertIn("evidenceTargetSceneGeneration", begin)
+        self.assertIn('"|sceneCorrelation=target"', begin)
+
+        process = extract_method(self.agreement, "ProcessPvpPeerAgreement")
+        ready = process.index("host.Phase = HostPvpAgreementPhase.ReadyToSpawn")
+        barrier_marker = process.index('"pvp-scene-epoch-barrier-passed"', ready)
+        self.assertLess(ready, barrier_marker)
+
+        complete = extract_method(
+            self.agreement,
+            "CompletePvpPeerAgreementOnNativeReturn",
+        )
+        host_close = complete.index("LogPvpSessionClose(")
+        host_clear = complete.index("hostPvpAgreement = null", host_close)
+        self.assertLess(host_close, host_clear)
+        self.assertIn('"native-return"', complete)
+
+        close_helper = extract_method(self.agreement, "LogPvpSessionClose")
+        self.assertIn('"pvp-session-close"', close_helper)
+        self.assertIn(
+            '"|finalEpoch=" + FrameworkEvidence.Number(finalEpoch)',
+            close_helper,
+        )
+        self.assertIn(
+            "operation = ResolvePvpEvidenceOperation(operation, identity)",
+            close_helper,
+        )
+
+        resolver = extract_method(self.agreement, "ResolvePvpEvidenceOperation")
+        self.assertIn("IsPeerAgreementMode", resolver)
+        self.assertIn("OperationMatchesPvpIdentity(operation, identity)", resolver)
+
+        begin_offer = extract_method(self.agreement, "BeginPvpPeerAgreementOrFail")
+        failed_close = begin_offer.rindex("LogPvpSessionClose(")
+        failed_clear = begin_offer.index("hostPvpAgreement = null", failed_close)
+        self.assertLess(failed_close, failed_clear)
+        self.assertIn('"offer-failed"', begin_offer)
+
     def test_reload_resets_only_scene_barrier(self) -> None:
         reset = extract_method(self.agreement, "ResetPvpSceneAgreementForReload")
         begin = extract_method(self.agreement, "TryBeginHostPvpSceneGeneration")
         self.assertIn("TryBeginHostPvpSceneGeneration", reset)
+        self.assertIn("operation.EvidenceSceneGeneration + 1", reset)
+        self.assertIn("evidenceTargetSceneHandle", reset)
         self.assertIn("host.SceneReadyEpochByConnectionId.Clear()", begin)
         self.assertIn("host.Phase = HostPvpAgreementPhase.WaitingForScenes", begin)
         self.assertIn("host.NativeLifecycleDeadlineTimestamp = 0", begin)
@@ -274,12 +343,15 @@ class PvpPeerAgreementTests(unittest.TestCase):
         complete = extract_method(
             self.agreement, "CompletePvpPeerAgreementOnNativeReturn"
         )
-        self.assertIn('"Operation Room"', complete)
-        self.assertIn("NetworkManager.networkSceneName", complete)
+        observe = extract_method(
+            self.agreement, "TryObserveExactNativeOperationRoomReturn"
+        )
+        self.assertIn('"Operation Room"', observe)
+        self.assertIn("NetworkManager.networkSceneName", observe)
         self.assertIn("hostPvpAgreement = null", complete)
         self.assertIn("remotePvpAgreement = null", complete)
         self.assertIn("operation.NativeLaunchInvoked = false", complete)
-        self.assertIn("operation.PvpAbortReturnRequested = false", complete)
+        self.assertIn("operation.PvpAbortReturnConfirmed = true", complete)
         self.assertIn("operation.NetworkSpawnFailed = false", complete)
         self.assertIn("return true;", complete[complete.index("operation.NativeLaunchInvoked = false"):])
 
@@ -291,17 +363,23 @@ class PvpPeerAgreementTests(unittest.TestCase):
         opening = self.framework.find("{", unload.end())
         closing = find_matching_brace(self.framework, opening)
         body = self.framework[unload.start() : closing + 1]
-        capture = body.index("ActiveMapOperation pvpUnloadOperation")
-        transport = body.index("ReleasePvpPeerAgreementTransport", capture)
-        abort = body.index("RequestNativePvpAbortReturn", transport)
-        release = body.index("ReleaseStandaloneSceneContracts", abort)
-        self.assertLess(capture, transport)
-        self.assertLess(transport, abort)
-        self.assertLess(abort, release)
+        capture = body.index("ActiveMapOperation unloadOperation")
+        live = body.index("bool nativeOwnerLive", capture)
+        abort = body.index("RequestNativePvpAbortReturn", live)
+        deferred = body.index("return false;", abort)
+        transport = body.index("ReleasePvpPeerAgreementTransport", deferred)
+        release = body.index("ReleaseStandaloneSceneContracts", transport)
+        self.assertLess(capture, live)
+        self.assertLess(live, abort)
+        self.assertLess(abort, deferred)
+        self.assertLess(deferred, transport)
+        self.assertLess(transport, release)
 
     def test_remote_teardown_destroys_adopted_root_and_distinct_template(self) -> None:
         release = extract_method(self.framework, "ReleaseStandaloneGameMode")
-        unregister = release.index("NetworkClient.UnregisterPrefab(bootstrapPrefabRoot)")
+        unregister = release.index(
+            "ReleaseStandalonePeerGameModeSpawnHandler(operation)"
+        )
         distinct = release.index(
             "bootstrapPrefabRoot.GetInstanceID() != bootstrapRoot.GetInstanceID()"
         )
@@ -311,15 +389,13 @@ class PvpPeerAgreementTests(unittest.TestCase):
         self.assertLess(distinct, destroy_template)
         self.assertLess(destroy_template, destroy_adopted)
 
-    def test_protocol_v2_byte_binds_every_runtime_module(self) -> None:
+    def test_protocol_v6_byte_binds_suite_and_map_runtime_identity(self) -> None:
         write = extract_method(self.agreement, "WritePvpIdentity")
         read = extract_method(self.agreement, "ReadPvpIdentity")
         digest = extract_method(self.agreement, "ComputePvpIdentityDigest")
         resolve = extract_method(self.agreement, "TryResolveExactLocalPvpOffer")
         fields = (
-            "FrameworkSha256",
-            "ApiCoreSha256",
-            "ApiHostSha256",
+            "SuiteManifestSha256",
             "CompanionPluginGuid",
             "CompanionPluginVersion",
             "CompanionSha256",
@@ -330,9 +406,8 @@ class PvpPeerAgreementTests(unittest.TestCase):
             self.assertIn(f"identity.{field}", write)
             self.assertIn(field, read)
             self.assertIn(f"identity.{field}", digest)
-        for field in ("FrameworkSha256", "ApiCoreSha256", "ApiHostSha256"):
-            self.assertIn(f"offer.{field}", resolve)
-            self.assertIn(f"localRuntime.{field}", resolve)
+        self.assertIn("offer.SuiteManifestSha256", resolve)
+        self.assertIn("localRuntime.SuiteManifestSha256", resolve)
         self.assertIn("PvpCompanionIdentityMatches(offer, mapRuntime)", resolve)
 
     def test_sha_fields_are_exact_lowercase_and_malformed_wire_values_fail(self) -> None:
@@ -345,20 +420,27 @@ class PvpPeerAgreementTests(unittest.TestCase):
         self.assertIn("ReadBoundedPvpString(reader, 64", read_hash)
         self.assertIn("value.Length == 64", validate_hash)
         self.assertIn("character is >= '0' and <= '9' or >= 'a' and <= 'f'", validate_hash)
-        for field in ("frameworkSha256", "apiCoreSha256", "apiHostSha256"):
+        for field in ("suiteManifestSha256", "frozenRosterDigest"):
             self.assertIn(f'ReadPvpSha256(reader, "{field}")', read)
         self.assertIn("IsLowercasePvpSha256(identity.CompanionSha256)", validate_companion)
         self.assertIn("string.IsNullOrWhiteSpace(identity.CompanionPluginGuid)", validate_companion)
         self.assertIn("companion none identity is internally inconsistent", validate_companion)
 
-    def test_loaded_runtime_identity_is_resolved_from_exact_loaded_bytes(self) -> None:
+    def test_runtime_identity_is_loader_neutral_and_companion_bytes_remain_exact(self) -> None:
         runtime = extract_method(self.agreement, "TryResolveLocalRuntimeIdentity")
+        receipt = extract_method(self.agreement, "TryResolveVerifiedSuiteReceipt")
         plugin = extract_method(self.agreement, "TryResolveLoadedPlugin")
         assembly = extract_method(self.agreement, "TryHashLoadedAssembly")
-        self.assertIn("typeof(CerberusNativeTabFix).Assembly", runtime)
-        self.assertIn("typeof(OperatorApi).Assembly", runtime)
-        self.assertIn("PvpApiPluginGuid", runtime)
+        self.assertIn("OperatorApi.LoaderKind", runtime)
+        self.assertIn("TryResolveVerifiedSuiteReceipt", runtime)
+        self.assertIn("SuiteManifestSha256", self.agreement)
+        self.assertIn("typeof(CerberusNativeTabFix).Assembly", receipt)
+        self.assertIn("typeof(OperatorApi).Assembly", receipt)
         self.assertIn("map?.RuntimeCompanion", runtime)
+        self.assertIn("companion.MelonLoaderSha256", runtime)
+        self.assertIn("companion.Sha256", runtime)
+        self.assertIn("companion.RuntimeContentId", runtime)
+        self.assertIn("MelonBase.RegisteredMelons", plugin)
         self.assertIn("IL2CPPChainloader.Instance", plugin)
         self.assertIn("plugin.TypeName, pluginType.FullName", plugin)
         self.assertIn("RequireExpectedPvpSha256", plugin)
@@ -370,18 +452,14 @@ class PvpPeerAgreementTests(unittest.TestCase):
     def test_same_version_different_runtime_bytes_are_rejected(self) -> None:
         resolve = extract_method(self.agreement, "TryResolveExactLocalPvpOffer")
         version = resolve.index("offer.FrameworkVersion")
-        framework_hash = resolve.index("offer.FrameworkSha256", version)
-        api_version = resolve.index("offer.ApiVersion", framework_hash)
-        api_core_hash = resolve.index("offer.ApiCoreSha256", api_version)
-        api_host_hash = resolve.index("offer.ApiHostSha256", api_core_hash)
+        api_version = resolve.index("offer.ApiVersion", version)
+        suite_hash = resolve.index("offer.SuiteManifestSha256", api_version)
         failure = resolve.index(
-            'error = "framework/API binary/game-build/capability identity mismatch"'
+            'error = "suite/framework/API/game-build/capability identity mismatch"'
         )
-        self.assertLess(version, framework_hash)
-        self.assertLess(framework_hash, api_version)
-        self.assertLess(api_version, api_core_hash)
-        self.assertLess(api_core_hash, api_host_hash)
-        self.assertLess(api_host_hash, failure)
+        self.assertLess(version, api_version)
+        self.assertLess(api_version, suite_hash)
+        self.assertLess(suite_hash, failure)
 
     def test_runtime_companion_ready_gate_is_exact_and_failure_always_wins(self) -> None:
         process = extract_method(self.agreement, "ProcessPvpPeerAgreement")
@@ -411,8 +489,10 @@ class PvpPeerAgreementTests(unittest.TestCase):
             '"host replaced an unfinished PVP agreement without cancellation"'
         )
         rejection = accept.index("PvpAgreementMessageKind.Reject", replacement)
-        override = accept.index("offer);", rejection)
-        teardown = accept.index("ClearRemotePvpAgreement(replacementReason)", override)
+        override = accept.index("frozenSlotOverride: frozenSlot", rejection)
+        teardown = accept.index(
+            'ClearRemotePvpAgreement(replacementReason, "replaced")', override
+        )
         immediate_return = accept.index("return;", replacement)
         resolver = accept.index("TryResolveExactLocalPvpOffer", immediate_return)
         preload = accept.index("new PendingMapLaunch", resolver)
@@ -440,7 +520,7 @@ class PvpPeerAgreementTests(unittest.TestCase):
         validate = scene_loaded.index("ValidateStandaloneSceneContract", assign_handle)
         self.assertLess(assign_handle, validate)
         self.assertIn("activeOperation.NativeLaunchInvoked", fail_host)
-        self.assertIn("remote.ContentCommitted", clear_remote)
+        self.assertIn("remote.NativeTransitionCommittedEpoch", clear_remote)
         self.assertIn("RequestNativePvpAbortReturn", fail_host)
         self.assertIn("RequestNativePvpAbortReturn", clear_remote)
 
@@ -449,7 +529,10 @@ class PvpPeerAgreementTests(unittest.TestCase):
         mismatch = loaded.index(
             "previousSceneHandle != 0 && previousSceneHandle != scene.handle"
         )
-        reset = loaded.index("ResetPvpSceneAgreementForReload(operation)", mismatch)
+        reset = loaded.index(
+            "ResetPvpSceneAgreementForReload(operation, scene.handle)",
+            mismatch,
+        )
         retire = loaded.index("operation.SceneHandle = 0", reset)
         adopt = loaded.index("operation.SceneHandle = scene.handle", retire)
         self.assertLess(mismatch, reset)
@@ -486,6 +569,8 @@ class PvpPeerAgreementTests(unittest.TestCase):
         launch = process.index("InvokeNativeCatalogLaunch(", issue)
         self.assertLess(content, issue)
         self.assertLess(issue, launch)
+        self.assertIn("evidenceTargetSceneGeneration: 1", process[issue:launch])
+        self.assertIn("evidenceTargetSceneHandle: 0", process[issue:launch])
         self.assertIn("host.SceneGenerationEpoch++", begin)
         self.assertIn("BroadcastHostPvpSceneReadyRequest", begin)
         self.assertIn("host.SceneGenerationEpoch == ulong.MaxValue", begin)
@@ -498,7 +583,10 @@ class PvpPeerAgreementTests(unittest.TestCase):
         unloaded = extract_method(self.framework, "OnSceneUnloaded")
         self.assertEqual(reset.count("TryBeginHostPvpSceneGeneration("), 1)
         self.assertEqual(begin.count("host.SceneGenerationEpoch++"), 1)
-        self.assertIn("ResetPvpSceneAgreementForReload(operation)", loaded)
+        self.assertIn(
+            "ResetPvpSceneAgreementForReload(operation, scene.handle)",
+            loaded,
+        )
         self.assertIn("previousSceneHandle != scene.handle", loaded)
         self.assertIn("ResetPvpSceneAgreementForReload(operation)", unloaded)
         self.assertIn("scene.handle != operation.SceneHandle", unloaded)
@@ -722,8 +810,8 @@ class PvpPeerAgreementTests(unittest.TestCase):
     def test_plugin_unload_and_transport_release_abort_handle_zero_transitions(self) -> None:
         release = extract_method(self.agreement, "ReleasePvpPeerAgreementTransport")
         self.assertIn("agreementOperation.NativeLaunchInvoked", release)
-        self.assertIn("hostPvpAgreement?.NativeLaunchInvoked", release)
-        self.assertIn("remotePvpAgreement?.ContentCommitted", release)
+        self.assertIn("closingHost?.NativeLaunchInvoked", release)
+        self.assertIn("closingRemote?.NativeTransitionCommittedEpoch", release)
         self.assertIn("PvpAgreementMessageKind.Cancel", release)
         self.assertIn("PvpAgreementMessageKind.Reject", release)
         abort = release.index("RequestNativePvpAbortReturn")
@@ -732,25 +820,28 @@ class PvpPeerAgreementTests(unittest.TestCase):
         self.assertLess(abort, clear_host)
         self.assertLess(clear_host, clear_remote)
 
-    def test_pve_launch_and_spawn_paths_remain_outside_pvp_barriers(self) -> None:
+    def test_networked_pve_uses_peer_barriers_while_solo_keeps_local_path(self) -> None:
         launch = extract_method(self.framework, "InvokeNativeCatalogLaunch")
         spawn = extract_method(self.agreement, "IsPvpNetworkSpawnAuthorized")
+        self.assertIn("ShouldBeginPvePeerAgreement()", launch)
+        self.assertIn("requiresPvePeerAgreement", launch)
         self.assertIn("ClearPvpPeerAgreementForNonPvpLaunch()", launch)
         self.assertIn(
-            "operation.Mode ==\n                ModdedOperationMode.PlayerVersusPlayer",
+            "operation.Mode == ModdedOperationMode.PlayerVersusPlayer ||\n             requiresPvePeerAgreement",
             launch,
         )
         self.assertIn(
-            "operation?.Operation?.Mode != ModdedOperationMode.PlayerVersusPlayer",
+            "ModdedOperationMode.PlayerVersusEnvironment",
             spawn,
         )
-        self.assertIn("return true;", spawn)
+        self.assertIn("TryValidateSoloPveNetworkOwnership", spawn)
+        self.assertIn("AreRequiredPvpPeersSceneReadyForCurrentEpoch", spawn)
 
         clear = extract_method(
             self.agreement, "ClearPvpPeerAgreementForNonPvpLaunch"
         )
         self.assertIn("hostPvpAgreement = null", clear)
-        self.assertIn("remotePvpAgreement = null", clear)
+        self.assertIn("ClearRemotePvpAgreement(", clear)
 
 
 if __name__ == "__main__":

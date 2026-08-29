@@ -12,6 +12,10 @@ FRAMEWORK_PATH = (
     / "OperatorModdedOperations"
     / "CerberusNativeTabFix.cs"
 )
+EVIDENCE_PATH = FRAMEWORK_PATH.with_name("FrameworkEvidence.cs")
+AGREEMENT_PATH = FRAMEWORK_PATH.with_name(
+    "CerberusNativeTabFix.PvpPeerAgreement.cs"
+)
 
 
 def find_matching_brace(source: str, opening: int) -> int:
@@ -79,6 +83,8 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.framework = FRAMEWORK_PATH.read_text(encoding="utf-8")
+        cls.evidence = EVIDENCE_PATH.read_text(encoding="utf-8")
+        cls.agreement = AGREEMENT_PATH.read_text(encoding="utf-8")
 
     def test_injected_network_behaviours_receive_only_missing_native_list_baseline(self) -> None:
         method = extract_method(
@@ -101,9 +107,12 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
             "EnsureStandaloneBootstrapPrefabRegistered",
         )
         validation = method.index("ValidateStandaloneBootstrapSyncObjects(")
-        registration = method.index("NetworkClient.RegisterPrefab(")
+        preflight = method.index("TryPreflightStandalonePeerGameModeClone(")
+        registration = method.index("NetworkClient.RegisterSpawnHandler(")
         self.assertLess(validation, registration)
-        self.assertIn("Mirror prefab registration refused", method)
+        self.assertLess(preflight, registration)
+        self.assertNotIn("NetworkClient.RegisterPrefab(", method)
+        self.assertIn("Mirror custom spawn handler registered", method)
 
     def test_native_spawn_is_single_attempt_and_preconditioned(self) -> None:
         method = extract_method(self.framework, "MaintainStandaloneGameplay")
@@ -121,21 +130,21 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
     def test_teardown_unspawns_then_unregisters_then_destroys_owned_root(self) -> None:
         method = extract_method(self.framework, "ReleaseStandaloneGameMode")
         unspawn = method.index("NetworkServer.UnSpawn(bootstrapRoot)")
-        unregister = method.index("NetworkClient.UnregisterPrefab(bootstrapPrefabRoot)")
-        remove_by_id = method.index("prefabs.Remove(bootstrapAssetId)")
+        unregister = method.index("ReleaseStandalonePeerGameModeSpawnHandler(operation)")
         destroy = method.index("Object.Destroy(bootstrapRoot)")
         clear_ownership = method.index("operation.BootstrapSyncObjects.Clear()")
         self.assertLess(unspawn, unregister)
-        self.assertLess(unregister, remove_by_id)
-        self.assertLess(remove_by_id, destroy)
+        self.assertLess(unregister, destroy)
         self.assertLess(destroy, clear_ownership)
         self.assertNotIn("NetworkClient.ClearSpawners", method)
+        self.assertNotIn("NetworkClient.UnregisterPrefab", method)
+        self.assertNotIn("NetworkClient.UnregisterSpawnHandler", method)
         self.assertNotIn("syncObjects = null", method)
 
     def test_plugin_version_changes_with_spawn_contract(self) -> None:
         self.assertIn(
             '[BepInPlugin("operator.modded-operations", '
-            '"OPERATOR: Modded Operations", "0.3.29")]',
+            '"OPERATOR: Modded Operations", "0.3.30")]',
             self.framework,
         )
 
@@ -170,7 +179,7 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
 
     def test_framework_requires_api_with_optional_delay_contract(self) -> None:
         self.assertIn(
-            'internal const string RequiredApiVersion = "0.2.0-alpha.6";',
+            'internal const string RequiredApiVersion = "0.2.0-alpha.7";',
             self.framework,
         )
 
@@ -404,7 +413,10 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
     def test_owned_population_cleanup_precedes_game_mode_release_and_reset(self) -> None:
         release = extract_method(self.framework, "ReleaseStandaloneSceneContracts")
         exact_cleanup = release.index("DestroyOwnedStandalonePvePopulation(")
+        count_restore = release.index("RestoreStandalonePveBotCountContract(operation)")
         game_mode = release.index("ReleaseStandaloneGameMode(operation)")
+        self.assertLess(exact_cleanup, count_restore)
+        self.assertLess(count_restore, game_mode)
         self.assertLess(exact_cleanup, game_mode)
 
         for lifecycle_name in ("OnSceneLoaded", "OnSceneUnloaded"):
@@ -422,6 +434,24 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
             self.assertIn("PveOwnedServerIdentities.Clear()", method)
             self.assertIn("PveOwnedBrainInstanceIds.Clear()", method)
             self.assertIn("PveTeamValidationEarliestFrame = -1", method)
+
+    def test_custom_pve_bot_counts_restore_without_overwriting_a_foreign_owner(self) -> None:
+        spawn = extract_method(self.framework, "TrySpawnStandalonePveEnemies")
+        capture = spawn.index("operation.PreviousBotAmount = gameManager.botAmount")
+        write = spawn.index("gameManager.botAmount = operation.OwnedBotAmount")
+        self.assertLess(capture, write)
+        self.assertIn("operation.PreviousBotHvtAmount = gameManager.botHVTAmount", spawn)
+        self.assertIn("operation.BotCountsCaptured = true", spawn)
+
+        restore = extract_method(
+            self.framework,
+            "RestoreStandalonePveBotCountContract",
+        )
+        self.assertIn("gameManager.botAmount == operation.OwnedBotAmount", restore)
+        self.assertIn("gameManager.botHVTAmount == operation.OwnedBotHvtAmount", restore)
+        self.assertIn("gameManager.botAmount = operation.PreviousBotAmount", restore)
+        self.assertIn("gameManager.botHVTAmount = operation.PreviousBotHvtAmount", restore)
+        self.assertIn("operation.BotCountsCaptured = false", restore)
 
     def test_native_death_callback_remains_all_enemies_dead_completion_owner(self) -> None:
         bootstrap = extract_method(self.framework, "ConfigureStandalonePveController")
@@ -494,6 +524,210 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
         self.assertIn('case "defensive"', method)
         self.assertIn('case "offensive"', method)
         self.assertIn('case "random"', method)
+
+    def test_loader_neutral_pve_evidence_covers_count_spawn_and_validation(self) -> None:
+        self.assertIn('internal const string Prefix = "MODDED_OPS_EVIDENCE";', self.evidence)
+        self.assertIn('"|loader=" + Encode(loaderKind)', self.evidence)
+        self.assertIn('"|sceneGeneration=" +', self.evidence)
+        self.assertIn(
+            "sceneGeneration.ToString(CultureInfo.InvariantCulture)",
+            self.evidence,
+        )
+
+        confirm = extract_method(self.framework, "BeginCatalogOperationLaunch")
+        validate = confirm.index("TryValidateConfirmedSelection(")
+        pending = confirm.index('"pve-count-pending"', validate)
+        loading = confirm.index("SetNativeConfirmationLoadingState(presentation, true)")
+        self.assertLess(validate, pending)
+        self.assertLess(pending, loading)
+
+        active = extract_method(self.framework, "InvokeNativeCatalogLaunch")
+        assign = active.index("activeOperation = new ActiveMapOperation")
+        active_marker = active.index('"pve-count-active"', assign)
+        native_start = active.index("InvokeNativeBoardStart(", active_marker)
+        self.assertLess(assign, active_marker)
+        self.assertLess(active_marker, native_start)
+
+        loaded = extract_method(self.framework, "OnSceneLoaded")
+        prior_handle = loaded.index(
+            "priorEvidenceSceneHandle = operation.EvidenceLastSceneHandle"
+        )
+        generation = loaded.index("operation.EvidenceSceneGeneration++")
+        overwrite_handle = loaded.index("operation.EvidenceLastSceneHandle = scene.handle")
+        restart_marker = loaded.index('"pve-count-restart-retained"', generation)
+        contract = loaded.index("ValidateStandaloneSceneContract", restart_marker)
+        self.assertLess(prior_handle, generation)
+        self.assertLess(generation, overwrite_handle)
+        self.assertLess(generation, restart_marker)
+        self.assertLess(restart_marker, contract)
+        self.assertIn(
+            '"|priorSceneHandle=" + FrameworkEvidence.Number(',
+            loaded,
+        )
+        self.assertIn("ResetPvpSceneAgreementForReload(operation, scene.handle)", loaded)
+
+        spawn = extract_method(self.framework, "TrySpawnStandalonePveEnemies")
+        capacity_validation = spawn.index("TryValidateConfirmedSelection(")
+        capacity_pass = spawn.index('"pve-safe-navigation-capacity-passed"')
+        cohort = spawn.index("TrySelectStandalonePvePrefabCohort(", capacity_pass)
+        native_spawn = spawn.index("raid.ServerSpawnAI(false)")
+        returned = spawn.index('"pve-server-spawn-returned"', native_spawn)
+        restore = spawn.index("raid.standardAI = previousStandardAi", returned)
+        pending_validation = spawn.index('"pve-deferred-validation-pending"', restore)
+        self.assertLess(capacity_validation, capacity_pass)
+        self.assertLess(capacity_pass, cohort)
+        self.assertLess(native_spawn, returned)
+        self.assertLess(returned, restore)
+        self.assertLess(restore, pending_validation)
+
+        validation_method = extract_method(
+            self.framework,
+            "ProcessPendingStandalonePveTeamValidation",
+        )
+        active_count = validation_method.index("operation.PveEnemyCount = expectedCount")
+        passed = validation_method.index('"pve-deferred-validation-passed"', active_count)
+        self.assertLess(active_count, passed)
+
+    def test_pve_completion_evidence_is_edge_latched_and_read_only(self) -> None:
+        observe = extract_method(
+            self.framework,
+            "ObserveStandalonePveLifecycleEvidence",
+        )
+        for field in (
+            "EvidencePveAllEnemiesDeadLogged",
+            "EvidencePveExtractionUnlockedLogged",
+            "EvidencePveExtractionTimerLogged",
+            "EvidencePveSuccessfulOperationLogged",
+        ):
+            self.assertIn(field, observe)
+        for event in (
+            '"pve-all-enemies-dead"',
+            '"pve-extraction-unlocked"',
+            '"pve-extraction-timer-started"',
+            '"pve-successful-operation"',
+        ):
+            self.assertIn(event, observe)
+        self.assertIn("GameManager.instance.allAI.Count", observe)
+        self.assertIn("network?.SuccessfulOperation == true", observe)
+        self.assertIn("FrameworkEvidence.Number(rawAllAi)", observe)
+        self.assertNotIn("UpdateAICount(", observe)
+        self.assertNotRegex(
+            observe,
+            r"(?:NetworkcanExtract|NetworkisExtracting|SuccessfulOperation)\s*=(?!=)",
+        )
+
+        maintain = extract_method(self.framework, "MaintainStandaloneGameplay")
+        validation = maintain.index("ProcessPendingStandalonePveTeamValidation(operation)")
+        observation = maintain.index("ObserveStandalonePveLifecycleEvidence(operation)")
+        throttle = maintain.index("operation.LastMaintenanceFrame + 15")
+        self.assertLess(validation, observation)
+        self.assertLess(observation, throttle)
+
+        unload = extract_method(self.framework, "OnSceneUnloaded")
+        self.assertNotIn("ObserveStandalonePveLifecycleEvidence(operation)", unload)
+        self.assertIn("CompletePvpPeerAgreementOnNativeReturn(operation)", unload)
+        native_return = extract_method(
+            self.agreement,
+            "CompletePvpPeerAgreementOnNativeReturn",
+        )
+        self.assertIn("EvidencePveSuccessfulOperationLogged", native_return)
+        self.assertIn('"|observation=verified-operation-room-return"', native_return)
+        self.assertIn('"pve-operation-room-return"', native_return)
+
+    def test_teardown_and_framework_unload_have_one_shot_evidence(self) -> None:
+        release = extract_method(self.framework, "ReleaseStandaloneSceneContracts")
+        capture = release.index("CaptureStandaloneTeardownEvidence(operation)")
+        population = release.index("DestroyOwnedStandalonePvePopulation(")
+        game_mode = release.index("ReleaseStandaloneGameMode(operation)")
+        summary = release.index("LogStandaloneTeardownSummary(", game_mode)
+        self.assertLess(capture, population)
+        self.assertLess(population, game_mode)
+        self.assertLess(game_mode, summary)
+        self.assertIn("finally", release)
+        self.assertIn("cleanupCompleted", release)
+
+        teardown = extract_method(self.framework, "LogStandaloneTeardownSummary")
+        self.assertIn("operation.EvidenceTeardownLogged", teardown)
+        self.assertIn('"scene-teardown-summary"', teardown)
+        self.assertIn("operation.EvidenceTeardownLogged = true", teardown)
+        self.assertIn('"|outcome=" + (cleanupCompleted', teardown)
+        self.assertIn('"|ownedAiRootsAfter="', teardown)
+        self.assertNotIn("!operation.ScenePreparationStarted", teardown)
+
+        declaration = re.search(r"public\s+override\s+bool\s+Unload\s*\(", self.framework)
+        self.assertIsNotNone(declaration)
+        opening = self.framework.find("{", declaration.end())
+        closing = find_matching_brace(self.framework, opening)
+        unload = self.framework[declaration.start() : closing + 1]
+        marker = unload.index('"framework-unload-success"')
+        clear_instance = unload.index("instance = null", marker)
+        success = unload.index("return true", clear_instance)
+        self.assertLess(marker, clear_instance)
+        self.assertLess(clear_instance, success)
+
+    def test_failed_native_return_cannot_be_reclassified_as_restart(self) -> None:
+        loaded = extract_method(self.framework, "OnSceneLoaded")
+        failed_branch = loaded.index("if (IsNativeAbortReturnPending(operation))")
+        restart_branch = loaded.index(
+            "if (operation.PeerSceneUnloadDispositionPending)",
+            failed_branch,
+        )
+        failed_return = loaded.index("return;", failed_branch)
+        self.assertLess(failed_branch, failed_return)
+        self.assertLess(failed_return, restart_branch)
+        failed_body = loaded[failed_branch:failed_return]
+        self.assertIn("ReleaseStandaloneSceneContracts(operation)", failed_body)
+        self.assertIn("operation.NetworkSpawnFailed = true", failed_body)
+        self.assertIn("operation.ScenePreparationStarted = true", failed_body)
+        self.assertIn("operation.ScenePreparationEarliestFrame = -1", failed_body)
+        self.assertIn("NotifyNativeAbortReturnPackageReloaded", failed_body)
+        self.assertNotIn("ResetPvpSceneAgreementForReload", failed_body)
+        self.assertNotIn("NotifyPvpSceneLoading", failed_body)
+        self.assertNotIn("PrepareStandaloneScene", failed_body)
+
+        unloaded = extract_method(self.framework, "OnSceneUnloaded")
+        capture = unloaded.index(
+            "bool abortReturnPending = IsNativeAbortReturnPending(operation)"
+        )
+        release = unloaded.index("ReleaseStandaloneSceneContracts(operation)")
+        restore = unloaded.index(
+            "operation.NetworkSpawnFailed =\n"
+            "            abortReturnPending && !nativeReturnCompleted;"
+        )
+        self.assertLess(capture, release)
+        self.assertLess(release, restore)
+        self.assertIn(
+            "bool protocolLifecycle = IsPeerAgreementMode(operation.Operation?.Mode)",
+            unloaded,
+        )
+        self.assertIn("protocolLifecycle || abortReturnPending", unloaded)
+
+    def test_solo_pve_return_retires_transition_and_membership_ownership(self) -> None:
+        unloaded = extract_method(self.framework, "OnSceneUnloaded")
+        complete = extract_method(
+            self.agreement,
+            "CompletePvpPeerAgreementOnNativeReturn",
+        )
+        self.assertIn("CompletePvpPeerAgreementOnNativeReturn(operation)", unloaded)
+        self.assertIn("operation.PveSoloMembershipFrozen = false", complete)
+        self.assertIn("operation.PveSoloSessionDigest = string.Empty", complete)
+        self.assertIn("operation.NativeTransitionStarted = false", complete)
+        self.assertIn("ReferenceEquals(activeOperation, operation)", complete)
+        self.assertIn("activeOperation = null", complete)
+
+        rejection = extract_method(
+            self.agreement,
+            "NotifyNativeAbortReturnPackageReloaded",
+        )
+        self.assertIn("operation.PvpAbortReturnAccepted = false", rejection)
+        self.assertIn("operation.PvpAbortReturnDeadlineTimestamp = 0", rejection)
+        self.assertIn("operation.PvpAbortReturnNextRetryTimestamp = 0", rejection)
+        self.assertIn("RequestNativePvpAbortReturn(operation)", rejection)
+        self.assertNotIn("PvpAbortReturnAttemptCount = 0", rejection)
+        self.assertIn(
+            '"pvp-native-abort-package-reload-rejected"',
+            rejection,
+        )
 
 
 if __name__ == "__main__":

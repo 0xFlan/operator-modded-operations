@@ -13,5 +13,9 @@
   <ItemGroup>
     <Compile Include="..\..\src\OperatorModdedOperations\SceneVariantSelectionStore.cs"
              Link="SceneVariantSelectionStore.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\PveEnemyCountSelection.cs"
+             Link="PveEnemyCountSelection.cs" />
+    <Compile Include="..\..\src\OperatorModdedOperations\FrameworkEvidence.cs"
+             Link="FrameworkEvidence.cs" />
   </ItemGroup>
 </Project>
