@@ -144,7 +144,7 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
     def test_plugin_version_changes_with_spawn_contract(self) -> None:
         self.assertIn(
             '[BepInPlugin("operator.modded-operations", '
-            '"OPERATOR: Modded Operations", "0.3.30")]',
+            '"OPERATOR: Modded Operations", "0.3.31")]',
             self.framework,
         )
 
@@ -620,8 +620,8 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
         validation = maintain.index("ProcessPendingStandalonePveTeamValidation(operation)")
         observation = maintain.index("ObserveStandalonePveLifecycleEvidence(operation)")
         throttle = maintain.index("operation.LastMaintenanceFrame + 15")
-        self.assertLess(validation, observation)
-        self.assertLess(observation, throttle)
+        self.assertLess(validation, throttle)
+        self.assertLess(throttle, observation)
 
         unload = extract_method(self.framework, "OnSceneUnloaded")
         self.assertNotIn("ObserveStandalonePveLifecycleEvidence(operation)", unload)

@@ -15,6 +15,7 @@ using BepInEx.Unity.IL2CPP;
 using Mirror;
 using OperatorModAPI;
 using OperatorModdedOperations;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 #if MELONLOADER
 using MelonLoader;
@@ -22,7 +23,7 @@ using MelonLoader;
 
 public sealed partial class CerberusNativeTabFix
 {
-    private const string PvpAgreementFrameworkVersion = "0.3.30";
+    private const string PvpAgreementFrameworkVersion = "0.3.31";
     private const string PvpAgreementCapabilities =
         "exact-content-v2;suite-install-receipt-v1;loader-neutral-runtime-pair-v1;" +
         "package-runtime-ready-v1;remote-preload-v1;client-hello-v1;" +
@@ -1526,6 +1527,25 @@ public sealed partial class CerberusNativeTabFix
         {
             return;
         }
+        // This guard is invoked by both the peer-agreement runner and the
+        // standalone gameplay runner. Audit at most once per Unity frame.
+        if (operation.LastSoloPveMembershipAuditFrame == Time.frameCount)
+            return;
+        operation.LastSoloPveMembershipAuditFrame = Time.frameCount;
+
+        // A healthy solo host has exactly its registered local connection.
+        // Keep the zero-remote proof allocation-free on the hot path; any
+        // registry change falls through to the full fail-closed snapshot.
+        LocalConnectionToClient localConnection = NetworkServer.localConnection;
+        if (NetworkServer.connections != null && localConnection != null &&
+            NetworkServer.connections.Count == 1 &&
+            NetworkServer.connections.TryGetValue(
+                localConnection.connectionId,
+                out NetworkConnectionToClient registeredLocal) &&
+            SamePvpNetworkConnection(localConnection, registeredLocal))
+        {
+            return;
+        }
         PvpConnectionSnapshot current;
         try
         {
@@ -2940,6 +2960,41 @@ public sealed partial class CerberusNativeTabFix
             OperationMatchesPvpIdentity(operation, currentRemote.Identity);
         if (!isHostOwner && !isRemoteOwner)
             return;
+        bool localSceneAlreadyReady =
+            isHostOwner && IsHostLocalSceneReadyForCurrentEpoch(currentHost) ||
+            isRemoteOwner && currentRemote.LocalSceneReady &&
+            currentRemote.LocalReadySceneGeneration ==
+                currentRemote.LocalSceneGeneration;
+        if (localSceneAlreadyReady)
+        {
+            ModdedRuntimeCompanionDefinition acceptedCompanion =
+                operation.Map.RuntimeCompanion;
+            if (acceptedCompanion != null)
+            {
+                Scene acceptedScene = FindLoadedSceneByHandle(operation.SceneHandle);
+                bool acceptedReady = false;
+                string acceptedError = string.Empty;
+                bool acceptedContractValid =
+                    acceptedScene.IsValid() && acceptedScene.isLoaded &&
+                    TryValidateRuntimeCompanionReadyMarker(
+                        operation,
+                        acceptedScene,
+                        acceptedCompanion,
+                        acceptedMarkerRequired: true,
+                        out acceptedReady,
+                        out acceptedError);
+                if (!acceptedContractValid || !acceptedReady)
+                {
+                    NotifyPvpScenePreparationFailed(
+                        operation,
+                        "accepted package runtime companion contract changed: " +
+                        (string.IsNullOrEmpty(acceptedError)
+                            ? "ready marker is unavailable"
+                            : acceptedError));
+                }
+            }
+            return;
+        }
         if (!TryValidateInstalledPvpSpawnContract(operation, out string spawnError))
         {
             NotifyPvpScenePreparationFailed(
@@ -2978,41 +3033,21 @@ public sealed partial class CerberusNativeTabFix
         }
         if (companion != null)
         {
-            _ = FindExactSceneTransform(
-                scene,
-                companion.FailureMarkerName,
-                out int failureMarkers);
-            _ = FindExactSceneTransform(
-                scene,
-                companion.ReadyMarkerName,
-                out int readyMarkers);
-            if (failureMarkers != 0)
+            if (!TryValidateRuntimeCompanionReadyMarker(
+                    operation,
+                    scene,
+                    companion,
+                    acceptedMarkerRequired: false,
+                    out bool companionReady,
+                    out string companionError))
             {
                 NotifyPvpScenePreparationFailed(
                     operation,
-                    "package runtime companion emitted failure marker '" +
-                    companion.FailureMarkerName + "' in exact scene handle=" +
-                    scene.handle + "; count=" + failureMarkers);
+                    companionError);
                 return;
             }
-            if ((isHostOwner && IsHostLocalSceneReadyForCurrentEpoch(currentHost)) ||
-                (isRemoteOwner && currentRemote.LocalSceneReady &&
-                 currentRemote.LocalReadySceneGeneration ==
-                 currentRemote.LocalSceneGeneration))
-            {
+            if (!companionReady)
                 return;
-            }
-            if (readyMarkers == 0)
-                return;
-            if (readyMarkers != 1)
-            {
-                NotifyPvpScenePreparationFailed(
-                    operation,
-                    "package runtime companion ready marker was ambiguous in exact " +
-                    "scene handle=" + scene.handle + "; marker='" +
-                    companion.ReadyMarkerName + "', count=" + readyMarkers);
-                return;
-            }
             log.LogInfo(AgreementModeLabel(operation.Operation.Mode) +
                 " package runtime readiness passed: companion=" +
                 companion.PluginGuid + "@" + companion.PluginVersion +
@@ -3021,13 +3056,6 @@ public sealed partial class CerberusNativeTabFix
         }
         else
         {
-            if ((isHostOwner && IsHostLocalSceneReadyForCurrentEpoch(currentHost)) ||
-                (isRemoteOwner && currentRemote.LocalSceneReady &&
-                 currentRemote.LocalReadySceneGeneration ==
-                 currentRemote.LocalSceneGeneration))
-            {
-                return;
-            }
             log.LogInfo(AgreementModeLabel(operation.Operation.Mode) +
                 " package runtime readiness passed: companion=none, " +
                 "sceneHandle=" + scene.handle + ".");
@@ -4137,6 +4165,87 @@ public sealed partial class CerberusNativeTabFix
         return true;
     }
 
+    private static bool TryValidateRuntimeCompanionReadyMarker(
+        ActiveMapOperation operation,
+        Scene scene,
+        ModdedRuntimeCompanionDefinition companion,
+        bool acceptedMarkerRequired,
+        out bool ready,
+        out string error)
+    {
+        ready = false;
+        error = string.Empty;
+        if (operation == null || companion == null ||
+            !scene.IsValid() || !scene.isLoaded ||
+            scene.handle != operation.SceneHandle)
+        {
+            error = "runtime companion marker validation has no exact loaded scene";
+            return false;
+        }
+
+        if (operation.RuntimeCompanionReadyMarkerAccepted)
+        {
+            Transform accepted = operation.RuntimeCompanionReadyMarker;
+            GameObject acceptedObject = accepted == null ? null : accepted.gameObject;
+            if (accepted == null || acceptedObject == null ||
+                !acceptedObject.activeInHierarchy ||
+                acceptedObject.scene.handle != scene.handle ||
+                !string.Equals(
+                    accepted.name,
+                    companion.ReadyMarkerName,
+                    StringComparison.Ordinal))
+            {
+                error = "accepted package runtime companion ready marker disappeared " +
+                    "or changed in exact scene handle=" + scene.handle;
+                return false;
+            }
+            ready = true;
+            return true;
+        }
+
+        _ = FindExactSceneTransform(
+            scene,
+            companion.FailureMarkerName,
+            out int failureMarkers);
+        Transform readyMarker = FindExactSceneTransform(
+            scene,
+            companion.ReadyMarkerName,
+            out int readyMarkers);
+        if (failureMarkers != 0)
+        {
+            error = "package runtime companion emitted failure marker '" +
+                companion.FailureMarkerName + "' in exact scene handle=" +
+                scene.handle + "; count=" + failureMarkers;
+            return false;
+        }
+        if (readyMarkers == 0)
+        {
+            if (acceptedMarkerRequired)
+            {
+                error = "package runtime companion ready marker disappeared after " +
+                    "native owner publication";
+                return false;
+            }
+            return true;
+        }
+        if (readyMarkers != 1 || readyMarker == null)
+        {
+            error = "package runtime companion ready marker was ambiguous in exact " +
+                "scene handle=" + scene.handle + "; marker='" +
+                companion.ReadyMarkerName + "', count=" + readyMarkers;
+            return false;
+        }
+
+        // The companion contract requires failure publication to synchronously
+        // retire or rename its ready marker. Cache that exact accepted object;
+        // later validation is O(1) and still fails closed on destruction,
+        // deactivation, scene migration, or a failure-wins rename.
+        operation.RuntimeCompanionReadyMarker = readyMarker;
+        operation.RuntimeCompanionReadyMarkerAccepted = true;
+        ready = true;
+        return true;
+    }
+
     private static bool TryValidateSoloPveRuntimeCompanion(
         ActiveMapOperation operation,
         out bool ready,
@@ -4166,46 +4275,17 @@ public sealed partial class CerberusNativeTabFix
             return false;
         }
 
-        _ = FindExactSceneTransform(
+        bool acceptedMarkerRequired =
+            operation.NetworkSpawnRequested ||
+            operation.ReadinessInitializationClaimed ||
+            operation.AllPlayersLoadedClaimed;
+        return TryValidateRuntimeCompanionReadyMarker(
+            operation,
             scene,
-            companion.FailureMarkerName,
-            out int failureMarkers);
-        _ = FindExactSceneTransform(
-            scene,
-            companion.ReadyMarkerName,
-            out int readyMarkers);
-        if (failureMarkers != 0)
-        {
-            error = "package runtime companion emitted failure marker '" +
-                companion.FailureMarkerName + "' in exact scene handle=" +
-                scene.handle + "; count=" + failureMarkers;
-            return false;
-        }
-        if (readyMarkers == 0)
-        {
-            // Before native owner publication, zero means the companion is still
-            // completing its bounded scene gate. After publication it means a
-            // previously accepted contract marker disappeared and is fatal.
-            if (operation.NetworkSpawnRequested ||
-                operation.ReadinessInitializationClaimed ||
-                operation.AllPlayersLoadedClaimed)
-            {
-                error = "package runtime companion ready marker disappeared after " +
-                    "native owner publication";
-                return false;
-            }
-            return true;
-        }
-        if (readyMarkers != 1)
-        {
-            error = "package runtime companion ready marker was ambiguous in exact " +
-                "scene handle=" + scene.handle + "; marker='" +
-                companion.ReadyMarkerName + "', count=" + readyMarkers;
-            return false;
-        }
-
-        ready = true;
-        return true;
+            companion,
+            acceptedMarkerRequired,
+            out ready,
+            out error);
     }
 
     private bool TryValidatePeerOwnerSpawnBoundary(
@@ -5867,14 +5947,11 @@ public sealed partial class CerberusNativeTabFix
         Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
         if (!scene.IsValid() || !scene.isLoaded)
             return;
-        List<UnityEngine.Transform> markers = FindStandalonePlayerMarkers(
-            scene,
-            operation.Operation.Mode);
+        List<UnityEngine.Transform> markers =
+            GetOrCacheStandalonePlayerMarkers(operation, scene);
         if (markers.Count == 0)
             return;
-        PlayerMaster[] allPlayers;
-        try { allPlayers = UnityEngine.Resources.FindObjectsOfTypeAll<PlayerMaster>(); }
-        catch { return; }
+        List<PlayerMaster> allPlayers = FindNetworkedPlayerMasters();
         var netIds = new List<uint>();
         var groundDeltasMm = new List<int>();
         var markerAssignments = new List<string>();

@@ -24,7 +24,7 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.30")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.31")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed partial class CerberusNativeTabFix : BasePlugin
@@ -232,7 +232,11 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public int AllPlayersLoadedFrame;
         public int BootstrapFrame;
         public int LastMaintenanceFrame;
+        public int LastSoloPveMembershipAuditFrame = -1;
         public int SpawnCursor;
+        public bool PlayerPlacementPassComplete;
+        public bool RuntimeCompanionReadyMarkerAccepted;
+        public Transform RuntimeCompanionReadyMarker;
         public bool ScenePreparationComplete;
         public bool ScenePreparationStarted;
         public int ScenePreparationEarliestFrame;
@@ -242,6 +246,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             new List<TerrainLayer>();
         public readonly Dictionary<int, int> PositionedPlayerObjects =
             new Dictionary<int, int>();
+        public readonly List<Transform> StandalonePlayerMarkers = new();
         public readonly Dictionary<int, string> PlayerMarkerNames =
             new Dictionary<int, string>();
         public readonly Dictionary<int, int> PlayerSpawnRequestFrames =
@@ -3795,12 +3800,17 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.AllPlayersLoadedFrame = -1;
         operation.BootstrapFrame = Time.frameCount;
         operation.LastMaintenanceFrame = -1;
+        operation.LastSoloPveMembershipAuditFrame = -1;
         operation.SpawnCursor = 0;
+        operation.PlayerPlacementPassComplete = false;
+        operation.RuntimeCompanionReadyMarkerAccepted = false;
+        operation.RuntimeCompanionReadyMarker = null;
         operation.ScenePreparationComplete = false;
         operation.ScenePreparationStarted = false;
         operation.ScenePreparationEarliestFrame = Time.frameCount + 1;
         operation.TerrainReady = false;
         operation.PositionedPlayerObjects.Clear();
+        operation.StandalonePlayerMarkers.Clear();
         operation.PlayerMarkerNames.Clear();
         operation.PlayerSpawnRequestFrames.Clear();
         operation.PlayerSpawnRequestCounts.Clear();
@@ -3949,12 +3959,17 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.AllPlayersLoaded = false;
         operation.NativePvpLifecycleActive = false;
         operation.AllPlayersLoadedFrame = -1;
+        operation.LastSoloPveMembershipAuditFrame = -1;
         operation.ScenePreparationComplete = false;
         operation.ScenePreparationStarted = false;
         operation.ScenePreparationEarliestFrame = -1;
         operation.TerrainReady = false;
         ReleaseRuntimeTerrain(operation);
         operation.PositionedPlayerObjects.Clear();
+        operation.StandalonePlayerMarkers.Clear();
+        operation.PlayerPlacementPassComplete = false;
+        operation.RuntimeCompanionReadyMarkerAccepted = false;
+        operation.RuntimeCompanionReadyMarker = null;
         operation.PlayerMarkerNames.Clear();
         operation.PlayerSpawnRequestFrames.Clear();
         operation.PlayerSpawnRequestCounts.Clear();
@@ -6590,10 +6605,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         }
         ProcessPendingStandalonePveTeamValidation(operation);
         ProcessPeerRuntimeBarriers(operation);
-        ObserveStandalonePveLifecycleEvidence(operation);
         if (Time.frameCount < operation.LastMaintenanceFrame + 15)
             return;
         operation.LastMaintenanceFrame = Time.frameCount;
+        ObserveStandalonePveLifecycleEvidence(operation);
 
         try
         {
@@ -9283,7 +9298,9 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         ActiveMapOperation operation,
         bool allowSpawnRequest)
     {
-        if (operation == null || operation.SceneHandle == 0)
+        if (operation == null || operation.SceneHandle == 0 ||
+            operation.PlayerPlacementPassComplete ||
+            operation.GameplayBeginCommitted)
             return;
         if (!NetworkServer.active)
         {
@@ -9296,7 +9313,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
         if (!scene.IsValid() || !scene.isLoaded)
             return;
-        var markers = FindStandalonePlayerMarkers(scene, operation.Operation.Mode);
+        var markers = GetOrCacheStandalonePlayerMarkers(operation, scene);
         if (markers.Count == 0)
         {
             log.LogError("Standalone package scene has no compatible player spawn " +
@@ -9304,9 +9321,11 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             return;
         }
 
-        PlayerMaster[] players;
-        try { players = Resources.FindObjectsOfTypeAll<PlayerMaster>(); }
-        catch { return; }
+        List<PlayerMaster> players = FindNetworkedPlayerMasters();
+        if (players.Count == 0)
+            return;
+        bool placementPassComplete = true;
+        int relevantPlayers = 0;
         foreach (PlayerMaster player in players
                      .Where(candidate => candidate != null)
                      .OrderBy(GetStableStandalonePlayerKey))
@@ -9316,9 +9335,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             int playerId = GetStableStandalonePlayerKey(player);
             if (playerId == 0)
                 continue;
+            relevantPlayers++;
             Transform marker = SelectPlayerMarker(operation, player, markers);
             if (marker == null)
+            {
+                placementPassComplete = false;
                 continue;
+            }
             try
             {
                 player.LastSpawnPoint = marker;
@@ -9339,10 +9362,14 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 // success signal for this scene generation; never instantiate
                 // a second avatar for the same PlayerMaster.
                 operation.CompletedPlayerSpawnIds.Add(playerId);
+                placementPassComplete = false;
                 continue;
             }
             if (spawned == null && operation.CompletedPlayerSpawnIds.Contains(playerId))
+            {
+                placementPassComplete = false;
                 continue;
+            }
             if (spawned == null && allowSpawnRequest)
             {
                 bool spawnOwned = false;
@@ -9352,13 +9379,19 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                     out int priorRequestCount) ? priorRequestCount : 0;
                 int maximumRequests = spawnOwned && NetworkServer.active ? 2 : 3;
                 if (requestCount >= maximumRequests)
+                {
+                    placementPassComplete = false;
                     continue;
+                }
                 bool canRequest = !operation.PlayerSpawnRequestFrames.TryGetValue(
                     playerId,
                     out int lastRequestFrame) ||
                     Time.frameCount >= lastRequestFrame + 300;
                 if (!canRequest)
+                {
+                    placementPassComplete = false;
                     continue;
+                }
                 try
                 {
                     if (!currentlyAlive)
@@ -9394,14 +9427,19 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                         playerId + ": " + detail.GetType().Name + ": " +
                         detail.Message);
                 }
+                placementPassComplete = false;
                 continue;
             }
             int spawnedObjectId = spawned == null ? 0 : spawned.GetInstanceID();
-            if (spawned == null ||
-                (operation.PositionedPlayerObjects.TryGetValue(
+            if (spawned == null)
+            {
+                placementPassComplete = false;
+                continue;
+            }
+            if (operation.PositionedPlayerObjects.TryGetValue(
                     playerId,
                     out int positionedObjectId) &&
-                 positionedObjectId == spawnedObjectId))
+                positionedObjectId == spawnedObjectId)
                 continue;
 
             bool owned = false;
@@ -9426,11 +9464,17 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 continue;
             }
 
-            bool canMove = !operation.PlayerMoveRequestFrames.TryGetValue(
-                playerId,
-                out int lastMoveFrame) || Time.frameCount >= lastMoveFrame + 300;
-            if (!canMove)
+            // A scene generation may request native placement once for a given
+            // PlayerMaster/avatar pair. Re-validating the marker after the
+            // player has started moving used to turn an unsettled ground probe
+            // into a teleport every 300 frames. The retail coroutine owns the
+            // complete local controller move; after it is issued, this adapter
+            // latches the exact spawned object and never moves it again.
+            if (operation.PlayerMoveRequestFrames.ContainsKey(playerId))
+            {
+                operation.PositionedPlayerObjects[playerId] = spawnedObjectId;
                 continue;
+            }
 
             if (owned && GameManager.instance != null)
             {
@@ -9444,13 +9488,22 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 GameManager.instance.StartCoroutine(
                     GameManager.instance.MovePlayerToSpawn(target, marker.rotation));
                 operation.PlayerMoveRequestFrames[playerId] = Time.frameCount;
+                operation.PositionedPlayerObjects[playerId] = spawnedObjectId;
+                LogFrameworkEvidence(
+                    "player-placement-issued",
+                    operation,
+                    "playerMasterNetId=" + playerId +
+                    "|spawnedObjectInstanceId=" + spawnedObjectId +
+                    "|marker=" + FrameworkEvidence.Encode(marker.name) +
+                    "|route=owned-native-once");
                 log.LogInfo("Standalone invoked shipped GameManager." +
-                    "MovePlayerToSpawn for owned player: marker=" + marker.name +
+                    "MovePlayerToSpawn once for owned player: marker=" + marker.name +
                     ", playerMaster=" + playerId + ", priorState=" +
                     positionState + ".");
             }
             else if (operation.PeerAgreementRequired)
             {
+                placementPassComplete = false;
                 if (!TryIssueRemotePeerPlayerPlacement(
                         operation,
                         player,
@@ -9464,13 +9517,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                         "owner-side remote player placement failed: " + placementError);
                     return;
                 }
-                operation.PlayerMoveRequestFrames[playerId] = Time.frameCount;
-                log.LogInfo("Standalone sent an owner-side player placement " +
-                    "assignment: marker=" + marker.name + ", playerMaster=" +
-                    playerId + ".");
             }
             else
             {
+                placementPassComplete = false;
                 // SmoothSyncMirror owns this remote avatar. A raw server
                 // Transform write is immediately eligible to be overwritten by
                 // the owning client's state, which is the proven under-map/fall
@@ -9479,6 +9529,20 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 log.LogError("Standalone refused a non-owned player move outside " +
                     "an exact peer session: playerMaster=" + playerId + ".");
             }
+        }
+
+        if (!operation.PeerAgreementRequired && relevantPlayers > 0 &&
+            placementPassComplete)
+        {
+            operation.PlayerPlacementPassComplete = true;
+            LogFrameworkEvidence(
+                "player-placement-maintenance-retired",
+                operation,
+                "relevantPlayers=" + relevantPlayers +
+                "|route=standalone-one-shot");
+            log.LogInfo("Standalone player placement maintenance retired after its " +
+                "one-shot native pass; later player movement remains exclusively " +
+                "owned by OPERATOR/Mirror.");
         }
     }
 
@@ -9507,47 +9571,43 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
         if (!scene.IsValid() || !scene.isLoaded)
             return;
-        List<Transform> markers = FindStandalonePlayerMarkers(
-            scene,
-            operation.Operation.Mode);
+        List<Transform> markers = GetOrCacheStandalonePlayerMarkers(operation, scene);
         if (markers.Count == 0)
             return;
-        PlayerNetworking[] players;
-        try { players = Resources.FindObjectsOfTypeAll<PlayerNetworking>(); }
+        PlayerNetworking spawned = null;
+        try { spawned = GameManager.myPlayerNetworking; }
+        catch { }
+        if (spawned == null || spawned.gameObject == null)
+            return;
+        bool owned;
+        try { owned = spawned.isOwned || spawned.isLocalPlayer; }
         catch { return; }
-        foreach (PlayerNetworking spawned in players)
-        {
-            if (spawned == null || spawned.gameObject == null)
-                continue;
-            bool owned;
-            try { owned = spawned.isOwned || spawned.isLocalPlayer; }
-            catch { continue; }
-            if (!owned)
-                continue;
+        if (!owned)
+            return;
             PlayerMaster master;
             try { master = spawned.playerMaster; }
-            catch { continue; }
+            catch { return; }
             int stablePlayerId = GetStableStandalonePlayerKey(master);
             if (stablePlayerId == 0)
-                continue;
+                return;
             NetworkIdentity spawnedIdentity =
                 spawned.GetComponent<NetworkIdentity>();
             if (spawnedIdentity == null || spawnedIdentity.netId == 0)
-                continue;
+                return;
             int spawnedObjectId = unchecked((int)spawnedIdentity.netId);
             if (operation.PositionedPlayerObjects.TryGetValue(
                     stablePlayerId,
                     out int alignedObjectId) &&
                 alignedObjectId == spawnedObjectId)
             {
-                continue;
+                return;
             }
             Vector3 replicatedTarget = spawned.transform.position;
             if (!float.IsFinite(replicatedTarget.x) ||
                 !float.IsFinite(replicatedTarget.y) ||
                 !float.IsFinite(replicatedTarget.z))
             {
-                continue;
+                return;
             }
             Transform nearest = markers
                 .OrderBy(marker => Vector3.Distance(
@@ -9557,7 +9617,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             if (nearest == null ||
                 Vector3.Distance(nearest.position, replicatedTarget) > 3f)
             {
-                continue;
+                return;
             }
             GameManager.instance.StartCoroutine(
                 GameManager.instance.MovePlayerToSpawn(
@@ -9568,7 +9628,6 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 "the host-replicated player root: playerNetId=" +
                 spawnedIdentity.netId + ", authoritativeMarker=" + nearest.name +
                 ", remoteMarkerSelection=false.");
-        }
     }
 
     private void MaintainOwnedStandaloneWeaponAuthority(ActiveMapOperation operation)
@@ -9576,23 +9635,18 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         if (operation == null || !NetworkClient.active)
             return;
 
-        PlayerNetworking[] players;
-        try { players = Resources.FindObjectsOfTypeAll<PlayerNetworking>(); }
-        catch { return; }
-
-        foreach (PlayerNetworking player in players)
-        {
-            if (player == null || player.gameObject == null ||
-                !player.gameObject.scene.IsValid())
-            {
-                continue;
-            }
+        PlayerNetworking player = null;
+        try { player = GameManager.myPlayerNetworking; }
+        catch { }
+        if (player == null || player.gameObject == null ||
+            !player.gameObject.scene.IsValid())
+            return;
 
             bool owned;
             try { owned = player.isOwned; }
-            catch { continue; }
+            catch { return; }
             if (!owned)
-                continue;
+                return;
 
             // OPERATOR's retail PlayerNetworking.Update normally detects an
             // unowned equipped weapon and sends this exact corrective command.
@@ -9621,7 +9675,6 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 player.GrenadeV2Weapon == null
                     ? null
                     : player.GrenadeV2Weapon.GetComponent<GrenadeV2>());
-        }
     }
 
     private void MaintainOwnedStandaloneWeaponSlot(
@@ -9803,6 +9856,69 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         if (mode == ModdedOperationMode.PlayerVersusPlayer)
             team1.AddRange(team2);
         return team1;
+    }
+
+    private static List<Transform> GetOrCacheStandalonePlayerMarkers(
+        ActiveMapOperation operation,
+        Scene scene)
+    {
+        if (operation == null)
+            return new List<Transform>();
+        operation.StandalonePlayerMarkers.RemoveAll(marker => marker == null);
+        if (operation.StandalonePlayerMarkers.Count == 0 &&
+            scene.IsValid() && scene.isLoaded)
+        {
+            operation.StandalonePlayerMarkers.AddRange(
+                FindStandalonePlayerMarkers(scene, operation.Operation.Mode));
+        }
+        return operation.StandalonePlayerMarkers;
+    }
+
+    private static List<PlayerMaster> FindNetworkedPlayerMasters()
+    {
+        var players = new List<PlayerMaster>();
+        var seen = new HashSet<int>();
+        if (NetworkServer.active && NetworkServer.spawned != null)
+        {
+            var serverEnumerator = NetworkServer.spawned.GetEnumerator();
+            try
+            {
+                while (serverEnumerator.MoveNext())
+                {
+                    NetworkIdentity identity = serverEnumerator.Current.Value;
+                    PlayerMaster player = identity == null
+                        ? null
+                        : identity.GetComponent<PlayerMaster>();
+                    if (player != null && seen.Add(player.GetInstanceID()))
+                        players.Add(player);
+                }
+            }
+            finally
+            {
+                serverEnumerator.Dispose();
+            }
+            return players;
+        }
+        if (!NetworkClient.active || NetworkClient.spawned == null)
+            return players;
+        var clientEnumerator = NetworkClient.spawned.GetEnumerator();
+        try
+        {
+            while (clientEnumerator.MoveNext())
+            {
+                NetworkIdentity identity = clientEnumerator.Current.Value;
+                PlayerMaster player = identity == null
+                    ? null
+                    : identity.GetComponent<PlayerMaster>();
+                if (player != null && seen.Add(player.GetInstanceID()))
+                    players.Add(player);
+            }
+        }
+        finally
+        {
+            clientEnumerator.Dispose();
+        }
+        return players;
     }
 
     private static Transform SelectPlayerMarker(

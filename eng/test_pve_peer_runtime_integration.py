@@ -98,23 +98,50 @@ class PvePeerRuntimeIntegrationTests(unittest.TestCase):
     def test_solo_pve_waits_for_the_package_runtime_contract_before_owner_spawn(self) -> None:
         authorization = method(self.protocol, "IsPvpNetworkSpawnAuthorized")
         companion = method(self.protocol, "TryValidateSoloPveRuntimeCompanion")
+        marker_gate = method(
+            self.protocol, "TryValidateRuntimeCompanionReadyMarker"
+        )
         maintain = method(self.main, "MaintainStandaloneGameplay")
         all_loaded = method(self.main, "OnStandaloneAllPlayersLoaded")
         prepare = method(self.main, "PrepareStandaloneScene")
 
         self.assertIn("TryValidateSoloPveRuntimeCompanion", authorization)
         self.assertIn("if (!runtimeReady)", authorization)
-        self.assertIn("companion.FailureMarkerName", companion)
-        self.assertIn("companion.ReadyMarkerName", companion)
-        self.assertIn("failureMarkers != 0", companion)
-        self.assertIn("readyMarkers != 1", companion)
+        self.assertIn("companion.FailureMarkerName", marker_gate)
+        self.assertIn("companion.ReadyMarkerName", marker_gate)
+        self.assertIn("failureMarkers != 0", marker_gate)
+        self.assertIn("readyMarkers != 1", marker_gate)
         self.assertIn("operation.NetworkSpawnRequested", companion)
+        self.assertIn("RuntimeCompanionReadyMarkerAccepted", marker_gate)
+        self.assertIn("operation.RuntimeCompanionReadyMarker = readyMarker", marker_gate)
+        self.assertLess(
+            marker_gate.index("operation.RuntimeCompanionReadyMarkerAccepted"),
+            marker_gate.index("FindExactSceneTransform"),
+        )
         self.assertIn("TryValidateSoloPveRuntimeCompanion", maintain)
         self.assertIn("TryValidateSoloPveRuntimeCompanion", all_loaded)
         self.assertIn("FailActivePvpNativeLifecycle", all_loaded)
         self.assertNotIn(
             "!spawnContractReady && operation.Operation.Mode ==",
             prepare,
+        )
+
+    def test_solo_membership_and_evidence_hot_paths_are_bounded(self) -> None:
+        membership = method(self.protocol, "EnforceSoloPveMembershipFreeze")
+        self.assertIn("LastSoloPveMembershipAuditFrame == Time.frameCount", membership)
+        self.assertIn("NetworkServer.connections.Count == 1", membership)
+        self.assertIn("SamePvpNetworkConnection", membership)
+        self.assertLess(
+            membership.index("NetworkServer.connections.Count == 1"),
+            membership.index("CaptureRemotePvpConnectionSnapshot"),
+        )
+
+        readiness = method(self.protocol, "TryAdvancePvpPackageRuntimeReadiness")
+        self.assertIn("localSceneAlreadyReady", readiness)
+        self.assertIn("acceptedMarkerRequired: true", readiness)
+        self.assertLess(
+            readiness.index("if (localSceneAlreadyReady)"),
+            readiness.index("TryValidateInstalledPvpSpawnContract"),
         )
 
     def test_remote_clone_is_repaired_before_mirror_deserialization(self) -> None:
@@ -169,6 +196,45 @@ class PvePeerRuntimeIntegrationTests(unittest.TestCase):
         self.assertIn("groundDelta > 0.45f", grounded)
         self.assertIn("Math.Abs(verticalVelocity) > 0.5f", grounded)
         self.assertIn("operation.SceneHandle", place)
+        self.assertIn("!operation.PlayerMoveRequestFrames.ContainsKey", place)
+        self.assertNotIn("lastFrame + 120", place)
+        self.assertIn("operation.PlayerPlacementPassComplete = true", place)
+
+        host_place = method(self.main, "SpawnAndPositionStandalonePlayers")
+        self.assertIn("operation.PlayerPlacementPassComplete", host_place)
+        self.assertIn("MovePlayerToSpawn once for owned player", host_place)
+        self.assertIn('"player-placement-issued"', host_place)
+        self.assertIn('"player-placement-maintenance-retired"', host_place)
+        self.assertNotIn("lastMoveFrame + 300", host_place)
+        self.assertNotIn("Resources.FindObjectsOfTypeAll<PlayerMaster>", host_place)
+
+        owned_alignment = method(
+            self.main, "AlignOwnedStandalonePlayerToReplicatedRoot"
+        )
+        weapon_authority = method(
+            self.main, "MaintainOwnedStandaloneWeaponAuthority"
+        )
+        self.assertIn("GameManager.myPlayerNetworking", owned_alignment)
+        self.assertIn("GameManager.myPlayerNetworking", weapon_authority)
+        self.assertNotIn("Resources.FindObjectsOfTypeAll", owned_alignment)
+        self.assertNotIn("Resources.FindObjectsOfTypeAll", weapon_authority)
+
+        peer_barriers = method(self.runtime, "ProcessPeerRuntimeBarriersCore")
+        self.assertIn("operation.GameplayBeginCommitted", peer_barriers)
+
+        grounded_evidence = method(
+            self.protocol, "TryLogPeerGroundedPlayers"
+        )
+        self.assertIn("GetOrCacheStandalonePlayerMarkers", grounded_evidence)
+        self.assertIn("FindNetworkedPlayerMasters", grounded_evidence)
+        self.assertNotIn("Resources.FindObjectsOfTypeAll", grounded_evidence)
+
+        self.assertNotIn(
+            "Resources.FindObjectsOfTypeAll<PlayerMaster>", self.production
+        )
+        self.assertNotIn(
+            "Resources.FindObjectsOfTypeAll<PlayerNetworking>", self.production
+        )
 
     def test_player_ready_requires_native_movement_health_animation_and_weapon_authority(
         self,

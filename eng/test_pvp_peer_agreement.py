@@ -464,19 +464,21 @@ class PvpPeerAgreementTests(unittest.TestCase):
     def test_runtime_companion_ready_gate_is_exact_and_failure_always_wins(self) -> None:
         process = extract_method(self.agreement, "ProcessPvpPeerAgreement")
         gate = extract_method(self.agreement, "TryAdvancePvpPackageRuntimeReadiness")
+        marker_gate = extract_method(
+            self.agreement, "TryValidateRuntimeCompanionReadyMarker"
+        )
         complete = extract_method(self.agreement, "CompletePvpSceneReady")
         self.assertIn("TryAdvancePvpPackageRuntimeReadiness(activeOperation)", process)
-        scene = gate.index("FindLoadedSceneByHandle(operation.SceneHandle)")
-        failure_lookup = gate.index("companion.FailureMarkerName", scene)
-        ready_lookup = gate.index("companion.ReadyMarkerName", failure_lookup)
-        failure_decision = gate.index("if (failureMarkers != 0)", ready_lookup)
-        already_ready = gate.index(
-            "IsHostLocalSceneReadyForCurrentEpoch(currentHost)", failure_decision
-        )
-        ready_decision = gate.index("if (readyMarkers == 0)", already_ready)
-        self.assertLess(failure_decision, already_ready)
-        self.assertLess(already_ready, ready_decision)
-        self.assertIn("readyMarkers != 1", gate)
+        failure_lookup = marker_gate.index("companion.FailureMarkerName")
+        ready_lookup = marker_gate.index("companion.ReadyMarkerName", failure_lookup)
+        failure_decision = marker_gate.index("if (failureMarkers != 0)", ready_lookup)
+        ready_decision = marker_gate.index("if (readyMarkers == 0)", failure_decision)
+        self.assertLess(failure_lookup, ready_lookup)
+        self.assertLess(ready_lookup, failure_decision)
+        self.assertLess(failure_decision, ready_decision)
+        self.assertIn("readyMarkers != 1", marker_gate)
+        self.assertIn("RuntimeCompanionReadyMarkerAccepted", marker_gate)
+        self.assertIn("acceptedMarkerRequired: true", gate)
         self.assertIn("CompletePvpSceneReady(operation)", gate)
         send_ready = extract_method(
             self.agreement, "TrySendRemotePvpSceneReadyAcknowledgement"

@@ -23,6 +23,15 @@ class PveEnemyCountSelectorTests(unittest.TestCase):
         self.assertIn("packageMaximum > AbsoluteMaximum", self.selection)
         self.assertIn("Math.Min(packageMaximum, safeMarkerCapacity)", self.selection)
 
+    def test_default_is_minimum_while_declared_maximum_remains_selectable(self) -> None:
+        get_default = self.selection[
+            self.selection.index("internal static int GetDefault") :
+            self.selection.index("internal static int NormalizeBriefingSelection")
+        ]
+        self.assertIn("GetBriefingMaximum(minimum, packageMaximum);", get_default)
+        self.assertIn("return minimum;", get_default)
+        self.assertNotIn("maximum - minimum", get_default)
+
     def test_native_briefing_control_is_pve_only(self) -> None:
         self.assertIn("SetPrivateEnemyCountHierarchyActive(", self.framework)
         hierarchy = self.framework[

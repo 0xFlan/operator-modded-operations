@@ -21,8 +21,13 @@ namespace OperatorModdedOperations
 
         internal static int GetDefault(int minimum, int packageMaximum)
         {
-            int maximum = GetBriefingMaximum(minimum, packageMaximum);
-            return minimum + ((maximum - minimum) / 2);
+            GetBriefingMaximum(minimum, packageMaximum);
+            // The upper bound is an opt-in capacity, not a performance-safe
+            // starting population. Large packages such as LOT 12 expose sixty
+            // enemies for stress/custom sessions; opening the briefing at the
+            // package minimum prevents an accidental 35-AI default while the
+            // slider still retains the full declared range.
+            return minimum;
         }
 
         internal static int NormalizeBriefingSelection(

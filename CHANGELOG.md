@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.31 runtime hot-path and placement candidate — 2026-08-30
+
+- Retire local-player insertion after one acknowledged placement for each exact
+  scene generation. The framework no longer re-applies the spawn transform on a
+  periodic maintenance loop, and it never writes a remote player's transform.
+- Cache the exact companion READY marker after the initial full-scene contract
+  check. Steady-state readiness validates that one cached object instead of
+  traversing the complete scene every Update; FAILED still wins synchronously.
+- Bound solo-PVE membership validation to one registry check per Unity frame and
+  move diagnostics to their existing maintenance cadence.
+- Preserve native Mirror ownership for player/AI movement, bullets, health,
+  damage, animation, death, and PVP rounds. No custom transform or combat
+  replication path was introduced.
+- Pass `108/108` Python contracts, both zero-warning loader builds, the
+  suite-wide binary/runtime-pair audit, a fresh LOT 12 restart run, and a
+  120-second LOT 12 PVE run with all 18 local assertions passing. Separate-PC
+  host/remote PVE and PVP acceptance remains required before multiplayer is
+  labeled supported.
+- Freeze BepInEx at 642,560 bytes / SHA-256
+  `54890536492E645050C7C2125F7D1FF4FFC23C3BE23EBF95A2294E648439DEB7`
+  and MelonLoader at 643,584 bytes / SHA-256
+  `EBCAD6563366D614A12C2797622B7639A16377EAE829A4279A3914CFF498C635`.
+
 ## 0.3.30 transition-lifecycle hotfix build 2 candidate — 2026-08-28
 
 - Preserve the exact `0.3.30` plugin and peer-protocol identity required by the

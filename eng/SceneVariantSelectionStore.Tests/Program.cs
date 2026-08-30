@@ -326,10 +326,10 @@ namespace OperatorModdedOperations
         {
             Equal(100, PveEnemyCountSelection.GetBriefingMaximum(1, 100),
                 "absolute briefing maximum");
-            Equal(55, PveEnemyCountSelection.GetDefault(10, 100),
-                "bounded midpoint default");
-            Equal(55, PveEnemyCountSelection.NormalizeBriefingSelection(101, 10, 100),
-                "invalid persisted selection did not reset to the bounded default");
+            Equal(10, PveEnemyCountSelection.GetDefault(10, 100),
+                "performance-safe minimum default");
+            Equal(10, PveEnemyCountSelection.NormalizeBriefingSelection(101, 10, 100),
+                "invalid persisted selection did not reset to the safe minimum default");
             True(PveEnemyCountSelection.TryValidateConfirmedSelection(
                     100, 1, 100, 100, out string error),
                 "100-enemy selection was rejected: " + error);

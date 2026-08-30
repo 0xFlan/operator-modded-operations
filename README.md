@@ -20,7 +20,7 @@ optional map companion owns exact-scene reconstruction.
 
 ## Current implementation checkpoint
 
-The active source checkpoint is the Modded Operations `0.3.30` transition-lifecycle hotfix build with bundled
+The active source checkpoint is Modded Operations `0.3.31` with bundled
 Operator Mod API `0.2.0-alpha.7`. The same framework source builds an isolated
 BepInEx DLL and an isolated MelonLoader DLL; install exactly one loader variant.
 Map packages remain shared data under `OPERATOR/OperatorMods`.
@@ -66,13 +66,13 @@ separators and no trailing newline. Generate it with
 `tools/operator_runtime_content_id.py`; runtime resolution recomputes it and
 fails closed on any mismatch.
 
-The frozen `0.3.30` transition-lifecycle hotfix test-candidate identities are:
+The frozen `0.3.31` runtime-hot-path test-candidate identities are:
 
 ```text
-OperatorModdedOperations.dll                     bytes=640000
-sha256=E77412F83C418EDDC5422F702382BEB75AFB6459430CD7B64B8EB0594549EBA8
-OperatorModdedOperations.MelonLoader.dll         bytes=641536
-sha256=2A6694E798A3AF2C3CF1565F50BF20556E83A48FD60CF7ED0EFBE754F3572903
+OperatorModdedOperations.dll                     bytes=642560
+sha256=54890536492E645050C7C2125F7D1FF4FFC23C3BE23EBF95A2294E648439DEB7
+OperatorModdedOperations.MelonLoader.dll         bytes=643584
+sha256=EBCAD6563366D614A12C2797622B7639A16377EAE829A4279A3914CFF498C635
 OperatorModAPI.dll                               bytes=204800
 sha256=5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
 OperatorModAPI.BepInEx.dll                       bytes=15872
@@ -81,7 +81,7 @@ OperatorModAPI.MelonLoader.dll                   bytes=24576
 sha256=1CC745AB57A18848F15A47C80FCE5399C4006FE3ADE2C94B449792CFBABFF7FA
 ```
 
-The complete Python suite passes `106/106`; the scene-variant selector passes
+The complete Python suite passes `108/108`; the scene-variant selector passes
 `16/16`; the native game-mode, native-policy, and runtime-barrier test projects
 pass; and both loader builds complete with zero warnings and zero errors. This
 is `PROVEN-STATIC`, not `SUPPORTED` multiplayer evidence.

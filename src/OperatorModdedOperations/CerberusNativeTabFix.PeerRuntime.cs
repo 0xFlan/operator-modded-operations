@@ -518,8 +518,8 @@ public sealed partial class CerberusNativeTabFix
         Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
         if (!scene.IsValid() || !scene.isLoaded)
             return;
-        List<Transform> matches = FindStandalonePlayerMarkers(
-                scene, operation.Operation.Mode)
+        List<Transform> matches = GetOrCacheStandalonePlayerMarkers(
+                operation, scene)
             .Where(marker => string.Equals(
                 marker.name, placement.MarkerName, StringComparison.Ordinal))
             .ToList();
@@ -593,17 +593,15 @@ public sealed partial class CerberusNativeTabFix
                 true,
                 out string state))
         {
-            if (!operation.PlayerMoveRequestFrames.TryGetValue(
-                    unchecked((int)placement.PlayerMasterNetId), out int lastFrame) ||
-                Time.frameCount >= lastFrame + 120)
+            int playerKey = unchecked((int)placement.PlayerMasterNetId);
+            if (!operation.PlayerMoveRequestFrames.ContainsKey(playerKey))
             {
                 if (GameManager.instance == null)
                     return;
                 GameManager.instance.StartCoroutine(
                     GameManager.instance.MovePlayerToSpawn(target, marker.rotation));
-                operation.PlayerMoveRequestFrames[
-                    unchecked((int)placement.PlayerMasterNetId)] = Time.frameCount;
-                log.LogInfo("Remote owner invoked shipped MovePlayerToSpawn for " +
+                operation.PlayerMoveRequestFrames[playerKey] = Time.frameCount;
+                log.LogInfo("Remote owner invoked shipped MovePlayerToSpawn once for " +
                     "assignment=" + placement.AssignmentDigest + ", priorState=" +
                     state + ".");
             }
@@ -623,6 +621,7 @@ public sealed partial class CerberusNativeTabFix
             SerializePeerRuntimePayload(placement),
             sceneGenerationEpoch: remote.RequestedSceneGenerationEpoch);
         remote.PlayerReadySent = true;
+        operation.PlayerPlacementPassComplete = true;
         remote.RuntimeBarrierDeadlineTimestamp = DeadlineAfter(
             PeerPopulationReadyTimeoutSeconds);
         LogPvePeerAgreementEvidence(
@@ -650,22 +649,16 @@ public sealed partial class CerberusNativeTabFix
     {
         if (netId == 0)
             return null;
-        PlayerMaster[] players;
-        try { players = Resources.FindObjectsOfTypeAll<PlayerMaster>(); }
-        catch { return null; }
-        PlayerMaster match = null;
-        foreach (PlayerMaster player in players)
+        NetworkIdentity identity = null;
+        try
         {
-            NetworkIdentity identity = player == null
-                ? null
-                : player.GetComponent<NetworkIdentity>();
-            if (identity == null || identity.netId != netId)
-                continue;
-            if (match != null && match != player)
-                return null;
-            match = player;
+            if (NetworkServer.active && NetworkServer.spawned != null)
+                NetworkServer.spawned.TryGetValue(netId, out identity);
+            if (identity == null && NetworkClient.active && NetworkClient.spawned != null)
+                NetworkClient.spawned.TryGetValue(netId, out identity);
         }
-        return match;
+        catch { return null; }
+        return identity == null ? null : identity.GetComponent<PlayerMaster>();
     }
 
     private static bool TryValidatePeerPlayerNativeNetworkContract(
@@ -827,9 +820,13 @@ public sealed partial class CerberusNativeTabFix
         {
             return false;
         }
-        PlayerMaster[] players;
-        try { players = Resources.FindObjectsOfTypeAll<PlayerMaster>(); }
-        catch { return false; }
+        List<PlayerMaster> players = FindNetworkedPlayerMasters();
+        if (players.Count == 0)
+            return false;
+        Scene scene = FindLoadedSceneByHandle(operation.SceneHandle);
+        List<Transform> markers = GetOrCacheStandalonePlayerMarkers(operation, scene);
+        if (!scene.IsValid() || !scene.isLoaded || markers.Count == 0)
+            return false;
         int livePlayers = 0;
         bool localReady = false;
         foreach (PlayerMaster player in players.Where(item => item != null))
@@ -855,9 +852,7 @@ public sealed partial class CerberusNativeTabFix
             Transform marker = SelectPlayerMarker(
                 operation,
                 player,
-                FindStandalonePlayerMarkers(
-                    FindLoadedSceneByHandle(operation.SceneHandle),
-                    operation.Operation.Mode));
+                markers);
             if (marker == null)
                 return false;
             Vector3 target = marker.position + Vector3.up * 0.25f;
@@ -1142,7 +1137,8 @@ public sealed partial class CerberusNativeTabFix
 
     private void ProcessPeerRuntimeBarriersCore(ActiveMapOperation operation)
     {
-        if (operation == null || !operation.PeerAgreementRequired ||
+        if (operation == null || operation.GameplayBeginCommitted ||
+            !operation.PeerAgreementRequired ||
             operation.Operation?.Mode != ModdedOperationMode.PlayerVersusEnvironment)
         {
             return;
@@ -1183,6 +1179,7 @@ public sealed partial class CerberusNativeTabFix
                 IsHostPeerPlayerBarrierReady(operation, host))
             {
                 host.PlayerBarrierPassed = true;
+                operation.PlayerPlacementPassComplete = true;
                 host.RuntimeBarrierDeadlineTimestamp = DeadlineAfter(
                     PeerPopulationReadyTimeoutSeconds);
                 log.LogInfo("PVE owner-side player placement barrier passed on every " +
