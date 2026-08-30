@@ -4,3 +4,8 @@
 # reproduce on every checkout, including Linux CI runners.
 decompiled/**/*.cs text eol=crlf
 decompiled/**/*.csproj text eol=crlf
+
+# The immutable 0.3.28 publication sidecar pins the generated manifest's CRLF
+# bytes. Keep that byte form on every checkout while keeping the sidecar LF.
+publication/source-state-manifest.json text eol=crlf
+publication/source-state-manifest.sha256 text eol=lf
