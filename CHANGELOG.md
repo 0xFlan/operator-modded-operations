@@ -15,7 +15,9 @@
   replication path was introduced.
 - Pass `108/108` Python contracts, both zero-warning loader builds, the
   suite-wide binary/runtime-pair audit, a fresh LOT 12 restart run, and a
-  120-second LOT 12 PVE run with all 18 local assertions passing. Separate-PC
+  120-second LOT 12 PVE run with all 18 local assertions passing. The current
+  BepInEx RED CELL briefing run also passes all 9 local assertions and keeps
+  the PVE enemy selector hidden. Separate-PC
   host/remote PVE and PVP acceptance remains required before multiplayer is
   labeled supported.
 - Freeze BepInEx at 642,560 bytes / SHA-256
