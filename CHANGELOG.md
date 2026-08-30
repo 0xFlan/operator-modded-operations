@@ -20,6 +20,14 @@
   the PVE enemy selector hidden. Separate-PC
   host/remote PVE and PVP acceptance remains required before multiplayer is
   labeled supported.
+- Pass a fresh 18/18 LOT 12 PVE/restart regression at selector value 12: 72
+  authored/navigation markers, safe capacity 71, exactly 12 AI spawned and
+  observed, owned population removed, zero runtime assets after teardown, and
+  unchanged package closure.
+- Reopen both transfer archives and verify every checksum-listed entry. A
+  current clean rebuild differs from the frozen BepInEx binary only in the PE
+  reproducibility stamp, MVID, and embedded Git source revision; retain the
+  exact runtime-tested archive and installed bytes for this candidate.
 - Freeze BepInEx at 642,560 bytes / SHA-256
   `54890536492E645050C7C2125F7D1FF4FFC23C3BE23EBF95A2294E648439DEB7`
   and MelonLoader at 643,584 bytes / SHA-256

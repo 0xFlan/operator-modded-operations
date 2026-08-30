@@ -7,7 +7,8 @@ this repository. It is written for a human maintainer and for an automated
 coding agent. Use the exact names in this document. Do not infer a game
 contract from a similar name.
 
-The current authored source checkpoint is the `0.3.30` transition-lifecycle hotfix build. The plugin identity is
+The current authored source checkpoint is the `0.3.31` runtime hot-path and
+one-shot placement build. The plugin identity is
 `operator.modded-operations`, the selected assembly is
 `OperatorModdedOperations.dll` or
 `OperatorModdedOperations.MelonLoader.dll`, and the required bundled-only Core
@@ -15,8 +16,13 @@ version is `0.2.0-alpha.7`. Shared source builds isolated BepInEx and
 MelonLoader products; install exactly one loader variant. Protocol v6 covers
 PVP and online PVE with exact selected-suite receipt/sidecar verification,
 loader-neutral runtime-pair identity, and a host-authoritative PVE enemy-count
-identity. This source state is `PROVEN-STATIC`; final release hashes and live
-two-process acceptance remain open.
+identity. The exact selected-suite binaries are BepInEx 642,560 bytes /
+`54890536492E645050C7C2125F7D1FF4FFC23C3BE23EBF95A2294E648439DEB7`
+and MelonLoader 643,584 bytes /
+`EBCAD6563366D614A12C2797622B7639A16377EAE829A4279A3914CFF498C635`.
+The current BepInEx artifact has bounded single-machine runtime evidence;
+MelonLoader and real peer networking remain `PROVEN-STATIC` until their live
+gates pass.
 
 The historical frozen `0.3.29` candidate binaries are
 `OperatorModdedOperations.dll` at 279,552 bytes / SHA-256
@@ -26,7 +32,8 @@ The historical frozen `0.3.29` candidate binaries are
 `OperatorModAPI.BepInEx.dll` at 25,600 bytes / SHA-256
 `A58E1FA50CE345931104B9980AFBAF356B8EEAC0E7A735BEF7BD21FC93727AD9`.
 These historical identities are `PROVEN-STATIC`, not host-plus-remote runtime
-evidence and not the current `0.3.30` hotfix build identity. The latest hash-pinned public publication
+evidence and not the current `0.3.31` candidate identity. The latest historical
+hash-pinned public publication
 remains the exact reviewed
 `0.3.28` Release build at 223,232
 bytes with SHA-256
@@ -89,7 +96,7 @@ separators and no trailing newline. Generate it with
 The plugin attribute is the first closed gate:
 
 ```csharp
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.30")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.31")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 ```
@@ -403,7 +410,7 @@ that shipped PVP methods read. It calls the shipped `OnStartClient` and
 `Server_AllPlayersLoaded` bodies. It keeps shipped round, freeze, score,
 death, respawn, and operation-end logic.
 
-The `0.3.30` source owns a multi-stage protocol-v4 peer agreement for PVP and
+The `0.3.31` source owns a multi-stage protocol-v6 peer agreement for PVP and
 online PVE. Before the native board starts, the host freezes the exact
 authenticated remote connection objects and IDs. Every peer validates its
 selected-loader suite receipt, exact receipt-owned manifest sidecar and file
@@ -444,7 +451,7 @@ rejection, timeout, scene failure, or native lifecycle exception fails closed
 and triggers the shipped host return or remote disconnect before teardown.
 Membership is immutable for the session. Late join is unsupported, and a
 disconnect, new connection, or replacement connection aborts even if it reuses
-the same numeric connection ID. The protocol-v4 PVE path remains
+the same numeric connection ID. The protocol-v6 PVE path remains
 `PROVEN-STATIC`: remote AI equivalence, movement, combat, completion,
 extraction, Restart on both peers, and teardown remain unproven online.
 
@@ -606,9 +613,11 @@ reciprocal firearm damage or a remote PVP peer.
 
 ## 15. Release layout
 
-The current Git source checkpoint is the `0.3.30` transition-lifecycle hotfix build; its final dual-loader binary
-identities and suite receipt remain pending the final frozen build. The
-historical `0.3.29` BepInEx DLL is 279,552 bytes with SHA-256
+The current Git source checkpoint is the `0.3.31` runtime hot-path and
+one-shot placement build. Its selected-suite binaries and receipt are frozen
+to the identities in section 1. The separately labeled transfer archive is
+test-only and does not establish online support. The historical `0.3.29`
+BepInEx DLL is 279,552 bytes with SHA-256
 `95CEF59F62B2DF40ED69C066692953210CDC17A9C3D08DB95753DA7A9B4142CD`.
 The last runtime-release publication source is `0.3.28`; its exact reviewed DLL
 is 223,232 bytes with SHA-256

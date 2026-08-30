@@ -14,9 +14,10 @@ The pinned source uses Unity `6000.3.8f1`. A different player build requires a
 new interop and source audit. Operator Mod API is a separate maintainer input
 only when building from source. A matching framework archive bundles its exact
 preview runtime; testers and end users do not download preview API separately.
-The active offline source checkpoint is the `0.3.30` transition-lifecycle hotfix build / alpha.7. Live BepInEx,
-MelonLoader, 100-AI performance, and separate host/remote runtime acceptance
-remain required before promotion.
+The active source checkpoint is the `0.3.31` runtime hot-path and one-shot
+placement build / alpha.7. Bounded BepInEx single-machine gates pass.
+MelonLoader live gameplay and separate host/remote runtime acceptance remain
+required before promotion.
 
 ## Build command
 
@@ -154,12 +155,12 @@ framework or API.
 For the frozen candidate, the controlled-test transfer is:
 
 ```text
-OperatorModdedOperations_v0.3.30_API-alpha.7_DUAL_LOADER_MULTIPLAYER_TEST_ONLY.zip
-bytes=644532
-sha256=7D8361AAB2F1A005CC7459011096F3C8C8EC6E334EEA55A1D8F6873E64122124
+OperatorModdedOperations_v0.3.31_API-alpha.7_DUAL_LOADER_RUNTIME_FIX_TEST.zip
+bytes=643247
+sha256=316FA5F9E06CAACB2067388D60799A93928F8E4CAE6854D26163DCE69B1F4F7A
 ```
 
-Keep `MULTIPLAYER_TEST_ONLY` and `NOT NEXUS` labeling in the filename/readme
+Keep explicit test-only and `NOT NEXUS` labeling in the filename/readme
 until the host-plus-remote matrix passes. Do not regenerate the public
 decompiler or publication source-state record merely for this transfer; prior
 publication checkpoints remain historical until an explicit promotion. Do not

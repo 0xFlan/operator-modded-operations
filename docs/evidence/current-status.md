@@ -1,59 +1,58 @@
 # Current evidence status
 
-## Active offline source checkpoint: 0.3.30 transition-lifecycle hotfix build
+## Active candidate: 0.3.31 runtime hot-path and one-shot placement build
 
-The Modded Operations `0.3.30` transition-lifecycle hotfix build and Operator Mod API `0.2.0-alpha.7` build isolated
-loader variants from shared source. Protocol v6 is active for both PVE and PVP
-multiplayer-test candidates. It verifies the selected-loader suite receipt, exact
-receipt-owned manifest sidecar/files and loaded runtime paths, then exchanges
-runtime framework/API/companion identities. PVE binds the host-confirmed enemy
-count and requires exact content, scene-generation, injected-owner, owner-local
-player-placement, and server-authored AI-population receipts before gameplay
-commit. The player receipt also requires one enabled native SmoothSync,
-the exact network animator and Health on the same Mirror identity, plus at
-least one locally owned network weapon. Each AI receipt requires BrainAI,
-team, Health, WeaponsAI, NetworkAnimatorSyncNPC, and both enabled native
-SmoothSync components on its server-authored identity. No framework hook
-replaces transform replication, bullet commands, damage, or death. Evidence
-is correlated with a process-run ID and monotonic event sequence. PVP uses the
-shipped native `PvpGameode`, mode-isolated 6+6 markers for a declared
-12-player operation, and zero PVE AI. BepInEx and MelonLoader adapters are
-both compiled and pinned; an installation may activate only one. The modded-PVE
-briefing uses the shipped enemy slider, captures the host's inclusive package
-selection on Confirm, retains it across Restart, and enforces the absolute
-100-enemy ceiling plus loaded-scene navigation-valid, pairwise-2-metre marker
-capacity before the one native raid population call. Inactive utility markers
-remain eligible; active count is telemetry only.
+Modded Operations `0.3.31` and bundled-only Operator Mod API
+`0.2.0-alpha.7` build isolated BepInEx and MelonLoader products from shared
+source. Install exactly one loader. Protocol v6 binds the selected suite
+receipt and sidecar, game build, loader-neutral framework/API/companion
+identity, complete package content, operation, variant, scene generation, and
+host-confirmed PVE enemy count before gameplay commit.
 
-Offline managed, source, loader-boundary, installer, and fail-closed evidence
-checks pass for this checkpoint. The Python suite passes `106/106`, the
-scene-variant selector `16/16`, the native game-mode/policy/runtime-barrier
-projects pass, and both loader builds complete with zero warnings and errors.
-No game deployment occurred. Live BepInEx regression, MelonLoader
-lifecycle, 100-AI performance/teardown, and real separate host/remote behavior
-remain open, so this checkpoint is `PROVEN-STATIC`, not `SUPPORTED`. Real PVP
-and PVE acceptance each requires two distinct processes starting together,
-both leaving loading and grounding, mode-specific combat/AI completion,
-Restart on both peers, failure/return cleanup, and bounded late-join refusal.
+The placement path is generation-scoped and one-shot. It never writes a
+remote non-owned player transform. Each owner receives one placement request,
+holds a bounded stability window, and acknowledges its exact assignment. The
+host freezes connection objects, player netIds, assignment digest, and PVE AI
+population receipts. Once the player and population barriers commit,
+`GameplayBeginCommitted` disables further placement work. PVP hands lifecycle,
+movement, combat, damage, death, score, and respawn to the shipped
+`PvpGameode`; the framework does not replace Mirror transforms, bullets,
+damage, health, or weapon commands.
 
-Frozen runtime identities:
+Current frozen runtime identities:
 
 ```text
-OperatorModdedOperations.dll              640000  E77412F83C418EDDC5422F702382BEB75AFB6459430CD7B64B8EB0594549EBA8
-OperatorModdedOperations.MelonLoader.dll  641536  2A6694E798A3AF2C3CF1565F50BF20556E83A48FD60CF7ED0EFBE754F3572903
+OperatorModdedOperations.dll              642560  54890536492E645050C7C2125F7D1FF4FFC23C3BE23EBF95A2294E648439DEB7
+OperatorModdedOperations.MelonLoader.dll  643584  EBCAD6563366D614A12C2797622B7639A16377EAE829A4279A3914CFF498C635
 OperatorModAPI.dll                        204800  5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
 OperatorModAPI.BepInEx.dll                 15872  6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
 OperatorModAPI.MelonLoader.dll             24576  1CC745AB57A18848F15A47C80FCE5399C4006FE3ADE2C94B449792CFBABFF7FA
 ```
 
-The immediately preceding `0.3.30` BepInEx runtime log proved one solo-PVE
-LOT 12 mission could complete and return to the exact Operation Room while the
-framework retained `NativeTransitionStarted`. Every later Whiteout Pass,
-Ukrainian Forest, and LOT 12 Confirm was then refused by the committed-native-
-teardown guard even though each requested bundle loaded and hash-verified.
-The `0.3.30` transition-lifecycle hotfix build corrects that state transition and adds source regressions, but the
-new hashes still require a live same-process LOT 12 completion -> Whiteout ->
-Forest acceptance run before runtime promotion.
+The full source suite passes `108/108`; scene variants pass `16/16`; native
+game-mode, policy, runtime-barrier, loader-boundary, binary-contract, installer
+round-trip, repository, and package-closure gates pass. Both loader builds
+compile with zero warnings and errors. A clean rebuild at later Git HEAD
+differs from the frozen DLL only in the PE reproducibility stamp, MVID, and
+embedded source revision. Release and installed artifacts remain pinned to
+the runtime-tested bytes above.
+
+Current BepInEx single-machine evidence includes sustained LOT 12 PVE,
+restart, PVP selector, Forest control, and a fresh 2026-08-30 LOT 12 PVE run.
+The fresh run passed `18/18`: the private `10..60` selector chose and retained
+12 across Restart, all 72 authored/navigation markers were present, safe
+capacity was 71, exactly 12 server-owned AI spawned and were later observed,
+owned AI were removed, the framework scene cleaned to zero runtime assets,
+and the package closure remained unchanged. The exact result is
+`<AUTHOR_WORKSPACE>/reports/runtime_qa/20260830_201810-BepInEx-pve-2ce5f664-0293-47ad-b87c-84c5a1dd768a/suite-run-result-v1.json`.
+
+This is not an online-support claim. MelonLoader live gameplay remains open
+because no MelonLoader runtime is installed on the current test machine. Real
+PVE and PVP acceptance each requires a host and remote client on separate PCs.
+PVE must prove identical authoritative AI identities, poses, movement, health,
+combat, completion, extraction, Restart, and teardown. PVP must prove teams,
+movement, firearm hits, damage/death, score, round respawn, Restart, and clean
+return. Late join is intentionally unsupported by the fixed-roster protocol.
 
 ## Historical source candidate: 0.3.29
 
