@@ -5,7 +5,17 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+#if MELONLOADER
+using Il2Cpp;
+using Il2CppMirror;
+using NativeAstarPath = Il2Cpp.AstarPath;
+using NativeGameMode = Il2Cpp.GameMode;
+using Pathfinding = Il2CppPathfinding;
+#else
 using Mirror;
+using NativeAstarPath = global::AstarPath;
+using NativeGameMode = global::GameMode;
+#endif
 using OperatorModAPI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -1063,7 +1073,7 @@ public sealed partial class CerberusNativeTabFix
     {
         if (!TryValidateInstalledPvpSpawnContract(operation, out string spawnError))
             throw new InvalidDataException(spawnError);
-        if (global::GameMode.singleton != operation.GameModeComponent)
+        if (NativeGameMode.singleton != operation.GameModeComponent)
             throw new InvalidDataException("GameMode.singleton is not operation-owned");
         if (operation.Operation.Mode == ModdedOperationMode.PlayerVersusEnvironment &&
             (operation.GameModeComponent is not StandalonePveGameMode pve ||
@@ -1201,7 +1211,7 @@ public sealed partial class CerberusNativeTabFix
                 colliders,
                 clearanceBuffer));
         }
-        global::AstarPath astar = global::AstarPath.active;
+        NativeAstarPath astar = NativeAstarPath.active;
         var graph = astar?.graphs?[0];
         if (astar == null || graph == null || !snapshot.Navigation.Applicable)
             throw new InvalidDataException("PVE navigation receipt is unavailable");
@@ -1628,7 +1638,7 @@ public sealed partial class CerberusNativeTabFix
         };
         if (!receipt.Applicable)
             return receipt;
-        global::AstarPath astar = global::AstarPath.active;
+        NativeAstarPath astar = NativeAstarPath.active;
         if (astar == null || astar.gameObject == null ||
             astar.gameObject.scene.handle != scene.handle)
         {

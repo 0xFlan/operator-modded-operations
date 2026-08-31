@@ -5,7 +5,14 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+#if MELONLOADER
+using Il2Cpp;
+using Il2CppMirror;
+using NativeSmoothSyncMirror = Il2CppSmooth.SmoothSyncMirror;
+#else
 using Mirror;
+using NativeSmoothSyncMirror = global::Smooth.SmoothSyncMirror;
+#endif
 using OperatorModAPI;
 using OperatorModdedOperations;
 using UnityEngine;
@@ -685,8 +692,8 @@ public sealed partial class CerberusNativeTabFix
                 StringComparison.Ordinal));
         NetworkBehaviour networkAnimator = animator as NetworkBehaviour;
         Behaviour animatorBehaviour = animator as Behaviour;
-        global::Smooth.SmoothSyncMirror[] smooth =
-            root.GetComponents<global::Smooth.SmoothSyncMirror>();
+        NativeSmoothSyncMirror[] smooth =
+            root.GetComponents<NativeSmoothSyncMirror>();
         if (identity == null || identity.gameObject != root || identity.netId == 0 ||
             player.netIdentity != identity || health == null ||
             health.netIdentity != identity || animator == null ||
@@ -772,8 +779,8 @@ public sealed partial class CerberusNativeTabFix
         Health health = root.GetComponent<Health>();
         WeaponsAI weapons = root.GetComponent<WeaponsAI>();
         NetworkAnimatorSyncNPC animator = root.GetComponent<NetworkAnimatorSyncNPC>();
-        global::Smooth.SmoothSyncMirror[] smooth =
-            root.GetComponents<global::Smooth.SmoothSyncMirror>();
+        NativeSmoothSyncMirror[] smooth =
+            root.GetComponents<NativeSmoothSyncMirror>();
         if (brain == null || team == null || health == null || weapons == null ||
             animator == null || smooth == null || smooth.Length != 2 ||
             smooth.Any(item => item == null || !item.enabled ||

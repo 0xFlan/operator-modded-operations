@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.32 steady-state performance and native weapon-effects candidate — 2026-08-30
+
+- Move stable peer transport and agreement maintenance to a 15-frame cadence.
+  PVE player/population readiness still samples every actual frame until its
+  required consecutive-frame barrier commits.
+- Stop the once-per-second mission-laptop scene scan while a package launch or
+  active operation owns the runtime.
+- Retire corrective weapon-authority maintenance per loadout slot after the
+  synchronized weapon netId is confirmed. A loadout/netId change reopens the
+  exact slot and scene teardown clears every confirmation.
+- Preserve OPERATOR's `WeaponV3.OnStartAuthority` firing lifecycle and native
+  Mirror ownership of bullets, hits, damage, movement, and animation. The
+  framework audits the equipped weapon's native muzzle particle/object/light
+  graph; it does not create synthetic muzzle effects or alter ballistics.
+- Pass `110/110` Python integration contracts, the repository audit, all four
+  .NET contract projects, and zero-warning BepInEx/MelonLoader builds.
+  Separate-PC PVE/PVP acceptance remains required before multiplayer support
+  is promoted.
+- Freeze BepInEx at 644,096 bytes / SHA-256
+  `57CE5F1657CABDC5B1785013CF95D22913027EAEE0D8A08000CC31AD1DFB7D91`
+  and MelonLoader at 645,632 bytes / SHA-256
+  `FA679A7AC2F9BE3543022B88BDBF7AF8756F8D7C544A656E61F15F3E3EC73CF3`.
+
 ## 0.3.31 runtime hot-path and placement candidate — 2026-08-30
 
 - Retire local-player insertion after one acknowledged placement for each exact

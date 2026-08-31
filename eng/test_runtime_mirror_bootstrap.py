@@ -144,7 +144,7 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
     def test_plugin_version_changes_with_spawn_contract(self) -> None:
         self.assertIn(
             '[BepInPlugin("operator.modded-operations", '
-            '"OPERATOR: Modded Operations", "0.3.31")]',
+            '"OPERATOR: Modded Operations", "0.3.32")]',
             self.framework,
         )
 

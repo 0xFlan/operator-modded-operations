@@ -180,7 +180,7 @@ def main() -> int:
             encoding="utf-8", errors="replace"
         )
         required_authored = (
-            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.31")]',
+            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.32")]',
             'internal const string RequiredApiVersion = "0.2.0-alpha.7";',
             "operation.Operation.PveAiProfile",
             "details.WanderDistance = profile?.WanderDistanceMeters ?? 18;",

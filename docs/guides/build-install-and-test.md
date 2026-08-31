@@ -14,7 +14,7 @@ The pinned source uses Unity `6000.3.8f1`. A different player build requires a
 new interop and source audit. Operator Mod API is a separate maintainer input
 only when building from source. A matching framework archive bundles its exact
 preview runtime; testers and end users do not download preview API separately.
-The active source checkpoint is the `0.3.31` runtime hot-path and one-shot
+The active source checkpoint is the `0.3.32` steady-state performance and native weapon-effects
 placement build / alpha.7. Bounded BepInEx single-machine gates pass.
 MelonLoader live gameplay and separate host/remote runtime acceptance remain
 required before promotion.
@@ -155,9 +155,9 @@ framework or API.
 For the frozen candidate, the controlled-test transfer is:
 
 ```text
-OperatorModdedOperations_v0.3.31_API-alpha.7_DUAL_LOADER_RUNTIME_FIX_TEST.zip
-bytes=643247
-sha256=316FA5F9E06CAACB2067388D60799A93928F8E4CAE6854D26163DCE69B1F4F7A
+OperatorModdedOperations_v0.3.32_API-alpha.7_DUAL_LOADER_PERFORMANCE_LIGHTING_TEST.zip
+bytes=645747
+sha256=E8BC0F03779B935ECDA609519806D7C67CA389140DCB79D15165C3E037CFB265
 ```
 
 Keep explicit test-only and `NOT NEXUS` labeling in the filename/readme

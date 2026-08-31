@@ -414,7 +414,7 @@ Every agreed peer can register the same nonzero ID. A zero-ID runtime
 `NetworkIdentity` can work on a host client but gives a remote client no
 prefab or scene ID to instantiate.
 
-For PVP, the `0.3.31` runtime-fix build uses the protocol-v6 fail-closed agreement. Before native board
+For PVP, the `0.3.32` performance/runtime-fix build uses the protocol-v6 fail-closed agreement. Before native board
 start, the host snapshots the exact authenticated remote connection objects and
 numeric IDs. Its private, collision-checked Mirror envelope carries a
 per-launch nonce and digest over

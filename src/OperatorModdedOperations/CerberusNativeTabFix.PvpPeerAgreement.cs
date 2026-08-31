@@ -12,7 +12,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using BepInEx;
 using BepInEx.Unity.IL2CPP;
+#if MELONLOADER
+using Il2Cpp;
+using Il2CppMirror;
+#else
 using Mirror;
+#endif
 using OperatorModAPI;
 using OperatorModdedOperations;
 using UnityEngine;
@@ -23,7 +28,7 @@ using MelonLoader;
 
 public sealed partial class CerberusNativeTabFix
 {
-    private const string PvpAgreementFrameworkVersion = "0.3.31";
+    private const string PvpAgreementFrameworkVersion = "0.3.32";
     private const string PvpAgreementCapabilities =
         "exact-content-v2;suite-install-receipt-v1;loader-neutral-runtime-pair-v1;" +
         "package-runtime-ready-v1;remote-preload-v1;client-hello-v1;" +
@@ -1742,6 +1747,15 @@ public sealed partial class CerberusNativeTabFix
                    OperationMatchesPvpIdentity(
                        operation,
                        remotePvpAgreement.Identity);
+    }
+
+    private bool RequiresFrameExactPeerRuntimeObservation()
+    {
+        ActiveMapOperation operation = activeOperation;
+        return operation != null && operation.PeerAgreementRequired &&
+            !operation.GameplayBeginCommitted &&
+            operation.Operation?.Mode ==
+                ModdedOperationMode.PlayerVersusEnvironment;
     }
 
     private void ProcessPvpPeerAgreement()

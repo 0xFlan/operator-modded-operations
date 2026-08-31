@@ -15,7 +15,7 @@ def read(name: str) -> str:
 
 def method(source: str, name: str) -> str:
     declaration = re.search(
-        rf"\bprivate\s+(?:static\s+)?[\w:.,<>\[\]?\s]+?\s+{re.escape(name)}\s*\(",
+        rf"\b(?:private|public)\s+(?:static\s+)?[\w:.,<>\[\]?\s]+?\s+{re.escape(name)}\s*\(",
         source,
     )
     if declaration is None:
@@ -236,6 +236,37 @@ class PvePeerRuntimeIntegrationTests(unittest.TestCase):
             "Resources.FindObjectsOfTypeAll<PlayerNetworking>", self.production
         )
 
+    def test_steady_state_work_is_throttled_without_weakening_pve_barriers(self) -> None:
+        runner = method(self.main, "Update")
+        exact = method(self.protocol, "RequiresFrameExactPeerRuntimeObservation")
+        attach = method(self.main, "TryAttachAll")
+        gameplay = method(self.main, "MaintainStandaloneGameplay")
+
+        self.assertIn("StableTransportCadenceFrames = 15", self.main)
+        self.assertIn("StablePeerAgreementCadenceFrames = 15", self.main)
+        self.assertIn("frame >= nextTransportMaintenanceFrame", runner)
+        self.assertIn("frameExactPeerBarrier", runner)
+        self.assertIn("frame + 1", runner)
+        self.assertIn("PlayerVersusEnvironment", exact)
+        self.assertIn("!operation.GameplayBeginCommitted", exact)
+        self.assertIn("activeOperation != null || pendingLaunch != null", attach)
+        self.assertNotIn("ProcessPeerRuntimeBarriers", gameplay)
+
+    def test_weapon_authority_maintenance_retires_and_preserves_native_fire(self) -> None:
+        maintain = method(self.main, "MaintainOwnedStandaloneWeaponSlot")
+        describe = method(self.main, "DescribeNativeWeaponFireEffects")
+        self.assertIn("ConfirmedWeaponAuthorityNetIdsBySlot", maintain)
+        self.assertIn("confirmedNetId == syncedWeaponNetId", maintain)
+        self.assertIn("CMD_SetCorrectiveOwnershipOfWeapon", maintain)
+        self.assertIn("DescribeNativeWeaponFireEffects", maintain)
+        self.assertIn("MuzzleFlash", describe)
+        self.assertIn("ParticleSystem", describe)
+        self.assertIn("LightType.Directional", describe)
+        self.assertIn("WeaponV3.OnStartAuthority", describe)
+        self.assertEqual(
+            self.main.count("ConfirmedWeaponAuthorityNetIdsBySlot.Clear()"), 2
+        )
+
     def test_player_ready_requires_native_movement_health_animation_and_weapon_authority(
         self,
     ) -> None:
@@ -244,7 +275,15 @@ class PvePeerRuntimeIntegrationTests(unittest.TestCase):
         )
         place = method(self.runtime, "ProcessRemotePeerPlayerPlacement")
         host = method(self.runtime, "IsHostPeerPlayerBarrierReady")
-        self.assertIn("Smooth.SmoothSyncMirror", contract)
+        self.assertIn("NativeSmoothSyncMirror", contract)
+        self.assertIn(
+            "using NativeSmoothSyncMirror = global::Smooth.SmoothSyncMirror;",
+            self.runtime,
+        )
+        self.assertIn(
+            "using NativeSmoothSyncMirror = Il2CppSmooth.SmoothSyncMirror;",
+            self.runtime,
+        )
         self.assertIn("smooth.Length != 1", contract)
         self.assertIn('"NetworkAnimatorSmooth"', contract)
         self.assertIn("networkAnimator.netIdentity != identity", contract)
@@ -287,7 +326,7 @@ class PvePeerRuntimeIntegrationTests(unittest.TestCase):
         self.assertIn("Health health", contract)
         self.assertIn("WeaponsAI weapons", contract)
         self.assertIn("NetworkAnimatorSyncNPC animator", contract)
-        self.assertIn("Smooth.SmoothSyncMirror", contract)
+        self.assertIn("NativeSmoothSyncMirror", contract)
         self.assertIn("smooth.Length != 2", contract)
         self.assertIn("PeerIdentityContainsBehaviour", contract)
 

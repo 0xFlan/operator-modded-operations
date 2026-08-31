@@ -1,7 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+#if MELONLOADER
+using Il2Cpp;
+using Il2CppMirror;
+#else
 using Mirror;
+#endif
 using UnityEngine;
 using UnityEngine.SceneManagement;
 

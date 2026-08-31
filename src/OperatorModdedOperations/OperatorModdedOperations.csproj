@@ -4,7 +4,7 @@
     <AssemblyName Condition="'$(OperatorLoader)' != 'MelonLoader'">OperatorModdedOperations</AssemblyName>
     <AssemblyName Condition="'$(OperatorLoader)' == 'MelonLoader'">OperatorModdedOperations.MelonLoader</AssemblyName>
     <TargetFramework>net6.0</TargetFramework>
-    <Version>0.3.31</Version>
+    <Version>0.3.32</Version>
     <LangVersion>10.0</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
@@ -15,6 +15,8 @@
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
     <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
     <OperatorGameDir Condition="'$(OperatorGameDir)' == ''">$(OPERATOR_GAME_DIR)</OperatorGameDir>
+    <OperatorInteropDir Condition="'$(OperatorLoader)' != 'MelonLoader'">$(OperatorGameDir)\BepInEx\interop</OperatorInteropDir>
+    <OperatorInteropDir Condition="'$(OperatorLoader)' == 'MelonLoader'">$(OperatorGameDir)\MelonLoader\Il2CppAssemblies</OperatorInteropDir>
     <MelonLoaderDir Condition="'$(MelonLoaderDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\_dependencies\MelonLoader\v0.7.3\MelonLoader\net6</MelonLoaderDir>
     <DefineConstants Condition="'$(OperatorLoader)' == 'MelonLoader'">$(DefineConstants);MELONLOADER</DefineConstants>
     <IntermediateOutputPath>obj\$(OperatorLoader)\$(Configuration)\</IntermediateOutputPath>
@@ -43,26 +45,31 @@
     <Reference Include="BepInEx.Unity.IL2CPP" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorGameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2CppInterop.Runtime" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorGameDir)\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2CppInterop.Runtime" Condition="'$(OperatorLoader)' == 'MelonLoader'"><HintPath>$(MelonLoaderDir)\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Il2Cppmscorlib"><HintPath>$(OperatorGameDir)\BepInEx\interop\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Il2CppSystem.Core"><HintPath>$(OperatorGameDir)\BepInEx\interop\Il2CppSystem.Core.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Assembly-CSharp"><HintPath>$(OperatorGameDir)\BepInEx\interop\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="AstarPathfindingProject"><HintPath>$(OperatorGameDir)\BepInEx\interop\AstarPathfindingProject.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="PackageTools"><HintPath>$(OperatorGameDir)\BepInEx\interop\PackageTools.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Drawing"><HintPath>$(OperatorGameDir)\BepInEx\interop\Drawing.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Mirror"><HintPath>$(OperatorGameDir)\BepInEx\interop\Mirror.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.CoreModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.TerrainModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.TerrainModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.TerrainPhysicsModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.TerrainPhysicsModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.RenderPipelines.Core.Runtime"><HintPath>$(OperatorGameDir)\BepInEx\interop\Unity.RenderPipelines.Core.Runtime.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.RenderPipelines.HighDefinition.Runtime"><HintPath>$(OperatorGameDir)\BepInEx\interop\Unity.RenderPipelines.HighDefinition.Runtime.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AudioModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.UIModule"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.UI"><HintPath>$(OperatorGameDir)\BepInEx\interop\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.TextMeshPro"><HintPath>$(OperatorGameDir)\BepInEx\interop\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.Localization"><HintPath>$(OperatorGameDir)\BepInEx\interop\Unity.Localization.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(OperatorInteropDir)\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppSystem.Core"><HintPath>$(OperatorInteropDir)\Il2CppSystem.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(OperatorInteropDir)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AstarPathfindingProject" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorInteropDir)\AstarPathfindingProject.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppAstarPathfindingProject" Condition="'$(OperatorLoader)' == 'MelonLoader'"><HintPath>$(OperatorInteropDir)\Il2CppAstarPathfindingProject.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="PackageTools" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorInteropDir)\PackageTools.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppPackageTools" Condition="'$(OperatorLoader)' == 'MelonLoader'"><HintPath>$(OperatorInteropDir)\Il2CppPackageTools.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Drawing" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorInteropDir)\Drawing.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppDrawing" Condition="'$(OperatorLoader)' == 'MelonLoader'"><HintPath>$(OperatorInteropDir)\Il2CppDrawing.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mirror" Condition="'$(OperatorLoader)' != 'MelonLoader'"><HintPath>$(OperatorInteropDir)\Mirror.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppMirror" Condition="'$(OperatorLoader)' == 'MelonLoader'"><HintPath>$(OperatorInteropDir)\Il2CppMirror.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(OperatorInteropDir)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(OperatorInteropDir)\UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(OperatorInteropDir)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(OperatorInteropDir)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(OperatorInteropDir)\UnityEngine.ParticleSystemModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TerrainModule"><HintPath>$(OperatorInteropDir)\UnityEngine.TerrainModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TerrainPhysicsModule"><HintPath>$(OperatorInteropDir)\UnityEngine.TerrainPhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Core.Runtime"><HintPath>$(OperatorInteropDir)\Unity.RenderPipelines.Core.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.HighDefinition.Runtime"><HintPath>$(OperatorInteropDir)\Unity.RenderPipelines.HighDefinition.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(OperatorInteropDir)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(OperatorInteropDir)\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(OperatorInteropDir)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(OperatorInteropDir)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(OperatorInteropDir)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.Localization"><HintPath>$(OperatorInteropDir)\Unity.Localization.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

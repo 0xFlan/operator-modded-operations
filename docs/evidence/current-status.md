@@ -1,8 +1,8 @@
 # Current evidence status
 
-## Active candidate: 0.3.31 runtime hot-path and one-shot placement build
+## Active candidate: 0.3.32 steady-state performance and native weapon-effects build
 
-Modded Operations `0.3.31` and bundled-only Operator Mod API
+Modded Operations `0.3.32` and bundled-only Operator Mod API
 `0.2.0-alpha.7` build isolated BepInEx and MelonLoader products from shared
 source. Install exactly one loader. Protocol v6 binds the selected suite
 receipt and sidecar, game build, loader-neutral framework/API/companion
@@ -22,14 +22,14 @@ damage, health, or weapon commands.
 Current frozen runtime identities:
 
 ```text
-OperatorModdedOperations.dll              642560  54890536492E645050C7C2125F7D1FF4FFC23C3BE23EBF95A2294E648439DEB7
-OperatorModdedOperations.MelonLoader.dll  643584  EBCAD6563366D614A12C2797622B7639A16377EAE829A4279A3914CFF498C635
+OperatorModdedOperations.dll              644096  57CE5F1657CABDC5B1785013CF95D22913027EAEE0D8A08000CC31AD1DFB7D91
+OperatorModdedOperations.MelonLoader.dll  645632  FA679A7AC2F9BE3543022B88BDBF7AF8756F8D7C544A656E61F15F3E3EC73CF3
 OperatorModAPI.dll                        204800  5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
 OperatorModAPI.BepInEx.dll                 15872  6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
-OperatorModAPI.MelonLoader.dll             24576  1CC745AB57A18848F15A47C80FCE5399C4006FE3ADE2C94B449792CFBABFF7FA
+OperatorModAPI.MelonLoader.dll             26112  79A8491D2497C2A72859C6B05DD6BA8E475327FA54DB47C0C5F3881F59E6CF6A
 ```
 
-The full source suite passes `108/108`; scene variants pass `16/16`; native
+The full source suite passes `110/110`; scene variants pass `16/16`; native
 game-mode, policy, runtime-barrier, loader-boundary, binary-contract, installer
 round-trip, repository, and package-closure gates pass. Both loader builds
 compile with zero warnings and errors. A clean rebuild at later Git HEAD
@@ -40,14 +40,22 @@ the runtime-tested bytes above.
 Current BepInEx single-machine evidence includes sustained LOT 12 PVE,
 restart, PVP selector, Forest control, and a fresh 2026-08-30 LOT 12 PVE run.
 The fresh run passed `18/18`: the private `10..60` selector chose and retained
-12 across Restart, all 72 authored/navigation markers were present, safe
-capacity was 71, exactly 12 server-owned AI spawned and were later observed,
-owned AI were removed, the framework scene cleaned to zero runtime assets,
-and the package closure remained unchanged. The exact result is
-`<AUTHOR_WORKSPACE>/reports/runtime_qa/20260830_201810-BepInEx-pve-2ce5f664-0293-47ad-b87c-84c5a1dd768a/suite-run-result-v1.json`.
+10 across Restart, all 72 authored/navigation markers were present, safe
+capacity was 71, exactly 10 grounded server-owned AI were observed in both
+generations, owned AI were removed, the framework scene cleaned to zero
+runtime assets, and the package closure remained unchanged. A separate
+current-byte sustained run sampled 4,579 frames, kept all 10 AI grounded and
+network-ready, and observed eight move at least one metre without repeat
+player placement. Its average was about 38.2 FPS with 28.79 ms p95 frame time
+on the local test machine. The lifecycle result is
+`<AUTHOR_WORKSPACE>/reports/runtime_qa/20260831_062356-BepInEx-pve-1dc7d9e2-94e1-4ab9-990f-dc950c1e6cde/suite-run-result-v1.json` and the sustained result is
+`<AUTHOR_WORKSPACE>/reports/runtime_qa/20260831_062900-BepInEx-pve-sustained-7d2c4196-e16f-4410-ade1-ffcf09dacd0a/suite-run-result-v1.json`.
 
-This is not an online-support claim. MelonLoader live gameplay remains open
-because no MelonLoader runtime is installed on the current test machine. Real
+This is not an online-support claim. The current MelonLoader products pass
+build and static/archive checks, but fresh live gameplay remains open because
+the test installation still booted through BepInEx's native shim when the
+managed suite was switched. A Melon run requires MelonLoader's native shim to
+be active and BepInEx's native shim to be disabled. Real
 PVE and PVP acceptance each requires a host and remote client on separate PCs.
 PVE must prove identical authoritative AI identities, poses, movement, health,
 combat, completion, extraction, Restart, and teardown. PVP must prove teams,

@@ -2,7 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text;
+#if MELONLOADER
+using Il2Cpp;
+using Il2CppMirror;
+using NativeGameMode = Il2Cpp.GameMode;
+#else
 using Mirror;
+using NativeGameMode = global::GameMode;
+#endif
 using OperatorModAPI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -65,14 +72,14 @@ public sealed partial class CerberusNativeTabFix
         public readonly PeerNativeGameModeRootRole Role;
         public readonly GameObject Root;
         public readonly NetworkIdentity Identity;
-        public readonly global::GameMode Owner;
+        public readonly NativeGameMode Owner;
         public readonly PeerNativeNetworkBehaviourGraph ConstructorGraph;
 
         public PeerNativeGameModeRootDraft(
             PeerNativeGameModeRootRole role,
             GameObject root,
             NetworkIdentity identity,
-            global::GameMode owner,
+            NativeGameMode owner,
             PeerNativeNetworkBehaviourGraph constructorGraph)
         {
             Role = role;
@@ -279,7 +286,7 @@ public sealed partial class CerberusNativeTabFix
             root.SetActive(false);
             SceneManager.MoveGameObjectToScene(root, scene);
             NetworkIdentity identity = root.AddComponent<NetworkIdentity>();
-            global::GameMode owner = mode ==
+            NativeGameMode owner = mode ==
                     ModdedOperationMode.PlayerVersusEnvironment
                 ? root.AddComponent<InfiltrationManager>()
                 : root.AddComponent<PvpGameode>();
@@ -350,7 +357,7 @@ public sealed partial class CerberusNativeTabFix
             }
             SceneManager.MoveGameObjectToScene(root, scene);
             NetworkIdentity identity = root.GetComponent<NetworkIdentity>();
-            global::GameMode owner = root.GetComponent<global::GameMode>();
+            NativeGameMode owner = root.GetComponent<NativeGameMode>();
             if (!TryCapturePeerNativeConstructorGraph(
                     root,
                     identity,
@@ -395,7 +402,7 @@ public sealed partial class CerberusNativeTabFix
     private static bool TryCapturePeerNativeConstructorGraph(
         GameObject root,
         NetworkIdentity identity,
-        global::GameMode owner,
+        NativeGameMode owner,
         ModdedOperationMode mode,
         int expectedSceneHandle,
         uint expectedAssetId,
@@ -430,8 +437,8 @@ public sealed partial class CerberusNativeTabFix
 
             NetworkIdentity[] identities =
                 root.GetComponentsInChildren<NetworkIdentity>(true);
-            global::GameMode[] owners =
-                root.GetComponentsInChildren<global::GameMode>(true);
+            NativeGameMode[] owners =
+                root.GetComponentsInChildren<NativeGameMode>(true);
             if (identities == null || identities.Length != 1 || identities[0] != identity ||
                 owners == null || owners.Length != 1 || owners[0] != owner)
             {
@@ -682,7 +689,7 @@ public sealed partial class CerberusNativeTabFix
     }
 
     private static bool IsExactPeerNativeGameModeOwner(
-        global::GameMode owner,
+        NativeGameMode owner,
         ModdedOperationMode mode)
     {
         if (owner == null || owner.Pointer == IntPtr.Zero)

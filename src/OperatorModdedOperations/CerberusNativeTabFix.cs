@@ -10,11 +10,26 @@ using BepInEx.Unity.IL2CPP;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.Injection;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+#if MELONLOADER
+using Il2Cpp;
+using Il2CppMichsky.DreamOS;
+using Il2CppMirror;
+using Il2CppTMPro;
+using Mirror = Il2CppMirror;
+using NativeAstarPath = Il2Cpp.AstarPath;
+using NativeGameMode = Il2Cpp.GameMode;
+using TMPro = Il2CppTMPro;
+#else
 using Michsky.DreamOS;
 using Mirror;
+using NativeAstarPath = global::AstarPath;
+using NativeGameMode = global::GameMode;
+#endif
 using OperatorModAPI;
 using OperatorModdedOperations;
+#if !MELONLOADER
 using TMPro;
+#endif
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Rendering;
@@ -24,7 +39,7 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.31")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.32")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed partial class CerberusNativeTabFix : BasePlugin
@@ -194,7 +209,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         public bool PeerGameModeHandlerRegistered;
         public readonly Dictionary<int, OwnedPeerGameModeClone> PeerGameModeClones =
             new Dictionary<int, OwnedPeerGameModeClone>();
-        public global::GameMode GameModeComponent;
+        public NativeGameMode GameModeComponent;
         public bool NetworkSpawnRequested;
         public bool NetworkSpawnFailed;
         public bool PeerAgreementRequired;
@@ -262,6 +277,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             new Dictionary<int, int>();
         public readonly HashSet<int> ConfirmedWeaponAuthorityIds =
             new HashSet<int>();
+        public readonly Dictionary<int, int> ConfirmedWeaponAuthorityNetIdsBySlot =
+            new Dictionary<int, int>();
         public Il2CppSystem.Collections.Generic.List<SpawnPoint> PreviousSpawnPoints;
         public Il2CppSystem.Collections.Generic.List<SpawnPoint> OwnedSpawnPoints;
         public Il2CppReferenceArray<GameObject> PreviousFallbackSpawns;
@@ -948,6 +965,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
 
     private sealed class FixRunner : MonoBehaviour
     {
+        private const int StableTransportCadenceFrames = 15;
+        private const int StablePeerAgreementCadenceFrames = 15;
+        private int nextTransportMaintenanceFrame;
+        private int nextPeerAgreementMaintenanceFrame;
 
         public FixRunner(IntPtr pointer) : base(pointer) { }
 
@@ -958,12 +979,28 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
 
         public void Update()
         {
-            instance?.ProcessPendingTransitionSnapshots();
-            instance?.MaintainNativePresentationIsolation();
-            instance?.MaintainPvpPeerAgreementTransport();
-            instance?.ProcessPendingLaunch();
-            instance?.ProcessPvpPeerAgreement();
-            instance?.MaintainStandaloneGameplay();
+            CerberusNativeTabFix owner = instance;
+            if (owner == null)
+                return;
+
+            owner.ProcessPendingTransitionSnapshots();
+            owner.MaintainNativePresentationIsolation();
+            int frame = Time.frameCount;
+            if (frame >= nextTransportMaintenanceFrame)
+            {
+                nextTransportMaintenanceFrame = frame + StableTransportCadenceFrames;
+                owner.MaintainPvpPeerAgreementTransport();
+            }
+            owner.ProcessPendingLaunch();
+            bool frameExactPeerBarrier = owner.RequiresFrameExactPeerRuntimeObservation();
+            if (frameExactPeerBarrier || frame >= nextPeerAgreementMaintenanceFrame)
+            {
+                nextPeerAgreementMaintenanceFrame = frameExactPeerBarrier
+                    ? frame + 1
+                    : frame + StablePeerAgreementCadenceFrames;
+                owner.ProcessPvpPeerAgreement();
+            }
+            owner.MaintainStandaloneGameplay();
         }
     }
 
@@ -1078,6 +1115,13 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
 
     private void TryAttachAll()
     {
+        // The laptop tab is an Operation Room concern. Once a package launch owns
+        // the transition/gameplay generation there is no useful UI work to do,
+        // and a Resources-based laptop discovery once per second only adds
+        // avoidable main-thread pressure to AI-heavy scenes.
+        if (activeOperation != null || pendingLaunch != null)
+            return;
+
         var laptopType = ResolveMissionLaptopType();
         if (laptopType == null)
         {
@@ -3816,6 +3860,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.PlayerSpawnRequestCounts.Clear();
         operation.CompletedPlayerSpawnIds.Clear();
         operation.PlayerMoveRequestFrames.Clear();
+        operation.WeaponAuthorityRequestFrames.Clear();
+        operation.WeaponAuthorityRequestCounts.Clear();
+        operation.ConfirmedWeaponAuthorityIds.Clear();
+        operation.ConfirmedWeaponAuthorityNetIdsBySlot.Clear();
         operation.PveSpawnAttempted = false;
         operation.PveEnemyCount = 0;
         operation.PveRaidManager = null;
@@ -3975,6 +4023,10 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.PlayerSpawnRequestCounts.Clear();
         operation.CompletedPlayerSpawnIds.Clear();
         operation.PlayerMoveRequestFrames.Clear();
+        operation.WeaponAuthorityRequestFrames.Clear();
+        operation.WeaponAuthorityRequestCounts.Clear();
+        operation.ConfirmedWeaponAuthorityIds.Clear();
+        operation.ConfirmedWeaponAuthorityNetIdsBySlot.Clear();
         operation.PveSpawnAttempted = false;
         operation.PveEnemyCount = 0;
         operation.PveRaidManager = null;
@@ -5034,7 +5086,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             root.SetActive(false);
             SceneManager.MoveGameObjectToScene(root, scene);
             var identity = root.AddComponent<NetworkIdentity>();
-            global::GameMode gameMode;
+            NativeGameMode gameMode;
             uint assetId;
             if (operation.Operation.Mode ==
                 ModdedOperationMode.PlayerVersusEnvironment)
@@ -5063,7 +5115,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 assetId = StandalonePvpGameModeAssetId;
             }
             gameMode.isNight = ParseTimeHour(operation.TimeCode) < 6;
-            global::GameMode.singleton = gameMode;
+            NativeGameMode.singleton = gameMode;
             operation.BootstrapRoot = root;
             operation.BootstrapIdentity = identity;
             operation.BootstrapPrefabRoot = root;
@@ -6224,7 +6276,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         return null;
     }
 
-    private bool TryClaimStandaloneReadinessInitialization(global::GameMode gameMode)
+    private bool TryClaimStandaloneReadinessInitialization(NativeGameMode gameMode)
     {
         var operation = activeOperation;
         if (operation == null || gameMode == null)
@@ -6263,7 +6315,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
 
     private bool TryAdoptNetworkSpawnedGameMode(
         ActiveMapOperation operation,
-        global::GameMode gameMode)
+        NativeGameMode gameMode)
     {
         if (operation == null || gameMode == null ||
             operation.BootstrapAssetId == 0 || gameMode.gameObject == null)
@@ -6295,7 +6347,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         operation.BootstrapIdentity = identity;
         operation.BootstrapSpawnedNetId = identity.netId;
         operation.GameModeComponent = gameMode;
-        global::GameMode.singleton = gameMode;
+        NativeGameMode.singleton = gameMode;
         if (gameMode is StandalonePveGameMode pve)
         {
             var raid = gameMode.GetComponent<RaidManager>();
@@ -6328,7 +6380,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     }
 
     private void MarkStandaloneReadinessInitialized(
-        global::GameMode gameMode,
+        NativeGameMode gameMode,
         string source)
     {
         var operation = activeOperation;
@@ -6341,7 +6393,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     }
 
     private void MarkStandaloneReadinessInitializationFailed(
-        global::GameMode gameMode,
+        NativeGameMode gameMode,
         string source,
         Exception exception)
     {
@@ -6604,7 +6656,6 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 return;
         }
         ProcessPendingStandalonePveTeamValidation(operation);
-        ProcessPeerRuntimeBarriers(operation);
         if (Time.frameCount < operation.LastMaintenanceFrame + 15)
             return;
         operation.LastMaintenanceFrame = Time.frameCount;
@@ -6726,7 +6777,6 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
 
         if (!NetworkServer.active)
         {
-            ProcessPeerRuntimeBarriers(operation);
             MaintainOwnedStandaloneWeaponAuthority(operation);
             return;
         }
@@ -6759,7 +6809,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     }
 
     private static void EnsureStandaloneReadiness(
-        global::GameMode gameMode,
+        NativeGameMode gameMode,
         string source)
     {
         var pveGameMode = gameMode as StandalonePveGameMode;
@@ -6865,8 +6915,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
             InfiltrationManager.instance = null;
         if (gameMode != null && PvpGameode.instance == gameMode)
             PvpGameode.instance = null;
-        if (gameMode != null && global::GameMode.singleton == gameMode)
-            global::GameMode.singleton = null;
+        if (gameMode != null && NativeGameMode.singleton == gameMode)
+            NativeGameMode.singleton = null;
         var bootstrapAssetId = operation.BootstrapAssetId;
         var bootstrapRoot = operation.BootstrapRoot;
         var bootstrapPrefabRoot = operation.BootstrapPrefabRoot;
@@ -9251,7 +9301,7 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         activeMarkerCount = 0;
         navigationMarkerCount = 0;
         var safeMarkers = new List<Transform>();
-        global::AstarPath astar = global::AstarPath.active;
+        NativeAstarPath astar = NativeAstarPath.active;
         if (authoredMarkers == null || astar == null)
             return safeMarkers;
 
@@ -9686,7 +9736,18 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         Component weapon)
     {
         if (weapon == null || syncedWeaponNetId == 0)
+        {
+            operation.ConfirmedWeaponAuthorityNetIdsBySlot.Remove(correctiveSlot);
             return;
+        }
+
+        if (operation.ConfirmedWeaponAuthorityNetIdsBySlot.TryGetValue(
+                correctiveSlot,
+                out int confirmedNetId) &&
+            confirmedNetId == syncedWeaponNetId)
+        {
+            return;
+        }
 
         int weaponId = weapon.GetInstanceID();
         NetworkIdentity identity = null;
@@ -9700,11 +9761,17 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         catch { return; }
         if (weaponOwned)
         {
+            operation.ConfirmedWeaponAuthorityNetIdsBySlot[correctiveSlot] =
+                syncedWeaponNetId;
             if (operation.ConfirmedWeaponAuthorityIds.Add(weaponId))
             {
+                string fireEffects = weapon is WeaponV3 firearm
+                    ? DescribeNativeWeaponFireEffects(firearm)
+                    : "not-a-WeaponV3";
                 log.LogInfo("Standalone confirmed vanilla weapon authority: player=" +
                     player.GetInstanceID() + ", slot=" + slotName +
-                    ", netId=" + identity.netId + ", weapon=" + weapon.name + ".");
+                    ", netId=" + identity.netId + ", weapon=" + weapon.name +
+                    ", nativeFireEffects=" + fireEffects + ".");
             }
             return;
         }
@@ -10262,6 +10329,50 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
         catch
         {
             try { selector.UpdateUI(); } catch { }
+        }
+    }
+
+    private static string DescribeNativeWeaponFireEffects(WeaponV3 weapon)
+    {
+        if (weapon == null)
+            return "weapon=<null>";
+        try
+        {
+            MuzzleFlash[] flashes =
+                weapon.GetComponentsInChildren<MuzzleFlash>(true);
+            int particles = 0;
+            int dynamicLights = 0;
+            int flashObjects = 0;
+            int validControllers = 0;
+            foreach (MuzzleFlash flash in flashes)
+            {
+                if (flash == null)
+                    continue;
+                if (flash.m_muzzleFlashParticleSystem != null)
+                    particles++;
+                if (flash.flashObjects != null)
+                    flashObjects += flash.flashObjects.Length;
+                Light light = flash.flash;
+                if (light != null && light.type != LightType.Directional &&
+                    light.cullingMask != 0 && light.range > .01f)
+                {
+                    dynamicLights++;
+                }
+                if (flash.flashTime > 0f && flash.muzzleFlashIntensity > 0f &&
+                    (flash.m_muzzleFlashParticleSystem != null ||
+                     flash.flashObjects?.Length > 0) && light != null)
+                {
+                    validControllers++;
+                }
+            }
+            return "controllers=" + flashes.Length + "/valid=" +
+                validControllers + ", particles=" + particles +
+                ", flashObjects=" + flashObjects + ", dynamicLights=" +
+                dynamicLights + ", authorityLifecycle=WeaponV3.OnStartAuthority";
+        }
+        catch (Exception ex)
+        {
+            return "audit-error=" + ex.GetType().Name;
         }
     }
 
