@@ -7,7 +7,7 @@ Confirm logs `a committed peer transition still owns native teardown`, the
 framework has retained the previous package transition after the native
 Operation Room return. This was a `0.3.30` lifecycle defect, not evidence that
 the later map bundle is corrupt. Update every participant to the hash-pinned
-Modded Operations `0.3.32` performance/runtime-fix build. Do not mix framework
+Modded Operations `0.3.33` mode-isolated spawn/runtime build. Do not mix framework
 builds in multiplayer. A valid fix
 must prove the exact Operation Room return, retire the previous operation
 owner, and then complete a same-process cross-map launch; deleting and

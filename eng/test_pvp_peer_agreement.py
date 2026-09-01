@@ -86,6 +86,8 @@ class PvpPeerAgreementTests(unittest.TestCase):
         )
         self.assertIn('name.StartsWith("PVE_PlayerSpawn_"', method[pve_branch:pvp_branch])
         self.assertNotIn('name.StartsWith("PVP_Team1Spawn_"', method[pve_branch:pvp_branch])
+        self.assertIn("explicitPve.Count > 0", method)
+        self.assertIn("legacyPveFallback", method)
         self.assertIn('name.StartsWith("PVP_Team1Spawn_"', method[pvp_branch:])
         self.assertIn('name.StartsWith("PVP_Team2Spawn_"', method[pvp_branch:])
         self.assertNotIn('name.StartsWith("PVE_PlayerSpawn_"', method[pvp_branch:])

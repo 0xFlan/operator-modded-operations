@@ -20,7 +20,7 @@ optional map companion owns exact-scene reconstruction.
 
 ## Current implementation checkpoint
 
-The active source checkpoint is Modded Operations `0.3.32` with bundled
+The active source checkpoint is Modded Operations `0.3.33` with bundled
 Operator Mod API `0.2.0-alpha.7`. The same framework source builds an isolated
 BepInEx DLL and an isolated MelonLoader DLL; install exactly one loader variant.
 Map packages remain shared data under `OPERATOR/OperatorMods`.
@@ -66,13 +66,13 @@ separators and no trailing newline. Generate it with
 `tools/operator_runtime_content_id.py`; runtime resolution recomputes it and
 fails closed on any mismatch.
 
-The frozen `0.3.32` steady-state performance test-candidate identities are:
+The frozen `0.3.33` all-map multiplayer test-candidate identities are:
 
 ```text
-OperatorModdedOperations.dll                     bytes=644096
-sha256=57CE5F1657CABDC5B1785013CF95D22913027EAEE0D8A08000CC31AD1DFB7D91
-OperatorModdedOperations.MelonLoader.dll         bytes=645632
-sha256=FA679A7AC2F9BE3543022B88BDBF7AF8756F8D7C544A656E61F15F3E3EC73CF3
+OperatorModdedOperations.dll                     bytes=644608
+sha256=601D587C889A6AF17142986B1B63427033872384120EE086E4892F0031928DAB
+OperatorModdedOperations.MelonLoader.dll         bytes=646144
+sha256=FBB82582F22FB64387704CC685D4084765B2733F7C2C6B3616E19282433D7937
 OperatorModAPI.dll                               bytes=204800
 sha256=5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
 OperatorModAPI.BepInEx.dll                       bytes=15872
@@ -80,6 +80,11 @@ sha256=6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
 OperatorModAPI.MelonLoader.dll                   bytes=26112
 sha256=79A8491D2497C2A72859C6B05DD6BA8E475327FA54DB47C0C5F3881F59E6CF6A
 ```
+
+PVE marker resolution first uses explicit `PVE_PlayerSpawn_*` markers. Shared
+Team 1 markers are accepted only as a legacy fallback when no explicit PVE
+markers exist. PVP uses only its team-specific marker sets, preventing a map
+that carries both modes from mixing their insertion points.
 
 The complete Python suite passes `110/110`; the scene-variant selector passes
 `16/16`; the native game-mode, native-policy, and runtime-barrier test projects
@@ -155,7 +160,7 @@ promotion, or `SUPPORTED` claim exists. The last public runtime-release record
 remains `0.3.28` with bundled API `0.2.0-alpha.5`.
 
 The following section records the historical `0.3.29` source checkpoint; the
-active candidate is `0.3.32` as identified at the top of this document. The
+active candidate is `0.3.33` as identified at the top of this document. The
 last hash-pinned public runtime-release record in that historical section is
 `0.3.28`.
 Manifest-driven scene variants are

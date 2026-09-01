@@ -1,15 +1,19 @@
 # Current evidence status
 
-## Active candidate: 0.3.32 steady-state performance and native weapon-effects build
+## Active candidate: 0.3.33 mode-isolated spawn and all-map multiplayer build
 
-Modded Operations `0.3.32` and bundled-only Operator Mod API
+Modded Operations `0.3.33` and bundled-only Operator Mod API
 `0.2.0-alpha.7` build isolated BepInEx and MelonLoader products from shared
 source. Install exactly one loader. Protocol v6 binds the selected suite
 receipt and sidecar, game build, loader-neutral framework/API/companion
 identity, complete package content, operation, variant, scene generation, and
 host-confirmed PVE enemy count before gameplay commit.
 
-The placement path is generation-scoped and one-shot. It never writes a
+PVE first resolves explicit `PVE_PlayerSpawn_*` markers and uses shared Team 1
+markers only as a legacy fallback when no explicit PVE markers exist. PVP
+resolves only its team-specific sets and requires six accepted markers per
+team for a 12-player operation. The placement path is generation-scoped and
+one-shot. It never writes a
 remote non-owned player transform. Each owner receives one placement request,
 holds a bounded stability window, and acknowledges its exact assignment. The
 host freezes connection objects, player netIds, assignment digest, and PVE AI
@@ -22,8 +26,8 @@ damage, health, or weapon commands.
 Current frozen runtime identities:
 
 ```text
-OperatorModdedOperations.dll              644096  57CE5F1657CABDC5B1785013CF95D22913027EAEE0D8A08000CC31AD1DFB7D91
-OperatorModdedOperations.MelonLoader.dll  645632  FA679A7AC2F9BE3543022B88BDBF7AF8756F8D7C544A656E61F15F3E3EC73CF3
+OperatorModdedOperations.dll              644608  601D587C889A6AF17142986B1B63427033872384120EE086E4892F0031928DAB
+OperatorModdedOperations.MelonLoader.dll  646144  FBB82582F22FB64387704CC685D4084765B2733F7C2C6B3616E19282433D7937
 OperatorModAPI.dll                        204800  5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
 OperatorModAPI.BepInEx.dll                 15872  6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
 OperatorModAPI.MelonLoader.dll             26112  79A8491D2497C2A72859C6B05DD6BA8E475327FA54DB47C0C5F3881F59E6CF6A

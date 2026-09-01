@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.33 mode-isolated spawn and all-map multiplayer candidate — 2026-08-31
+
+- Prefer explicit `PVE_PlayerSpawn_*` markers for standalone PVE. Shared Team 1
+  markers are now a legacy fallback only when a scene has no explicit PVE
+  markers, so PVE cannot mix its insertion set with authored PVP Team 1 spawns.
+- Apply the same mode-isolated discovery on every peer before the owner-local,
+  one-shot placement barrier. PVP remains strict at six accepted markers per
+  team for a 12-player operation and never consumes PVE markers.
+- Preserve OPERATOR and Mirror as the sole runtime authority for player and AI
+  transforms, native bullets, hits, damage, animation, death, scoring, and
+  respawn. No map companion supplies a competing replication or combat path.
+- Pin LOT 12, Ukrainian Forest, Whiteout Pass, and Hypermarket to protocol-v6
+  loader/runtime/package/scene-generation agreement and package-owned PVE
+  enemy ranges up to 60. Tier 1 and all other vanilla operation data remain
+  unchanged.
+- Pass `110/110` Python integration contracts, the repository audit, all four
+  .NET contract projects, both zero-warning loader builds, dual-loader binary
+  contracts, package-closure audits, and transactional installer tests.
+  Separate-PC PVE and PVP acceptance remains required before multiplayer is
+  labeled supported.
+- Freeze BepInEx at 644,608 bytes / SHA-256
+  `601D587C889A6AF17142986B1B63427033872384120EE086E4892F0031928DAB`
+  and MelonLoader at 646,144 bytes / SHA-256
+  `FBB82582F22FB64387704CC685D4084765B2733F7C2C6B3616E19282433D7937`.
+
 ## 0.3.32 steady-state performance and native weapon-effects candidate — 2026-08-30
 
 - Move stable peer transport and agreement maintenance to a 15-frame cadence.

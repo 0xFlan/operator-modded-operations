@@ -1029,6 +1029,8 @@ public sealed partial class CerberusNativeTabFix
     {
         var teamOne = new List<Transform>();
         var teamTwo = new List<Transform>();
+        var explicitPve = new List<Transform>();
+        var legacyPveFallback = new List<Transform>();
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (GameObject root in scene.GetRootGameObjects())
         {
@@ -1037,6 +1039,22 @@ public sealed partial class CerberusNativeTabFix
             foreach (Transform item in root.GetComponentsInChildren<Transform>(true))
             {
                 string name = item?.name ?? string.Empty;
+                if (mode == ModdedOperationMode.PlayerVersusEnvironment)
+                {
+                    bool explicitMarker = name.StartsWith(
+                        "PVE_PlayerSpawn_", StringComparison.Ordinal);
+                    bool fallbackMarker = name.StartsWith(
+                                              "Team1_Spawn_", StringComparison.Ordinal) ||
+                                          name.StartsWith(
+                                              "Team1_Backup_Spawn_", StringComparison.Ordinal);
+                    if (!explicitMarker && !fallbackMarker)
+                        continue;
+                    if (!names.Add(name))
+                        throw new InvalidDataException(
+                            "duplicate exact player marker name '" + name + "'");
+                    (explicitMarker ? explicitPve : legacyPveFallback).Add(item);
+                    continue;
+                }
                 string category = GetExactPeerPlayerMarkerCategory(mode, name);
                 if (category == null)
                     continue;
@@ -1055,6 +1073,14 @@ public sealed partial class CerberusNativeTabFix
                     teamOne.Add(item);
                 }
             }
+        }
+        if (mode == ModdedOperationMode.PlayerVersusEnvironment)
+        {
+            List<Transform> selected = explicitPve.Count > 0
+                ? explicitPve
+                : legacyPveFallback;
+            selected.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
+            return selected;
         }
         teamOne.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
         teamTwo.Sort((left, right) => string.CompareOrdinal(left.name, right.name));

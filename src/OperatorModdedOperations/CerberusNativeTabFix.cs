@@ -39,7 +39,7 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.32")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.33")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed partial class CerberusNativeTabFix : BasePlugin
@@ -9889,6 +9889,8 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
     {
         var team1 = new List<Transform>();
         var team2 = new List<Transform>();
+        var explicitPve = new List<Transform>();
+        var legacyPveFallback = new List<Transform>();
         foreach (var root in scene.GetRootGameObjects())
         {
             foreach (var item in root.GetComponentsInChildren<Transform>(true))
@@ -9897,11 +9899,12 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                 bool sharedTeam1 =
                     name.StartsWith("Team1_Spawn_", StringComparison.OrdinalIgnoreCase) ||
                     name.StartsWith("Team1_Backup_Spawn_", StringComparison.OrdinalIgnoreCase);
-                if (mode == ModdedOperationMode.PlayerVersusEnvironment &&
-                    (sharedTeam1 ||
-                     name.StartsWith("PVE_PlayerSpawn_", StringComparison.OrdinalIgnoreCase)))
+                if (mode == ModdedOperationMode.PlayerVersusEnvironment)
                 {
-                    team1.Add(item);
+                    if (name.StartsWith("PVE_PlayerSpawn_", StringComparison.OrdinalIgnoreCase))
+                        explicitPve.Add(item);
+                    else if (sharedTeam1)
+                        legacyPveFallback.Add(item);
                 }
                 else if (mode == ModdedOperationMode.PlayerVersusPlayer &&
                     (sharedTeam1 ||
@@ -9917,6 +9920,17 @@ public sealed partial class CerberusNativeTabFix : BasePlugin
                     team2.Add(item);
                 }
             }
+        }
+        if (mode == ModdedOperationMode.PlayerVersusEnvironment)
+        {
+            // Exact PVE markers are authoritative whenever a map authors them.
+            // Team1 markers remain a compatibility fallback only for legacy
+            // packages that predate explicit PVE/PVP marker isolation.
+            List<Transform> selected = explicitPve.Count > 0
+                ? explicitPve
+                : legacyPveFallback;
+            selected.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
+            return selected;
         }
         team1.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
         team2.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
