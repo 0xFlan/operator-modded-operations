@@ -28,7 +28,7 @@ using MelonLoader;
 
 public sealed partial class CerberusNativeTabFix
 {
-    private const string PvpAgreementFrameworkVersion = "0.3.33";
+    private const string PvpAgreementFrameworkVersion = "0.3.35";
     private const string PvpAgreementCapabilities =
         "exact-content-v2;suite-install-receipt-v1;loader-neutral-runtime-pair-v1;" +
         "package-runtime-ready-v1;remote-preload-v1;client-hello-v1;" +

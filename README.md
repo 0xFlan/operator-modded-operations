@@ -20,10 +20,13 @@ optional map companion owns exact-scene reconstruction.
 
 ## Current implementation checkpoint
 
-The active source checkpoint is Modded Operations `0.3.33` with bundled
-Operator Mod API `0.2.0-alpha.7`. The same framework source builds an isolated
-BepInEx DLL and an isolated MelonLoader DLL; install exactly one loader variant.
-Map packages remain shared data under `OPERATOR/OperatorMods`.
+The active source checkpoint is Modded Operations `0.3.35` with bundled
+Operator Mod API `0.2.0-alpha.8`. The same framework source builds isolated
+BepInEx and MelonLoader products. Both managed products may remain installed,
+but exactly one native loader bootstrap may be active for an OPERATOR process.
+Use `packaging/select_operator_mod_loader.ps1` while OPERATOR is closed to
+select BepInEx or MelonLoader. Map packages remain shared data under
+`OPERATOR/OperatorMods`.
 
 Modded PVE now exposes OPERATOR's shipped briefing enemy slider. The package's
 inclusive `minEnemies`/`maxEnemies` range is available up to an absolute limit
@@ -66,19 +69,19 @@ separators and no trailing newline. Generate it with
 `tools/operator_runtime_content_id.py`; runtime resolution recomputes it and
 fails closed on any mismatch.
 
-The frozen `0.3.33` all-map multiplayer test-candidate identities are:
+The frozen `0.3.35` local-runtime test-candidate identities are:
 
 ```text
 OperatorModdedOperations.dll                     bytes=644608
-sha256=601D587C889A6AF17142986B1B63427033872384120EE086E4892F0031928DAB
+sha256=CE6D28F478F2563709D7933DFC8A4F8DABD215E0B678555FE39D1A0E1B616F55
 OperatorModdedOperations.MelonLoader.dll         bytes=646144
-sha256=FBB82582F22FB64387704CC685D4084765B2733F7C2C6B3616E19282433D7937
-OperatorModAPI.dll                               bytes=204800
-sha256=5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
+sha256=297BF4FB086F5FC7296563060C05D95C153D316579A6F57EE64905896DD30F60
+OperatorModAPI.dll                               bytes=209920
+sha256=30EA90556EED4D911107F4985F4866ECDB76AE9F11A2C9DCB3B1B5509F1FD0B
 OperatorModAPI.BepInEx.dll                       bytes=15872
-sha256=6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
-OperatorModAPI.MelonLoader.dll                   bytes=26112
-sha256=79A8491D2497C2A72859C6B05DD6BA8E475327FA54DB47C0C5F3881F59E6CF6A
+sha256=E1B93289FB5C4846FA0DE8182ABB7C91E0AB1F2A3B75586CDE9BAD69C6962B98
+OperatorModAPI.MelonLoader.dll                   bytes=26624
+sha256=1794332260BE62B45B4AB87538E601AD420A09D40CFB28CBAA1D76A865286828
 ```
 
 PVE marker resolution first uses explicit `PVE_PlayerSpawn_*` markers. Shared
@@ -160,7 +163,7 @@ promotion, or `SUPPORTED` claim exists. The last public runtime-release record
 remains `0.3.28` with bundled API `0.2.0-alpha.5`.
 
 The following section records the historical `0.3.29` source checkpoint; the
-active candidate is `0.3.33` as identified at the top of this document. The
+active candidate is `0.3.35` as identified at the top of this document. The
 last hash-pinned public runtime-release record in that historical section is
 `0.3.28`.
 Manifest-driven scene variants are
@@ -259,7 +262,7 @@ build list, not an end-user download list:
 - OPERATOR with Unity `6000.3.8f1` for the pinned source state;
 - either the supported BepInEx IL2CPP or MelonLoader toolchain;
 - generated interop assemblies under `<OPERATOR_INSTALL>/BepInEx/interop`;
-- Operator Mod API `0.2.0-alpha.7` source or exact prebuilt binaries.
+- Operator Mod API `0.2.0-alpha.8` source or exact prebuilt binaries.
 
 A promoted Modded Operations archive supplies its pinned preview API runtime
 to end users. The separately labeled `0.3.29` multiplayer test transfer does
@@ -287,9 +290,10 @@ and `src/OperatorModdedOperations/bin/Release/MelonLoader/OperatorModdedOperatio
 
 ## Install
 
-Install one matching suite for one loader. Never place both host variants in
-the same game tree. Core and the framework use these separately owned runtime
-layouts:
+Install the matching managed suite for each loader you intend to use. Both
+managed trees may coexist, but use the selector while OPERATOR is closed so
+exactly one native bootstrap is active. Core and the framework use these
+separately owned runtime layouts:
 
 ```text
 <OPERATOR_INSTALL>/
@@ -313,9 +317,16 @@ layouts:
       media/...
 ```
 
-The `BepInEx` and `Mods` portions above are alternatives, not a combined
-installation. Do not put a map companion in `OperatorMods`; put its selected
-binary under `BepInEx/plugins` or `Mods`. Install each map as its own download.
+The `BepInEx` and `Mods` portions above may coexist. They are never active in
+the same OPERATOR process. Run one of these commands before launch:
+
+```powershell
+.\packaging\select_operator_mod_loader.ps1 -OperatorGameDir '<OPERATOR_INSTALL>' -Loader BepInEx
+.\packaging\select_operator_mod_loader.ps1 -OperatorGameDir '<OPERATOR_INSTALL>' -Loader MelonLoader
+```
+
+Do not put a map companion in `OperatorMods`; put its matching binary under
+`BepInEx/plugins` and/or `Mods`. Install each map as its own download.
 The transactional runtime-suite installer owns only receipt-listed executable
 payloads and its sidecar/receipt. It does not install, update, remove, or
 rewrite `OperatorMods` packages.

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.35 selected-loader coexistence and local runtime candidate — 2026-09-01
+
+- Allow the BepInEx and MelonLoader managed suites to remain installed together
+  while requiring exactly one approved native bootstrap to be active.
+- Add a source-published, transactional loader selector with exact bootstrap
+  hashes, a persistent selection receipt, interrupted-switch recovery,
+  idempotent switching, and refusal of unknown or modified proxy DLLs.
+- Make a deliberately dual-active native-loader state fail closed before
+  Modded Operations, map registration, Harmony hooks, scene mutation, or
+  multiplayer registration can proceed.
+- Make Melon product deinitialization distinguish an accepted application exit
+  from an in-process mod unload. Process exit no longer issues unsafe scene or
+  navigation teardown requests after Unity has begun quitting; strict cleanup
+  remains mandatory when the application stays alive.
+- Bundle Operator Mod API `0.2.0-alpha.8` and keep protocol-v6 agreement bound
+  to loader-neutral runtime-pair identities rather than requiring the BepInEx
+  and MelonLoader DLL bytes to match each other.
+- Pass local BepInEx-only, MelonLoader-only, both-managed/BepInEx-selected, and
+  both-managed/MelonLoader-selected launch and gameplay gates. LOT 12 passes
+  PVE at 10 and 60 enemies and PVP-selection gates under both loaders; Forest,
+  Whiteout Pass, and Hypermarket pass local PVE and PVP-selection coverage.
+- Correct Hypermarket's authored-material closure rule so valid solid-color
+  materials do not fail merely because they intentionally omit texture maps.
+- Keep true remote multiplayer acceptance open. Local and host-only runs do
+  not prove cross-PC movement, AI, projectile, hit, damage, or round sync.
+- Freeze BepInEx at 644,608 bytes / SHA-256
+  `CE6D28F478F2563709D7933DFC8A4F8DABD215E0B678555FE39D1A0E1B616F55`
+  and MelonLoader at 646,144 bytes / SHA-256
+  `297BF4FB086F5FC7296563060C05D95C153D316579A6F57EE64905896DD30F60`.
+
 ## 0.3.33 mode-isolated spawn and all-map multiplayer candidate — 2026-08-31
 
 - Prefer explicit `PVE_PlayerSpawn_*` markers for standalone PVE. Shared Team 1

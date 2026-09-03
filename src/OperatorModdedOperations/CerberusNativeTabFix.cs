@@ -39,12 +39,12 @@ using UnityEngine.UI;
 
 using Object = UnityEngine.Object;
 
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.33")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.35")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 public sealed partial class CerberusNativeTabFix : BasePlugin
 {
-    internal const string RequiredApiVersion = "0.2.0-alpha.7";
+    internal const string RequiredApiVersion = "0.2.0-alpha.8";
     // These IDs identify the two runtime templates that every peer builds from
     // the same accepted package operation. They are collision-checked against
     // Mirror's current client registry before use.

@@ -8,16 +8,16 @@ Obtain these files from an authorized local OPERATOR installation:
 - `<OPERATOR_INSTALL>/BepInEx/interop/*.dll`;
 - BepInEx IL2CPP semantic identity `6.0.0-be.785` with Il2CppInterop `1.5.3`;
 - MelonLoader `0.7.3` net6 files when building the Melon variant;
-- Operator Mod API `0.2.0-alpha.7` source or exact bundled-preview binaries.
+- Operator Mod API `0.2.0-alpha.8` source or exact bundled-preview binaries.
 
 The pinned source uses Unity `6000.3.8f1`. A different player build requires a
 new interop and source audit. Operator Mod API is a separate maintainer input
 only when building from source. A matching framework archive bundles its exact
 preview runtime; testers and end users do not download preview API separately.
-The active source checkpoint is the `0.3.33` mode-isolated spawn and all-map
-multiplayer build / alpha.7. Bounded BepInEx single-machine gates pass.
-MelonLoader live gameplay and separate host/remote runtime acceptance remain
-required before promotion.
+The active source checkpoint is `0.3.35` / alpha.8. Bounded local gameplay
+gates pass under BepInEx-only, MelonLoader-only, and both-managed installation
+states with either loader selected. Separate host/remote runtime acceptance
+remains required before online support is promoted.
 
 ## Build command
 
@@ -49,9 +49,9 @@ The build must have zero warnings and zero errors.
 
 ## Install layout
 
-Close OPERATOR before installation. Install exactly one matching loader suite;
-the BepInEx and MelonLoader entries below are alternatives. The transaction
-must refuse a mixed tree:
+Close OPERATOR before installation or loader selection. The BepInEx and
+MelonLoader managed entries below may coexist. Exactly one native bootstrap
+must be active:
 
 ```text
 <OPERATOR_INSTALL>/
@@ -78,6 +78,18 @@ the framework directory. Install a map as its own shared data download.
 The runtime-suite transaction publishes an exact manifest sidecar and writes
 its selected-loader ownership receipt last. It owns only receipt-listed runtime
 files; it does not install, update, remove, or rewrite `OperatorMods` packages.
+
+When both managed suites are installed, select the active loader before launch:
+
+```powershell
+.\packaging\select_operator_mod_loader.ps1 -OperatorGameDir '<OPERATOR_INSTALL>' -Loader BepInEx
+.\packaging\select_operator_mod_loader.ps1 -OperatorGameDir '<OPERATOR_INSTALL>' -Loader MelonLoader
+```
+
+The selector accepts only the exact approved native bootstrap hashes and parks
+the inactive bootstrap transactionally. If both native proxies are activated
+manually, Operator Mod API fails closed before Modded Operations or a map
+companion can register runtime behavior.
 
 ## Static checks
 
@@ -152,16 +164,9 @@ matching branch. Do not publish a separate
 preview-API archive. A map is a separate download and must not duplicate the
 framework or API.
 
-For the frozen candidate, the controlled-test transfer is:
-
-```text
-OperatorModdedOperations_v0.3.33_DUAL_LOADER_TEST.zip
-bytes=645747
-sha256=E8BC0F03779B935ECDA609519806D7C67CA389140DCB79D15165C3E037CFB265
-```
-
-Keep explicit test-only and `NOT NEXUS` labeling in the filename/readme
-until the host-plus-remote matrix passes. Do not regenerate the public
+Keep explicit test-only and `NOT NEXUS` labeling on any `0.3.35` transfer
+until the host-plus-remote matrix passes. Record its final byte length and
+SHA-256 only after the archive has been built and reopened. Do not regenerate the public
 decompiler or publication source-state record merely for this transfer; prior
 publication checkpoints remain historical until an explicit promotion. Do not
 overwrite installed files while OPERATOR runs.

@@ -111,6 +111,9 @@ def required_paths() -> tuple[str, ...]:
             "eng/generate_publication_source_state.py",
             "eng/verify_profiled_pve_runtime.py",
             "eng/test_verify_profiled_pve_runtime.py",
+            "eng/test_select_operator_mod_loader.ps1",
+            "packaging/operator_loader_selector_manifest.json",
+            "packaging/select_operator_mod_loader.ps1",
             "packaging/README-PACKAGE-PLACEHOLDER.md",
             "publication/README.md",
             "publication/source-state-manifest.json",
@@ -180,8 +183,8 @@ def main() -> int:
             encoding="utf-8", errors="replace"
         )
         required_authored = (
-            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.33")]',
-            'internal const string RequiredApiVersion = "0.2.0-alpha.7";',
+            '[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.35")]',
+            'internal const string RequiredApiVersion = "0.2.0-alpha.8";',
             "operation.Operation.PveAiProfile",
             "details.WanderDistance = profile?.WanderDistanceMeters ?? 18;",
             "CaptureServerSpawnedNetIds",
@@ -360,8 +363,10 @@ def main() -> int:
             "[SHIPPED FAILURE, SUCCESS, AND RESTART UI]",
             "[SHIPPED EXFILZONE TEXTURE]",
             "[SHIPPED HDRP/UNLIT SHADER]",
-            "0C27854DFDD3C9F0946F5BCBC61CE37DAE3037215BB5FC11C3400BD50190EB77",
-            "A58E1FA50CE345931104B9980AFBAF356B8EEAC0E7A735BEF7BD21FC93727AD9",
+            "30EA90556EED4D911107F4985F4866ECDB76AE9F11A2C9DCB3B1B5509F1FD0B",
+            "E1B93289FB5C4846FA0DE8182ABB7C91E0AB1F2A3B75586CDE9BAD69C6962B98",
+            "select_operator_mod_loader.ps1",
+            "operator_loader_selector_manifest.json",
         )
         for fragment in required_framework_placeholders:
             if fragment not in package_placeholder:

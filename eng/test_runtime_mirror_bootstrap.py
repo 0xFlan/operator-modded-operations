@@ -144,7 +144,7 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
     def test_plugin_version_changes_with_spawn_contract(self) -> None:
         self.assertIn(
             '[BepInPlugin("operator.modded-operations", '
-            '"OPERATOR: Modded Operations", "0.3.33")]',
+            '"OPERATOR: Modded Operations", "0.3.35")]',
             self.framework,
         )
 
@@ -179,7 +179,7 @@ class RuntimeMirrorBootstrapTests(unittest.TestCase):
 
     def test_framework_requires_api_with_optional_delay_contract(self) -> None:
         self.assertIn(
-            'internal const string RequiredApiVersion = "0.2.0-alpha.7";',
+            'internal const string RequiredApiVersion = "0.2.0-alpha.8";',
             self.framework,
         )
 

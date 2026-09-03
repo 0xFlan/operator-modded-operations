@@ -7,22 +7,23 @@ this repository. It is written for a human maintainer and for an automated
 coding agent. Use the exact names in this document. Do not infer a game
 contract from a similar name.
 
-The current authored source checkpoint is the `0.3.33` mode-isolated spawn and
-all-map multiplayer build. The plugin identity is
+The current authored source checkpoint is the `0.3.35` selected-loader
+coexistence and local-runtime build. The plugin identity is
 `operator.modded-operations`, the selected assembly is
 `OperatorModdedOperations.dll` or
 `OperatorModdedOperations.MelonLoader.dll`, and the required bundled-only Core
-version is `0.2.0-alpha.7`. Shared source builds isolated BepInEx and
-MelonLoader products; install exactly one loader variant. Protocol v6 covers
+version is `0.2.0-alpha.8`. Shared source builds isolated BepInEx and
+MelonLoader products. Both managed products may remain installed, but exactly
+one native loader bootstrap may be active. Protocol v6 covers
 PVP and online PVE with exact selected-suite receipt/sidecar verification,
 loader-neutral runtime-pair identity, and a host-authoritative PVE enemy-count
 identity. The exact selected-suite binaries are BepInEx 644,608 bytes /
-`601D587C889A6AF17142986B1B63427033872384120EE086E4892F0031928DAB`
+`CE6D28F478F2563709D7933DFC8A4F8DABD215E0B678555FE39D1A0E1B616F55`
 and MelonLoader 646,144 bytes /
-`FBB82582F22FB64387704CC685D4084765B2733F7C2C6B3616E19282433D7937`.
-The current BepInEx artifact has bounded single-machine runtime evidence;
-MelonLoader and real peer networking remain `PROVEN-STATIC` until their live
-gates pass.
+`297BF4FB086F5FC7296563060C05D95C153D316579A6F57EE64905896DD30F60`.
+Both current loader artifacts have bounded single-machine runtime evidence;
+real peer networking remains `PROVEN-STATIC` until the separate-PC live gates
+pass.
 
 The historical frozen `0.3.29` candidate binaries are
 `OperatorModdedOperations.dll` at 279,552 bytes / SHA-256
@@ -32,7 +33,7 @@ The historical frozen `0.3.29` candidate binaries are
 `OperatorModAPI.BepInEx.dll` at 25,600 bytes / SHA-256
 `A58E1FA50CE345931104B9980AFBAF356B8EEAC0E7A735BEF7BD21FC93727AD9`.
 These historical identities are `PROVEN-STATIC`, not host-plus-remote runtime
-evidence and not the current `0.3.33` candidate identity. The latest historical
+evidence and not the current `0.3.35` candidate identity. The latest historical
 hash-pinned public publication
 remains the exact reviewed
 `0.3.28` Release build at 223,232
@@ -96,7 +97,7 @@ separators and no trailing newline. Generate it with
 The plugin attribute is the first closed gate:
 
 ```csharp
-[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.33")]
+[BepInPlugin("operator.modded-operations", "OPERATOR: Modded Operations", "0.3.35")]
 [BepInProcess("OPERATOR.exe")]
 [BepInDependency("operator.modapi", CerberusNativeTabFix.RequiredApiVersion)]
 ```
@@ -410,7 +411,7 @@ that shipped PVP methods read. It calls the shipped `OnStartClient` and
 `Server_AllPlayersLoaded` bodies. It keeps shipped round, freeze, score,
 death, respawn, and operation-end logic.
 
-The `0.3.33` source owns a multi-stage protocol-v6 peer agreement for PVP and
+The `0.3.35` source owns a multi-stage protocol-v6 peer agreement for PVP and
 online PVE. Before the native board starts, the host freezes the exact
 authenticated remote connection objects and IDs. Every peer validates its
 selected-loader suite receipt, exact receipt-owned manifest sidecar and file
@@ -613,7 +614,7 @@ reciprocal firearm damage or a remote PVP peer.
 
 ## 15. Release layout
 
-The current Git source checkpoint is the `0.3.33` mode-isolated spawn and
+The current Git source checkpoint is the `0.3.35` mode-isolated spawn and
 one-shot placement build. Its selected-suite binaries and receipt are frozen
 to the identities in section 1. The separately labeled transfer archive is
 test-only and does not establish online support. The historical `0.3.29`
@@ -1019,3 +1020,87 @@ teardown summary with a completed/exception outcome and remaining-ownership
 counts. Static tests and loader-specific compilation prove the instrumentation
 contract. Only captured game logs can promote any individual event to runtime
 evidence.
+
+## 26. Dual-loader containment work log
+
+- 2026-09-01 compile gate: the first loader-bootstrap preflight build failed
+  because `ArgumentException.ThrowIfNullOrWhiteSpace` is unavailable on the
+  Core's .NET 6 target and the analyzer required the concrete `List<string>`
+  result for module capture. The rejected hypothesis was that the repository's
+  newer default toolchain API surface also applied to the net6 Core. The
+  preflight now performs an explicit whitespace check and returns the concrete
+  list. No runtime deployment occurred before this correction.
+
+## 27. 2026-09-01 companion rebuild invocation correction
+
+The first dependency-alignment rebuild invoked the BepInEx companion projects
+without the required `OperatorGameDir` MSBuild property. Their reference hint
+paths therefore resolved from an empty root, producing unresolved BepInEx,
+interop, Unity, Mirror, and Pathfinding references. This was an invocation
+failure, not a source or loader-compatibility result. The corrected build pins
+the exact installed OPERATOR root for every BepInEx companion build; only that
+corrected result may be used as evidence.
+
+The first corrected LOT 12 build then stopped at its intended native-material
+provenance guard because the public source tree deliberately omits proprietary
+material-profile JSON. The private authorized source profiles remain under the
+private Kill House workspace. The corrected release build supplies that exact
+private `KillHouseSourceRoot`; it does not weaken or bypass the provenance
+gate.
+
+## 28. 2026-09-01 selected-loader coexistence and runtime QA record
+
+The supported coexistence state keeps both managed loader products installed
+but activates exactly one native bootstrap. The source-published selector owns
+only exact hash-approved `winhttp.dll` and `version.dll` bootstraps. It records
+original path, length, SHA-256, and selection state, moves the inactive proxy
+into a selector-owned store, commits a journal last, recovers interrupted
+transactions, rejects reparse escapes and unknown bytes, and refuses to run
+while OPERATOR is open. Repeating a selection is idempotent. If both native
+proxies are restored manually, the alpha.8 Core hosts detect the conflict and
+refuse before Core ownership, framework evidence, map mutation, Harmony hooks,
+or Mirror registration.
+
+The current local matrix passed BepInEx-only, MelonLoader-only,
+both-managed/BepInEx-selected, and both-managed/MelonLoader-selected LOT 12
+PVE. LOT 12 also passed a 60-enemy PVE gate under each loader and a PVP
+selection/scene-readiness gate under each loader. Ukrainian Forest, Whiteout
+Pass, and Hypermarket passed local PVE and PVP-selection gates under both
+loaders. A deliberately dual-active live process produced both conflict
+diagnostics and no framework runtime evidence. These are single-machine and
+host-side observations. They do not promote remote movement, AI, bullets,
+hits, damage, score, or round synchronization; those require distinct host and
+remote PCs for every supported loader pairing and mode.
+
+Corrections made during this matrix:
+
+- The first actual PVP host invocation omitted the required peer-role
+  argument. The corrected host-only run reached the online boundary, but it
+  cannot satisfy a remote-peer assertion and is not multiplayer proof.
+- The first dual-active harness treated absent PowerShell log content as a
+  non-string value. The harness now normalizes optional log reads to strings;
+  the corrected live conflict run passed and restored one selected loader.
+- A Whiteout PVE invocation requested 10 enemies although that package's
+  declared minimum is 12. The corrected value 12 passed.
+- Concurrent BepInEx and MelonLoader builds of the same framework project
+  collided in NuGet restore state. Sequential clean builds passed with zero
+  warnings and errors; the restore collision is not a source failure.
+- Hypermarket converted every material to the intended shader but then
+  incorrectly required base, normal, and mask textures on authored solid-color
+  materials. The closure gate now requires textures only for the material
+  classes that author them and still requires fluorescent emissive closure.
+  Corrected BepInEx and MelonLoader runtime gates passed.
+- The first current Melon 60-enemy run passed all gameplay assertions but its
+  log exposed strict in-game unload attempts after Unity had accepted process
+  exit. The shared Melon compatibility lifecycle now marks application quit
+  separately: an accepted process exit skips in-game scene/navigation unload,
+  while a true in-process deinitialization still requires strict cleanup. The
+  corrected 60-enemy run passed all gameplay/cleanup assertions and contained
+  no product error or incomplete-cleanup lines. Runtime QA revision 5 now makes
+  those known product-error signatures a required negative assertion.
+- One rapid-repeat BepInEx Whiteout PVP-selection run became unresponsive
+  during the shipped Lone Wolf transition before the Modded Operations tab or
+  map runtime activated. The process was stopped by exact PID. An isolated
+  rerun passed. Record this as a non-reproducing vanilla-transition flake, not
+  evidence that a map runtime failed and not proof that the transition can
+  never recur.

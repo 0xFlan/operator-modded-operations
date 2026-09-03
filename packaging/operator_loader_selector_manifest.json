@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "kind": "operator-loader-selector-policy",
+  "loaders": {
+    "BepInEx": {
+      "canonicalFileName": "winhttp.dll",
+      "knownBootstraps": [
+        {
+          "length": 26112,
+          "sha256": "8c6cdbc38836dee87e3368f5de1994d7c0ccebf29e4ce7aba3c0981f9375412c"
+        }
+      ]
+    },
+    "MelonLoader": {
+      "canonicalFileName": "version.dll",
+      "knownBootstraps": [
+        {
+          "length": 11057664,
+          "sha256": "0ce7a4e530c7f83f172a2c44aed45eedb3bdcf06b83760f143a0fba6885fa929"
+        }
+      ]
+    }
+  }
+}

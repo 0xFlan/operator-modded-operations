@@ -1,10 +1,11 @@
 # Current evidence status
 
-## Active candidate: 0.3.33 mode-isolated spawn and all-map multiplayer build
+## Active candidate: 0.3.35 selected-loader coexistence and local runtime build
 
-Modded Operations `0.3.33` and bundled-only Operator Mod API
-`0.2.0-alpha.7` build isolated BepInEx and MelonLoader products from shared
-source. Install exactly one loader. Protocol v6 binds the selected suite
+Modded Operations `0.3.35` and bundled-only Operator Mod API
+`0.2.0-alpha.8` build isolated BepInEx and MelonLoader products from shared
+source. Both managed products may remain installed, but exactly one native
+loader bootstrap may be active. Protocol v6 binds the selected suite
 receipt and sidecar, game build, loader-neutral framework/API/companion
 identity, complete package content, operation, variant, scene generation, and
 host-confirmed PVE enemy count before gameplay commit.
@@ -26,11 +27,11 @@ damage, health, or weapon commands.
 Current frozen runtime identities:
 
 ```text
-OperatorModdedOperations.dll              644608  601D587C889A6AF17142986B1B63427033872384120EE086E4892F0031928DAB
-OperatorModdedOperations.MelonLoader.dll  646144  FBB82582F22FB64387704CC685D4084765B2733F7C2C6B3616E19282433D7937
-OperatorModAPI.dll                        204800  5B74AC25B4047D9AB8E9929D136C53B7543DA52B621FAF3D4AF42719D276E21E
-OperatorModAPI.BepInEx.dll                 15872  6223553C5406AD3586F23EA2B5F05C6F4626FA62A03E0598667E09A5486E1E3B
-OperatorModAPI.MelonLoader.dll             26112  79A8491D2497C2A72859C6B05DD6BA8E475327FA54DB47C0C5F3881F59E6CF6A
+OperatorModdedOperations.dll              644608  CE6D28F478F2563709D7933DFC8A4F8DABD215E0B678555FE39D1A0E1B616F55
+OperatorModdedOperations.MelonLoader.dll  646144  297BF4FB086F5FC7296563060C05D95C153D316579A6F57EE64905896DD30F60
+OperatorModAPI.dll                        209920  30EA90556EED4D911107F4985F4866ECDB76AE9F11A2C9DCB3B1B5509F1FD0B
+OperatorModAPI.BepInEx.dll                 15872  E1B93289FB5C4846FA0DE8182ABB7C91E0AB1F2A3B75586CDE9BAD69C6962B98
+OperatorModAPI.MelonLoader.dll             26624  1794332260BE62B45B4AB87538E601AD420A09D40CFB28CBAA1D76A865286828
 ```
 
 The full source suite passes `110/110`; scene variants pass `16/16`; native
@@ -41,25 +42,23 @@ differs from the frozen DLL only in the PE reproducibility stamp, MVID, and
 embedded source revision. Release and installed artifacts remain pinned to
 the runtime-tested bytes above.
 
-Current BepInEx single-machine evidence includes sustained LOT 12 PVE,
-restart, PVP selector, Forest control, and a fresh 2026-08-30 LOT 12 PVE run.
-The fresh run passed `18/18`: the private `10..60` selector chose and retained
-10 across Restart, all 72 authored/navigation markers were present, safe
-capacity was 71, exactly 10 grounded server-owned AI were observed in both
-generations, owned AI were removed, the framework scene cleaned to zero
-runtime assets, and the package closure remained unchanged. A separate
-current-byte sustained run sampled 4,579 frames, kept all 10 AI grounded and
-network-ready, and observed eight move at least one metre without repeat
-player placement. Its average was about 38.2 FPS with 28.79 ms p95 frame time
-on the local test machine. The lifecycle result is
-`<AUTHOR_WORKSPACE>/reports/runtime_qa/20260831_062356-BepInEx-pve-1dc7d9e2-94e1-4ab9-990f-dc950c1e6cde/suite-run-result-v1.json` and the sustained result is
-`<AUTHOR_WORKSPACE>/reports/runtime_qa/20260831_062900-BepInEx-pve-sustained-7d2c4196-e16f-4410-ade1-ffcf09dacd0a/suite-run-result-v1.json`.
+Current single-machine evidence covers BepInEx-only, MelonLoader-only,
+both-managed/BepInEx-selected, and both-managed/MelonLoader-selected states.
+LOT 12 passes PVE at 10 and 60 enemies and its PVP selector under both loaders.
+Forest, Whiteout Pass, and Hypermarket pass local PVE and PVP-selector gates
+under both loaders. A deliberate both-native-active run passes only when both
+API hosts report the conflict and no framework runtime evidence is produced.
+The selector's synthetic matrix also covers idempotence, switching in both
+directions, interrupted-state recovery, concurrent invocation refusal,
+tampered/unknown proxy refusal, and loader-scoped uninstall behavior.
+The final alpha.8 build-2 matrix additionally removes the inactive managed
+tree and passes LOT 12 PVE/Restart under BepInEx-only and MelonLoader-only.
+Runtime QA revision 5 requires zero known product-error, failed-runtime-gate,
+or incomplete-cleanup lines. The corrected MelonLoader 60-enemy and PVP
+selection runs satisfy that gate; both package closures remain byte-identical
+after process exit.
 
-This is not an online-support claim. The current MelonLoader products pass
-build and static/archive checks, but fresh live gameplay remains open because
-the test installation still booted through BepInEx's native shim when the
-managed suite was switched. A Melon run requires MelonLoader's native shim to
-be active and BepInEx's native shim to be disabled. Real
+This is not an online-support claim. Real
 PVE and PVP acceptance each requires a host and remote client on separate PCs.
 PVE must prove identical authoritative AI identities, poses, movement, health,
 combat, completion, extraction, Restart, and teardown. PVP must prove teams,
